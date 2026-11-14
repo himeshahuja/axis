@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Air Draw</title>
+  <meta name="description" content="Draw in the air with a motion sensor: accelerometer and gyroscope readings turned back into the path the hand took.">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700..800&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="bar">
+    <div>
+      <h1>Air Draw</h1>
+      <p class="sub">Accelerometer and gyroscope readings, turned back into what the hand drew. The data is simulated for now.</p>
+    </div>
+    <div class="shapes" id="shapes" role="group" aria-label="Shape to draw"></div>
+  </header>
+
+  <main class="layout">
+    <section class="stage" aria-label="Drawing">
+      <canvas id="view" role="img" aria-label="The path recovered from the sensor readings"></canvas>
+      <label class="toggle"><input type="checkbox" id="truth" checked> Show the path really drawn</label>
+    </section>
+
+    <aside class="panel" aria-label="Sensor readings">
+      <dl class="stats">
+        <div><dt>Sensor</dt><dd id="state">Settling</dd></div>
+        <div><dt>Off the true path</dt><dd id="error">–</dd></div>
+      </dl>
+      <div class="chart">
+        <p class="label">Accelerometer, m/s² <span class="keys"><i class="x">x</i><i class="y">y</i><i class="z">z</i></span></p>
+        <canvas id="accel"></canvas>
+      </div>
+      <div class="chart">
+        <p class="label">Gyroscope, rad/s <span class="keys"><i class="x">x</i><i class="y">y</i><i class="z">z</i></span></p>
+        <canvas id="gyro"></canvas>
+      </div>
+    </aside>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
