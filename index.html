@@ -42,15 +42,20 @@
       <div class="band-banner" id="band-banner" hidden>
         <span id="band-dot" class="dot"></span>
         <span id="band-status-text">Vexo-HACK-68 connected</span>
+        <span id="band-battery" class="battery-tag">🔋 –</span>
         <span class="hint">• Tap band or Space to toggle pen • Double-tap to clear</span>
       </div>
-      <label class="toggle" id="truth-toggle"><input type="checkbox" id="truth" checked> Show the path really drawn</label>
+      <div class="stage-toggles">
+        <label class="toggle" id="truth-toggle"><input type="checkbox" id="truth" checked> Show the path really drawn</label>
+        <label class="toggle" id="hand-toggle"><input type="checkbox" id="show-hand" checked> 3D Hand Model</label>
+      </div>
     </section>
 
     <aside class="panel" aria-label="Sensor readings">
       <dl class="stats">
         <div><dt>Sensor</dt><dd id="state">Settling</dd></div>
         <div><dt id="metric-label">Off the true path</dt><dd id="error">–</dd></div>
+        <div><dt>Battery</dt><dd id="battery-stat">–</dd></div>
       </dl>
       <div class="chart">
         <p class="label">Accelerometer, m/s² <span class="keys"><i class="x">x</i><i class="y">y</i><i class="z">z</i></span></p>

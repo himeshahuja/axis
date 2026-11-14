@@ -23,7 +23,10 @@ const btnDisconnect = $('btn-disconnect');
 const bandNumInput = $('band-num');
 const bandBanner = $('band-banner');
 const bandStatusText = $('band-status-text');
+const bandBattery = $('band-battery');
+const batteryStat = $('battery-stat');
 const truthToggle = $('truth-toggle');
+const showHandToggle = $('show-hand');
 const metricLabel = $('metric-label');
 
 let activeBand = null;
@@ -31,6 +34,7 @@ let liveMode = false;
 let isPenDown = true;
 let isCalibrating = false;
 let calibMessage = '';
+let batteryInterval = null;
 const calibrator = new Calibrator({ samples: 60 });
 const liveSamples = [];
 
@@ -162,18 +166,193 @@ function drawView() {
   });
   ctx.setLineDash([]);
 
-  // The sensor itself: a dot where it is, and its three axes showing how it is turned.
+  // Render the hand motion simulation or the classic sensor dot & axes
   if (n) {
-    const p = [tr.x[n - 1], tr.y[n - 1], tr.z[n - 1]], [px, py] = project(...p), arm = cam.span * 0.09;
-    ctx.lineWidth = 3;
-    [[1, 0, 0, COL.x], [0, 1, 0, COL.y], [0, 0, 1, COL.z]].forEach(([ax, ay, az, colour]) => {
-      const d = qrot(tr.q, [ax, ay, az]), [ex, ey] = project(p[0] + d[0] * arm, p[1] + d[1] * arm, p[2] + d[2] * arm);
-      ctx.strokeStyle = colour;
-      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ex, ey); ctx.stroke();
-    });
-    ctx.fillStyle = COL.ink;
-    ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI * 2); ctx.fill();
+    const p = [tr.x[n - 1], tr.y[n - 1], tr.z[n - 1]];
+    const penDown = liveMode ? isPenDown : (tr.pen[n - 1] === 1);
+    let ledColor = isCalibrating ? '#ffaa00' : (penDown ? '#00ff88' : '#ffaa00');
+
+    if (showHandToggle && showHandToggle.checked) {
+      drawHandSimulation(ctx, project, p, tr.q, penDown, ledColor);
+    } else {
+      const [px, py] = project(...p), arm = cam.span * 0.09;
+      ctx.lineWidth = 3;
+      [[1, 0, 0, COL.x], [0, 1, 0, COL.y], [0, 0, 1, COL.z]].forEach(([ax, ay, az, colour]) => {
+        const d = qrot(tr.q, [ax, ay, az]), [ex, ey] = project(p[0] + d[0] * arm, p[1] + d[1] * arm, p[2] + d[2] * arm);
+        ctx.strokeStyle = colour;
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ex, ey); ctx.stroke();
+      });
+      ctx.fillStyle = COL.ink;
+      ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI * 2); ctx.fill();
+    }
   }
+}
+
+// 3D Hand Motion Simulator: converts the 3D trajectory [x, y, z] and attitude quaternion [q]
+// into a live simulated human hand, forearm, Vexo wristband with active RGB LED, and drawing stylus.
+function drawHandSimulation(ctx, project, p, q, penDown, ledColor) {
+  const loc = (dx, dy, dz) => {
+    const r = qrot(q, [dx, dy, dz]);
+    return [p[0] + r[0], p[1] + r[1], p[2] + r[2]];
+  };
+  const pr = (dx, dy, dz) => project(...loc(dx, dy, dz));
+
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  // 1. Forearm segment (extending backward from wrist along +Z)
+  const armPts = [
+    pr(-0.024, -0.016, 0.02),
+    pr(0.024, -0.016, 0.02),
+    pr(0.032, -0.024, 0.22),
+    pr(-0.032, -0.024, 0.22),
+  ];
+  ctx.fillStyle = 'rgba(51, 65, 85, 0.85)';
+  ctx.strokeStyle = 'rgba(100, 116, 139, 0.8)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(armPts[0][0], armPts[0][1]);
+  for (let i = 1; i < armPts.length; i++) ctx.lineTo(armPts[i][0], armPts[i][1]);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 2. Wristband strap circling the wrist
+  const strapPts = [
+    pr(-0.025, 0.007, 0.008),
+    pr(0.025, 0.007, 0.008),
+    pr(0.023, -0.026, 0.008),
+    pr(-0.023, -0.026, 0.008),
+  ];
+  ctx.fillStyle = 'rgba(30, 41, 59, 0.95)';
+  ctx.strokeStyle = 'rgba(15, 23, 42, 0.9)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(strapPts[0][0], strapPts[0][1]);
+  for (let i = 1; i < strapPts.length; i++) ctx.lineTo(strapPts[i][0], strapPts[i][1]);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 3. Vexo Band module housing on top of the wrist
+  const moduleTop = [
+    pr(-0.016, 0.016, -0.014),
+    pr(0.016, 0.016, -0.014),
+    pr(0.016, 0.016, 0.014),
+    pr(-0.016, 0.016, 0.014),
+  ];
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(moduleTop[0][0], moduleTop[0][1]);
+  for (let i = 1; i < moduleTop.length; i++) ctx.lineTo(moduleTop[i][0], moduleTop[i][1]);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 4. Band RGB status LED
+  const [lx, ly] = pr(0, 0.017, 0);
+  const grad = ctx.createRadialGradient(lx, ly, 1, lx, ly, 10);
+  grad.addColorStop(0, ledColor || '#00ff88');
+  grad.addColorStop(0.4, ledColor || '#00ff88');
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(lx, ly, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(lx, ly, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 5. Hand / Palm geometry extending forward (-Z)
+  const palmPts = [
+    pr(-0.022, -0.014, -0.01),
+    pr(0.022, -0.014, -0.01),
+    pr(0.026, -0.012, -0.06),
+    pr(0.010, -0.010, -0.085), // knuckle area
+    pr(-0.020, -0.010, -0.075),
+    pr(-0.028, -0.012, -0.045), // thumb base
+  ];
+  ctx.fillStyle = 'rgba(217, 163, 126, 0.88)'; // hand tone
+  ctx.strokeStyle = 'rgba(180, 120, 85, 0.8)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(palmPts[0][0], palmPts[0][1]);
+  for (let i = 1; i < palmPts.length; i++) ctx.lineTo(palmPts[i][0], palmPts[i][1]);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 6. Fingers & Stylus / Pen
+  const tipZ = -0.11;
+  const tipY = penDown ? -0.038 : -0.012;
+  const penTip = pr(0, tipY, tipZ);
+  const penTop = pr(0.018, 0.038, -0.025);
+  const penGrip = pr(0.006, -0.005, -0.07);
+
+  // Stylus body
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 4.5;
+  ctx.beginPath();
+  ctx.moveTo(penTop[0], penTop[1]);
+  ctx.lineTo(penTip[0], penTip[1]);
+  ctx.stroke();
+
+  // Stylus nib
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(penGrip[0], penGrip[1]);
+  ctx.lineTo(penTip[0], penTip[1]);
+  ctx.stroke();
+
+  // Curled gripping fingers
+  ctx.strokeStyle = 'rgba(200, 140, 105, 0.95)';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  const f1 = pr(0.008, -0.005, -0.068);
+  const f2 = pr(0.012, 0.005, -0.072);
+  ctx.moveTo(f1[0], f1[1]);
+  ctx.lineTo(f2[0], f2[1]);
+  ctx.stroke();
+
+  // Pen tip ink contact / cursor glow
+  if (penDown) {
+    const pGrad = ctx.createRadialGradient(penTip[0], penTip[1], 0, penTip[0], penTip[1], 8);
+    pGrad.addColorStop(0, '#5fe0a0');
+    pGrad.addColorStop(0.5, 'rgba(95, 224, 160, 0.6)');
+    pGrad.addColorStop(1, 'rgba(95, 224, 160, 0)');
+    ctx.fillStyle = pGrad;
+    ctx.beginPath();
+    ctx.arc(penTip[0], penTip[1], 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(penTip[0], penTip[1], 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.beginPath();
+    ctx.arc(penTip[0], penTip[1], 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Orientation coordinate axes at wrist module
+  const armLen = 0.035;
+  [[1, 0, 0, COL.x], [0, 1, 0, COL.y], [0, 0, 1, COL.z]].forEach(([ax, ay, az, colour]) => {
+    const end = pr(ax * armLen, ay * armLen + 0.017, az * armLen);
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(lx, ly);
+    ctx.lineTo(end[0], end[1]);
+    ctx.stroke();
+  });
+
+  ctx.restore();
 }
 
 // The last few seconds of one sensor, three lines on a shared scale.
@@ -293,6 +472,27 @@ function recalibrate() {
   }
 }
 
+function updateBattery(data) {
+  if (!data || data.percent == null) return;
+  const pct = data.percent;
+  const mV = data.millivolts;
+  const state = data.state;
+  const isCharging = data.charging || state === 'charging';
+
+  const icon = isCharging ? '⚡' : pct > 50 ? '🔋' : pct > 20 ? '🪫' : '⚠️';
+  let text = `${pct}%`;
+  if (isCharging) text += ' (charging)';
+  else if (state === 'charged') text += ' (charged)';
+  else if (mV) text += ` (${(mV / 1000).toFixed(2)} V)`;
+
+  if (batteryStat) batteryStat.textContent = `${icon} ${text}`;
+  if (bandBattery) {
+    bandBattery.hidden = false;
+    bandBattery.textContent = `${icon} ${pct}%${isCharging ? ' ⚡' : ''}`;
+    bandBattery.title = `Battery: ${pct}%, state: ${state}, ${mV ? mV + ' mV' : ''}`;
+  }
+}
+
 async function connectBand(transportKind) {
   try {
     if (btnUsb) btnUsb.disabled = true;
@@ -327,13 +527,33 @@ async function connectBand(transportKind) {
     if (truthToggle) truthToggle.style.display = 'none';
     if (metricLabel) metricLabel.textContent = 'Trajectory span';
 
-    // Start motion and tap events
-    await b.configure({ motion: 50, events: true });
+    // Start motion, events, and battery stream (per contract v1.1 stream bit 4)
+    await b.configure({ motion: 50, events: true, battery: true });
+
+    // Explicit BATTERY_GET query to fetch initial battery state immediately
+    try {
+      const batt = await b.getBattery();
+      updateBattery(batt);
+    } catch (e) {
+      console.warn('BATTERY_GET query failed:', e);
+    }
 
     b.on('motion', (m) => handleLiveMotion(m));
     b.on('tap', () => togglePen());
     b.on('double-tap', () => clearDrawing());
+    b.on('battery', (batt) => updateBattery(batt));
     b.on('disconnect', () => onBandDisconnected());
+
+    // Refresh battery periodically every 30 seconds
+    if (batteryInterval) clearInterval(batteryInterval);
+    batteryInterval = setInterval(async () => {
+      if (activeBand) {
+        try {
+          const batt = await activeBand.getBattery();
+          updateBattery(batt);
+        } catch { /* ignore */ }
+      }
+    }, 30000);
 
     // Initialize tracker tuned for human wrist movement
     tracker = new Tracker({
@@ -363,6 +583,12 @@ function onBandDisconnected() {
   liveMode = false;
   isCalibrating = false;
   activeBand = null;
+  if (batteryInterval) {
+    clearInterval(batteryInterval);
+    batteryInterval = null;
+  }
+  if (batteryStat) batteryStat.textContent = '–';
+  if (bandBattery) bandBattery.hidden = true;
   if (btnUsb) { btnUsb.hidden = false; btnUsb.disabled = false; btnUsb.textContent = 'Connect Band (USB)'; }
   if (btnBle) { btnBle.hidden = false; btnBle.disabled = false; btnBle.textContent = 'Connect Band (BLE)'; }
   if (bandNumInput) bandNumInput.hidden = false;
