@@ -4,7 +4,7 @@
 // Can play synthetic preset shapes (Circle, Star, Heart, etc.) or connect
 // directly to a real Vexo Open band over USB-C or Bluetooth!
 
-import { Tracker, qrot } from './fusion.js';
+import { Tracker, Calibrator, qrot } from './fusion.js';
 import { SHAPES, synth } from './fake.js';
 import { Band } from '../vexo-open-kit/js/src/index.js';
 
@@ -20,6 +20,7 @@ const btnPen = $('btn-pen');
 const btnClear = $('btn-clear');
 const btnRecal = $('btn-recal');
 const btnDisconnect = $('btn-disconnect');
+const bandNumInput = $('band-num');
 const bandBanner = $('band-banner');
 const bandStatusText = $('band-status-text');
 const truthToggle = $('truth-toggle');
@@ -28,7 +29,15 @@ const metricLabel = $('metric-label');
 let activeBand = null;
 let liveMode = false;
 let isPenDown = true;
+let isCalibrating = false;
+let calibMessage = '';
+const calibrator = new Calibrator({ samples: 60 });
 const liveSamples = [];
+
+const urlParams = new URLSearchParams(location.search);
+if (urlParams.get('band') && bandNumInput) {
+  bandNumInput.value = urlParams.get('band');
+}
 
 const names = Object.keys(SHAPES);
 let shape = names[0], picked = false, run = 0;
@@ -205,6 +214,18 @@ function offBy() {
 
 // --- Vexo Band Live Integration ---
 
+function startCalibration() {
+  if (!liveMode) return;
+  isCalibrating = true;
+  calibrator.reset();
+  liveSamples.length = 0;
+  calibMessage = 'Calibrating: hold wrist still...';
+  $('state').textContent = calibMessage;
+  if (activeBand) {
+    activeBand.setLed('#ffaa00', { pattern: 'breathe', period: 1000 }).catch(() => {});
+  }
+}
+
 function handleLiveMotion(m) {
   if (!liveMode) return;
   // Convert Vexo units:
@@ -222,6 +243,28 @@ function handleLiveMotion(m) {
   };
   liveSamples.push(s);
   if (liveSamples.length > 500) liveSamples.shift();
+
+  if (isCalibrating) {
+    const res = calibrator.feed(s);
+    calibMessage = res.message;
+    if (res.done) {
+      isCalibrating = false;
+      const adaptiveGyro = Math.max(0.10, 3.5 * res.stdGyro);
+      const adaptiveAccel = Math.max(0.35, 3.5 * res.stdAccel);
+      tracker.setCalibration(res.bias, res.q, {
+        stillGyro: adaptiveGyro,
+        stillAccel: adaptiveAccel,
+        stillFor: 20,
+      });
+      calibMessage = 'Calibrated! Ready to draw.';
+      if (activeBand) {
+        activeBand.setLed(isPenDown ? '#00ff88' : '#ffaa00').catch(() => {});
+        activeBand.identify(1).catch(() => {});
+      }
+    }
+    return;
+  }
+
   tracker.feed(s);
 }
 
@@ -231,7 +274,7 @@ function togglePen(force) {
     btnPen.setAttribute('aria-pressed', String(isPenDown));
     btnPen.textContent = isPenDown ? '🖊️ Pen Down' : '🖐️ Pen Up';
   }
-  if (activeBand) {
+  if (activeBand && !isCalibrating) {
     activeBand.setLed(isPenDown ? '#00ff88' : '#ffaa00').catch(() => {});
   }
 }
@@ -245,8 +288,7 @@ function clearDrawing() {
 
 function recalibrate() {
   if (liveMode) {
-    tracker.reset();
-    liveSamples.length = 0;
+    startCalibration();
     if (activeBand) activeBand.identify(1).catch(() => {});
   }
 }
@@ -258,8 +300,13 @@ async function connectBand(transportKind) {
     if (transportKind === 'serial' && btnUsb) btnUsb.textContent = 'Connecting USB...';
     if (transportKind === 'ble' && btnBle) btnBle.textContent = 'Connecting BLE...';
 
+    const inputNum = bandNumInput?.value?.trim();
     const params = new URLSearchParams(location.search);
-    const bandNum = params.get('band') ? Number(params.get('band')) : (transportKind === 'ble' ? 68 : null);
+    const bandNum = inputNum
+      ? Number(inputNum)
+      : params.get('band')
+        ? Number(params.get('band'))
+        : (transportKind === 'ble' ? 68 : null);
 
     const b = await Band.connect(bandNum, { transport: transportKind });
     activeBand = b;
@@ -269,6 +316,7 @@ async function connectBand(transportKind) {
     // Update UI controls
     if (btnUsb) btnUsb.hidden = true;
     if (btnBle) btnBle.hidden = true;
+    if (bandNumInput) bandNumInput.hidden = true;
     if (btnPen) { btnPen.hidden = false; btnPen.textContent = '🖊️ Pen Down'; btnPen.setAttribute('aria-pressed', 'true'); }
     if (btnClear) btnClear.hidden = false;
     if (btnRecal) btnRecal.hidden = false;
@@ -281,7 +329,6 @@ async function connectBand(transportKind) {
 
     // Start motion and tap events
     await b.configure({ motion: 50, events: true });
-    await b.setLed('#00ff88'); // Green LED indicates active pen
 
     b.on('motion', (m) => handleLiveMotion(m));
     b.on('tap', () => togglePen());
@@ -289,8 +336,13 @@ async function connectBand(transportKind) {
     b.on('disconnect', () => onBandDisconnected());
 
     // Initialize tracker tuned for human wrist movement
-    tracker = new Tracker({ stillGyro: 0.06, stillAccel: 0.25 });
-    liveSamples.length = 0;
+    tracker = new Tracker({
+      stillGyro: 0.12,
+      stillAccel: 0.35,
+      stillFor: 20,
+      settleOver: 15,
+    });
+    startCalibration();
   } catch (err) {
     console.error('Band connection failed:', err);
     alert('Could not connect to band: ' + (err.message || err));
@@ -309,9 +361,11 @@ async function disconnectBand() {
 
 function onBandDisconnected() {
   liveMode = false;
+  isCalibrating = false;
   activeBand = null;
   if (btnUsb) { btnUsb.hidden = false; btnUsb.disabled = false; btnUsb.textContent = 'Connect Band (USB)'; }
   if (btnBle) { btnBle.hidden = false; btnBle.disabled = false; btnBle.textContent = 'Connect Band (BLE)'; }
+  if (bandNumInput) bandNumInput.hidden = false;
   if (btnPen) btnPen.hidden = true;
   if (btnClear) btnClear.hidden = true;
   if (btnRecal) btnRecal.hidden = true;
@@ -354,7 +408,9 @@ function frame(now) {
     drawChart($('accel'), ['ax', 'ay', 'az'], 12);
     drawChart($('gyro'), ['gx', 'gy', 'gz'], 1);
 
-    if (!tracker.ready) {
+    if (isCalibrating) {
+      $('state').textContent = calibMessage;
+    } else if (!tracker.ready) {
       $('state').textContent = 'Calibrating (hold wrist still...)';
     } else {
       const motionState = tracker.still ? 'Still' : 'Moving';

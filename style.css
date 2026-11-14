@@ -346,6 +346,23 @@ body[data-mode='write'] [data-for='sensor'] {
   flex-wrap: wrap;
 }
 
+.band-num-input {
+  width: 66px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--muted);
+  background: var(--raised);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.band-num-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .band-banner {
   position: absolute;
   top: 12px;

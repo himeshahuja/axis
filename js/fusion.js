@@ -78,6 +78,8 @@ export class Tracker {
     this.sum = [0, 0, 0, 0, 0, 0];
     this.count = 0;
     this.lastT = null;
+    this.smoothTurn = null;
+    this.smoothAccErr = null;
     // One entry per sample fed after start-up.
     this.t = []; this.x = []; this.y = []; this.z = []; this.pen = [];
     this.vel = [];              // the velocity that moved the sensor on from each sample
@@ -85,6 +87,15 @@ export class Tracker {
     this.gyro = [];             // gyro reading at each sample
     this.rest = 0;              // first sample of the latest rest
     this.from = 0;              // first sample of the movement now under way
+  }
+
+  setCalibration(bias, q, options = {}) {
+    this.bias = [...bias];
+    this.q = [...q];
+    if (options.stillGyro) this.o.stillGyro = options.stillGyro;
+    if (options.stillAccel) this.o.stillAccel = options.stillAccel;
+    this.ready = true;
+    this.clear();
   }
 
   clear() {
@@ -96,6 +107,8 @@ export class Tracker {
     this.gyro = [];
     this.rest = 0;
     this.from = 0;
+    this.calm = 0;
+    this.still = true;
   }
 
   get length() { return this.t.length; }
@@ -122,16 +135,26 @@ export class Tracker {
 
     // Is it at rest? Barely turning, and feeling nothing but gravity.
     const fn = Math.hypot(...f), turn = Math.hypot(w[0] - this.bias[0], w[1] - this.bias[1], w[2] - this.bias[2]);
-    const calm = turn < o.stillGyro && Math.abs(fn - G) < o.stillAccel;
+    const accErr = Math.abs(fn - G);
+    this.smoothTurn = this.smoothTurn == null ? turn : 0.7 * this.smoothTurn + 0.3 * turn;
+    this.smoothAccErr = this.smoothAccErr == null ? accErr : 0.7 * this.smoothAccErr + 0.3 * accErr;
+
+    const calm = this.smoothTurn < o.stillGyro && this.smoothAccErr < o.stillAccel;
     this.calm = calm ? this.calm + 1 : 0;
 
     // Orientation: turn by the gyro. While the sensor looks still the
     // accelerometer reads only gravity, so it nudges the tilt back (the gyro
-    // alone would drift). On the move it also feels the hand, so it is left out.
+    // alone would drift). On the move it also feels the hand, but when total
+    // acceleration is near 1 g, a gentle pull keeps the horizon level.
     const rate = [w[0] - this.bias[0], w[1] - this.bias[1], w[2] - this.bias[2]];
+    const upBody = qrot(qconj(this.q), [0, 1, 0]);
     if (this.calm >= o.stillFor) {
-      const upBody = qrot(qconj(this.q), [0, 1, 0]);
       const kp = o.kp / fn;
+      rate[0] += kp * (f[1] * upBody[2] - f[2] * upBody[1]);
+      rate[1] += kp * (f[2] * upBody[0] - f[0] * upBody[2]);
+      rate[2] += kp * (f[0] * upBody[1] - f[1] * upBody[0]);
+    } else if (accErr < 0.5) {
+      const kp = 0.15 * (1 - accErr / 0.5) / fn;
       rate[0] += kp * (f[1] * upBody[2] - f[2] * upBody[1]);
       rate[1] += kp * (f[2] * upBody[0] - f[0] * upBody[2]);
       rate[2] += kp * (f[0] * upBody[1] - f[1] * upBody[0]);
@@ -213,5 +236,93 @@ export class Tracker {
       for (let k = 0; k < 3; k++) p[k] += (this.vel[i][k] - drift[k] * share) * dt;
     }
     this.p = p;
+  }
+}
+
+export class Calibrator {
+  constructor(options = {}) {
+    this.targetSamples = options.samples || 60; // ~1.2s at 50 Hz
+    this.maxMotionGyro = options.maxGyro || 0.40; // rad/s (~23 deg/s)
+    this.maxMotionAccel = options.maxAccel || 1.8; // m/s^2 deviation from 1 G
+    this.reset();
+  }
+
+  reset() {
+    this.samples = [];
+    this.status = 'idle';
+  }
+
+  // Feed a sample { ax, ay, az, gx, gy, gz }
+  // Returns { done: boolean, progress: number, status: string, message: string, ... }
+  feed(s) {
+    const fn = Math.hypot(s.ax, s.ay, s.az);
+    const gn = Math.hypot(s.gx, s.gy, s.gz);
+
+    if (gn > this.maxMotionGyro || Math.abs(fn - G) > this.maxMotionAccel) {
+      this.samples = [];
+      this.status = 'motion';
+      return {
+        done: false,
+        progress: 0,
+        status: 'motion',
+        message: 'Motion detected! Please hold wrist still...',
+      };
+    }
+
+    this.samples.push(s);
+    this.status = 'calibrating';
+    const progress = Math.min(1, this.samples.length / this.targetSamples);
+
+    if (this.samples.length < this.targetSamples) {
+      return {
+        done: false,
+        progress,
+        status: 'calibrating',
+        message: `Calibrating: hold still (${Math.round(progress * 100)}%)`,
+      };
+    }
+
+    const n = this.samples.length;
+    const meanGyro = [0, 0, 0];
+    const meanAccel = [0, 0, 0];
+    for (const r of this.samples) {
+      meanAccel[0] += r.ax / n; meanAccel[1] += r.ay / n; meanAccel[2] += r.az / n;
+      meanGyro[0] += r.gx / n; meanGyro[1] += r.gy / n; meanGyro[2] += r.gz / n;
+    }
+
+    let varGyro = 0, varAccel = 0;
+    for (const r of this.samples) {
+      varGyro += ((r.gx - meanGyro[0]) ** 2 + (r.gy - meanGyro[1]) ** 2 + (r.gz - meanGyro[2]) ** 2) / n;
+      varAccel += ((r.ax - meanAccel[0]) ** 2 + (r.ay - meanAccel[1]) ** 2 + (r.az - meanAccel[2]) ** 2) / n;
+    }
+    const stdGyro = Math.sqrt(varGyro), stdAccel = Math.sqrt(varAccel);
+    const m = Math.hypot(...meanAccel) || 1;
+
+    if (Math.abs(m - G) > 2.0) {
+      this.samples = [];
+      this.status = 'motion';
+      return {
+        done: false,
+        progress: 0,
+        status: 'motion',
+        message: 'Excess acceleration. Rest wrist and try again.',
+      };
+    }
+
+    const up = [meanAccel[0] / m, meanAccel[1] / m, meanAccel[2] / m];
+    const q = qbetween(up, [0, 1, 0]);
+
+    this.status = 'done';
+    return {
+      done: true,
+      progress: 1,
+      status: 'done',
+      message: 'Calibrated & Ready!',
+      bias: meanGyro,
+      gravity: meanAccel,
+      q,
+      stdGyro,
+      stdAccel,
+    };
   }
 }
