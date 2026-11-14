@@ -5,9 +5,35 @@ import type { SpatialObject } from '../spatial/types'
 import { CameraPreview } from '../spatial/ui/CameraPreview'
 import './PresentationBoard.css'
 import { PresenterActions } from './PresenterActions'
+import { PresenterActionTray } from './PresenterActionTray'
 import './PresenterTheme.css'
+import { BAND_NUMBER } from '../spatial/wearable/band'
 
 const pct = (value: number) => `${value * 100}%`
+const CONTROL_MAGNET_RADIUS = 56
+
+function airActionNear(stage: HTMLElement, x: number, y: number, preferred: string | null = null) {
+  const exact = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-air-action]')
+  if (exact && stage.contains(exact)) return exact.dataset.airAction ?? null
+
+  const candidates = [...stage.querySelectorAll<HTMLElement>('[data-air-action]')]
+    .filter((element) => element.getClientRects().length > 0)
+    .map((element) => {
+      const rect = element.getBoundingClientRect()
+      const dx = Math.max(rect.left - x, 0, x - rect.right)
+      const dy = Math.max(rect.top - y, 0, y - rect.bottom)
+      return { action: element.dataset.airAction ?? '', distance: Math.hypot(dx, dy) }
+    })
+    .filter((item) => item.action)
+    .sort((a, b) => a.distance - b.distance)
+
+  const nearest = candidates[0]
+  if (!nearest || nearest.distance > CONTROL_MAGNET_RADIUS) return null
+  const stable = candidates.find((item) => item.action === preferred)
+  return stable && stable.distance <= CONTROL_MAGNET_RADIUS + 12 && stable.distance <= nearest.distance + 12
+    ? stable.action
+    : nearest.action
+}
 
 function SlideCard({ object, active, grabbed }: { object: SpatialObject; active: boolean; grabbed: boolean }) {
   return (
@@ -28,8 +54,12 @@ export function PresentationBoard() {
   const [showNotes, setShowNotes] = useState(false)
   const [showSlides, setShowSlides] = useState(false)
   const [showTools, setShowTools] = useState(false)
+  const [showActionTray, setShowActionTray] = useState(false)
+  const [placingTranscript, setPlacingTranscript] = useState<string | null>(null)
+  const [transcriptNotes, setTranscriptNotes] = useState<{ id: string; slideId: string; x: number; y: number; text: string }[]>([])
   const [startingCalibration, setStartingCalibration] = useState(false)
   const [calibrationError, setCalibrationError] = useState<string | null>(null)
+  const [bandConnectHint, setBandConnectHint] = useState<string | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const slideLayouts = useRef(new Map<string, SpatialObject[]>())
   const [hoverControl, setHoverControl] = useState<string | null>(null)
@@ -74,6 +104,8 @@ export function PresentationBoard() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return
+      if (event.key === 'Escape' && placingTranscript) { setPlacingTranscript(null); event.preventDefault(); return }
+      if (event.key === 'Escape' && showActionTray) { setShowActionTray(false); event.preventDefault(); return }
       if (event.key === 'Escape' && showTools) { setShowTools(false); event.preventDefault(); return }
       if (runtime.radial.capturesInput && runtime.onKey(event)) { event.preventDefault(); return }
       if (event.key === 'ArrowRight') changeSlide(slideIndex + 1)
@@ -88,11 +120,23 @@ export function PresentationBoard() {
     window.addEventListener('mouseup', onRelease)
     window.addEventListener('blur', onRelease)
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('mouseup', onRelease); window.removeEventListener('blur', onRelease) }
-  }, [runtime, slideIndex, showTools])
+  }, [runtime, slideIndex, showTools, placingTranscript, showActionTray])
 
   const point = (event: React.MouseEvent) => {
     const box = stageRef.current!.getBoundingClientRect()
     return { x: (event.clientX - box.left) / box.width, y: (event.clientY - box.top) / box.height }
+  }
+
+  const placeTranscript = (x: number, y: number) => {
+    if (!placingTranscript) return
+    setTranscriptNotes((notes) => [...notes, {
+      id: `transcript-${Date.now()}`,
+      slideId: slide.id,
+      x: Math.max(0.12, Math.min(0.88, x)),
+      y: Math.max(0.08, Math.min(0.92, y)),
+      text: placingTranscript,
+    }])
+    setPlacingTranscript(null)
   }
 
   const beginCalibration = useCallback(async () => {
@@ -123,8 +167,30 @@ export function PresentationBoard() {
     else if (action === 'tools') setShowTools((v) => !v)
     else if (action === 'slides') setShowSlides((v) => !v)
     else if (action === 'notes') setShowNotes((v) => !v)
+    else if (action === 'actions') {
+      runtime.radial.controller.cancel(performance.now(), 'global action tray opened')
+      runtime.radial.executor.closeVoice()
+      setShowActionTray((open) => !open)
+    }
+    else if (action === 'voice') {
+      const objectId = runtime.interaction.grabbedId ?? runtime.interaction.hoverId ?? runtime.interaction.objects[0]?.id
+      if (objectId) {
+        runtime.radial.forceOpen(objectId)
+        if (action === 'voice') runtime.radial.choose('voice')
+      }
+    }
+    else if (action === 'band-usb') runtime.radial.connectBand('serial')
+    else if (action === 'band-bluetooth') runtime.radial.connectBand('ble')
+    else if (action === 'band-disconnect') runtime.radial.disconnectBand()
+    else if (action === 'band-connect') {
+      if (runtime.radial.band?.status === 'connected') setShowTools(true)
+      else {
+        setBandConnectHint(null)
+        runtime.radial.connectBand('serial')
+      }
+    }
     else if (action.startsWith('close-explain:')) runtime.radial.executor.closeExplain(action.slice('close-explain:'.length))
-    if (action !== 'tools') setShowTools(false)
+    if (action !== 'tools' && action !== 'band-connect') setShowTools(false)
   }, [runtime, beginCalibration, slideIndex])
 
   // Resolve controls before the interaction engine can grab an object below.
@@ -132,22 +198,29 @@ export function PresentationBoard() {
     runtime.onControlSelect = (p) => {
       if (!p.valid || !stageRef.current) return false
       const bounds = stageRef.current.getBoundingClientRect()
-      const target = document.elementFromPoint(bounds.left + p.x * bounds.width, bounds.top + p.y * bounds.height)
-      const action = target?.closest<HTMLElement>('[data-air-action]')?.dataset.airAction
+      if (placingTranscript) {
+        placeTranscript(p.x, p.y)
+        return true
+      }
+      const action = airActionNear(stageRef.current, bounds.left + p.x * bounds.width, bounds.top + p.y * bounds.height, hoverControl)
       if (!action) return false
+      if (action === 'band-connect' || action === 'band-usb' || action === 'band-bluetooth') {
+        setBandConnectHint('USB and Bluetooth pickers need a real mouse or trackpad click. Click the connect button directly, then select Vexo-HACK-75.')
+        setShowTools(true)
+        return true
+      }
       triggerAirControl(action)
       return true
     }
     return () => { runtime.onControlSelect = null }
-  }, [runtime, triggerAirControl])
+  }, [runtime, triggerAirControl, hoverControl, placingTranscript, slide.id])
 
   useEffect(() => {
     const stage = stageRef.current
     if (!stage || !pointer.valid || calibration.kind !== 'none') { setHoverControl(null); return }
     const bounds = stage.getBoundingClientRect()
-    const target = document.elementFromPoint(bounds.left + pointer.x * bounds.width, bounds.top + pointer.y * bounds.height)
-    setHoverControl(target?.closest<HTMLElement>('[data-air-action]')?.dataset.airAction ?? null)
-  }, [pointer, calibration.kind])
+    setHoverControl(airActionNear(stage, bounds.left + pointer.x * bounds.width, bounds.top + pointer.y * bounds.height, hoverControl))
+  }, [pointer, calibration.kind, hoverControl])
 
   return (
     <main className="presentation-shell">
@@ -160,29 +233,50 @@ export function PresentationBoard() {
         className="presentation-stage"
         style={{ '--accent': slide.accent } as React.CSSProperties}
         onMouseMove={(event) => { const p = point(event); runtime.onMouseMove(p.x, p.y) }}
-        onMouseDown={(event) => { if (!(event.target as HTMLElement).closest('.stage-controls, .presenter-tools')) setShowTools(false); const p = point(event); runtime.onMouseButton(true, p.x, p.y) }}
+        onMouseDown={(event) => {
+          const target = event.target as HTMLElement
+          const p = point(event)
+          if (placingTranscript && !target.closest('.stage-controls, .presenter-tools, .presenter-action-tray, .placement-banner')) {
+            event.preventDefault()
+            placeTranscript(p.x, p.y)
+            return
+          }
+          if (!target.closest('.stage-controls, .presenter-tools, .presenter-action-tray')) setShowTools(false)
+          runtime.onMouseButton(true, p.x, p.y)
+        }}
         onMouseUp={(event) => { const p = point(event); runtime.onMouseButton(false, p.x, p.y) }}
       >
         <div className="presentation-glow" />
         {showCamera && <div className="presenter-mirror"><CameraPreview rt={runtime} width={1280} fill guides={false} /></div>}
         <div className="stage-controls" data-hover={hoverControl} aria-label="Hand-controlled presentation tools" onMouseDown={(event) => event.stopPropagation()} onMouseUp={(event) => event.stopPropagation()}>
-          <button data-air-action="previous" aria-label="Previous slide" onClick={() => triggerAirControl('previous')}>←</button>
+          <button className={hoverControl === 'previous' ? 'proximity-active' : undefined} data-air-action="previous" aria-label="Previous slide" onClick={() => triggerAirControl('previous')}>←</button>
           <span className="toolbar-page">{slideIndex + 1} / {presentationDeck.length}</span>
-          <button data-air-action="next" aria-label="Next slide" onClick={() => triggerAirControl('next')}>→</button>
+          <button className={hoverControl === 'next' ? 'proximity-active' : undefined} data-air-action="next" aria-label="Next slide" onClick={() => triggerAirControl('next')}>→</button>
+          <button className={hoverControl === 'actions' ? 'proximity-active' : undefined} data-air-action="actions" onClick={() => triggerAirControl('actions')}>Actions</button>
+          <button className={hoverControl === 'band-connect' ? 'proximity-active' : undefined} data-air-action="band-connect" title="Connect band 75 over USB. Use a mouse or trackpad click to open the browser port picker." onClick={() => triggerAirControl('band-connect')}>
+            {runtime.radial.band?.status === 'connected' ? 'Vexo connected' : runtime.radial.band?.status === 'connecting' ? 'Connecting…' : runtime.radial.band?.status === 'error' ? 'Retry USB' : 'Connect USB'}
+          </button>
           <i />
           <span className={`tracking-indicator ${rawPointer ? 'tracked' : ''}`} role="status" aria-label={rawPointer ? 'Hand tracked' : runtime.tracker.status === 'running' ? 'Raise a hand into view' : `Camera ${runtime.tracker.status}`} title={rawPointer ? 'Hand tracked' : runtime.tracker.status === 'running' ? 'Raise a hand into view' : `Camera ${runtime.tracker.status}`} />
-          <button data-air-action="calibrate" onClick={() => triggerAirControl('calibrate')}>{startingCalibration ? 'Starting…' : 'Calibrate'}</button>
-          <button data-air-action="tools" aria-label="More controls" aria-expanded={showTools} onClick={() => triggerAirControl('tools')}>···</button>
+          <button className={hoverControl === 'calibrate' ? 'proximity-active' : undefined} data-air-action="calibrate" onClick={() => triggerAirControl('calibrate')}>{startingCalibration ? 'Starting…' : 'Calibrate'}</button>
+          <button className={hoverControl === 'tools' ? 'proximity-active' : undefined} data-air-action="tools" aria-label="More controls" aria-expanded={showTools} onClick={() => triggerAirControl('tools')}>···</button>
         </div>
         {showTools && <div className="presenter-tools" data-hover={hoverControl} onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
-          <button data-air-action="mirror" aria-pressed={runtime.profile.mirrorX} onClick={() => triggerAirControl('mirror')}>Mirror <span>{runtime.profile.mirrorX ? 'On' : 'Off'}</span></button>
-          <button data-air-action="center" onClick={() => triggerAirControl('center')}>Recenter cursor <span>R</span></button>
-          <button data-air-action="preview" onClick={() => triggerAirControl('preview')}>Camera view <span>{showCamera ? 'On' : 'Off'}</span></button>
-          <button data-air-action="fullscreen" onClick={() => triggerAirControl('fullscreen')}>Fullscreen <span>F</span></button>
+          <button className={hoverControl === 'mirror' ? 'proximity-active' : undefined} data-air-action="mirror" aria-pressed={runtime.profile.mirrorX} onClick={() => triggerAirControl('mirror')}>Mirror <span>{runtime.profile.mirrorX ? 'On' : 'Off'}</span></button>
+          <button className={hoverControl === 'center' ? 'proximity-active' : undefined} data-air-action="center" onClick={() => triggerAirControl('center')}>Recenter cursor <span>R</span></button>
+          <button className={hoverControl === 'preview' ? 'proximity-active' : undefined} data-air-action="preview" onClick={() => triggerAirControl('preview')}>Camera view <span>{showCamera ? 'On' : 'Off'}</span></button>
+          <button className={hoverControl === 'fullscreen' ? 'proximity-active' : undefined} data-air-action="fullscreen" onClick={() => triggerAirControl('fullscreen')}>Fullscreen <span>F</span></button>
           <hr />
-          <button data-air-action="slides" onClick={() => triggerAirControl('slides')}>Slide overview <span>{showSlides ? 'Hide' : 'Show'}</span></button>
-          <button data-air-action="notes" onClick={() => triggerAirControl('notes')}>Speaker notes <span>{showNotes ? 'Hide' : 'Show'}</span></button>
-          <button data-air-action="camera" onClick={() => triggerAirControl('camera')}>{runtime.tracker.status === 'running' ? 'Pause' : 'Start'} tracking</button>
+          <button className={hoverControl === 'slides' ? 'proximity-active' : undefined} data-air-action="slides" onClick={() => triggerAirControl('slides')}>Slide overview <span>{showSlides ? 'Hide' : 'Show'}</span></button>
+          <button className={hoverControl === 'notes' ? 'proximity-active' : undefined} data-air-action="notes" onClick={() => triggerAirControl('notes')}>Speaker notes <span>{showNotes ? 'Hide' : 'Show'}</span></button>
+          <button className={hoverControl === 'camera' ? 'proximity-active' : undefined} data-air-action="camera" onClick={() => triggerAirControl('camera')}>{runtime.tracker.status === 'running' ? 'Pause' : 'Start'} tracking</button>
+          <hr />
+          <div className="presenter-band-status">Vexo band {BAND_NUMBER} · {runtime.radial.band ? `${runtime.radial.band.status}${runtime.radial.band.link === 'sim' ? ' · pretend' : ` · ${runtime.radial.band.link}`}` : 'not connected'}{runtime.radial.band?.error ? ` · ${runtime.radial.band.error}` : ''}</div>
+          {bandConnectHint && <div className="presenter-band-status presenter-band-hint">{bandConnectHint}</div>}
+          {!runtime.radial.band || runtime.radial.band.status === 'error' || runtime.radial.band.status === 'closed' ? <>
+            <button className={hoverControl === 'band-usb' ? 'proximity-active' : undefined} data-air-action="band-usb" onClick={() => triggerAirControl('band-usb')}>Connect Vexo over USB</button>
+            <button className={hoverControl === 'band-bluetooth' ? 'proximity-active' : undefined} data-air-action="band-bluetooth" onClick={() => triggerAirControl('band-bluetooth')}>Connect Vexo over Bluetooth</button>
+          </> : <button className={hoverControl === 'band-disconnect' ? 'proximity-active' : undefined} data-air-action="band-disconnect" onClick={() => triggerAirControl('band-disconnect')}>Disconnect Vexo</button>}
           <hr />
           <a href="/marketing/creative-brief.md" download>Creative brief ↗</a><a href="/marketing/concept-board.png" download>Concept art ↗</a>
         </div>}
@@ -195,7 +289,16 @@ export function PresentationBoard() {
           {ix.objects.map((object) => <SlideCard key={object.id} object={object} active={ix.hoverId === object.id && !runtime.radial.capturesInput} grabbed={ix.grabbedId === object.id} />)}
         </div>
         {calibration.kind === 'none' && <PresenterActions rt={runtime} />}
-        {pointer.valid && <div className={`presentation-cursor ${runtime.detector.engaged || ix.grabbedId ? 'is-grasped' : ''}`} style={{ left: pct(pointer.x), top: pct(pointer.y) }} />}
+        {calibration.kind === 'none' && showActionTray && <PresenterActionTray providers={runtime.radial.voiceProviders} onClose={() => setShowActionTray(false)} onConnectBand={(link) => runtime.radial.connectBand(link)} onPlace={(text) => { setPlacingTranscript(text); setShowActionTray(false) }} />}
+        {placingTranscript && <div className="placement-banner" onMouseDown={(event) => event.stopPropagation()}>
+          <span>Move the cursor to where the transcript should go, then close your hand or click to place it.</span>
+          <button onClick={() => setPlacingTranscript(null)}>Cancel · Esc</button>
+        </div>}
+        {transcriptNotes.filter((note) => note.slideId === slide.id).map((note) => <aside key={note.id} className="transcript-note" style={{ left: pct(note.x), top: pct(note.y) }}>
+          <button onClick={() => setTranscriptNotes((items) => items.filter((item) => item.id !== note.id))} aria-label="Remove transcript note">×</button>
+          <span>{note.text}</span>
+        </aside>)}
+        {pointer.valid && <div className={`presentation-cursor ${runtime.detector.engaged || ix.grabbedId ? 'is-grasped' : ''} ${placingTranscript ? 'is-placement' : ''}`} style={{ left: pct(pointer.x), top: pct(pointer.y) }} />}
         {calibration.kind === 'region' && (
           <div className="range-setup">
             <CameraPreview rt={runtime} width={1280} fill />

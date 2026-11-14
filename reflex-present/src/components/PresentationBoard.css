@@ -29,6 +29,7 @@ body:has(.presentation-shell) { background: #111214; }
 .stage-controls[data-hover="mirror"] [data-air-action="mirror"], .stage-controls[data-hover="calibrate"] [data-air-action="calibrate"], .stage-controls[data-hover="center"] [data-air-action="center"], .stage-controls[data-hover="preview"] [data-air-action="preview"], .stage-controls[data-hover="previous"] [data-air-action="previous"], .stage-controls[data-hover="next"] [data-air-action="next"], .stage-controls[data-hover="fullscreen"] [data-air-action="fullscreen"] { background: #edca7c; color: #24231e; }
 .presentation-cursor { position: absolute; z-index: 20; width: 28px; height: 28px; margin: -14px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 5px #edca7c40, 0 2px 8px #0008; pointer-events: none; transition: background 100ms, transform 100ms; }
 .presentation-cursor.is-grasped { background: #edca7c; border-color: #edca7c; transform: scale(.72); }
+.presentation-cursor.is-placement { border-color: #edca7c; box-shadow: 0 0 0 8px #edca7c38, 0 2px 8px #0008; }
 .presenter-actions { position: absolute; inset: 0; z-index: 12; pointer-events: none; }
 .presenter-actions > :not(.rm-hold) { pointer-events: auto; }
 .presenter-actions .ap-card { background: #242528f5; border-color: #edca7c44; border-radius: 12px; color: #eeeae2; }
