@@ -98,6 +98,13 @@ export class SensorFusion {
     this.bias = { x: 0, y: 0 }
   }
 
+  resetPointer() {
+    this.filter.reset()
+    this.lastOut = null
+    this.lastSource = 'none'
+    this.handoff = { x: 0, y: 0 }
+  }
+
   update(nowMs: number, cam: CalibratedCameraPointer | null, wear: WearableObservation | null): PointerEstimate {
     const cfg = this.config
     const dtS = this.lastUpdateT === null ? 0 : Math.max(0, (nowMs - this.lastUpdateT) / 1000)

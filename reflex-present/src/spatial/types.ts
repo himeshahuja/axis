@@ -95,7 +95,7 @@ export interface PointerEstimate {
   captureTMs?: number
 }
 
-export type GestureKind = 'pinch_start' | 'pinch_end' | 'point_start' | 'point_end' | 'open_palm' | 'select' | 'cancel' | 'recenter'
+export type GestureKind = 'grasp_start' | 'grasp_end' | 'pinch_start' | 'pinch_end' | 'point_start' | 'point_end' | 'open_palm' | 'select' | 'cancel' | 'recenter'
 
 export interface GestureEvent {
   tMs: number

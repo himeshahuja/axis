@@ -29,6 +29,7 @@ import type {
 } from './types'
 import type { WearableAdapter } from './wearable/adapter'
 import { MockWearableAdapter } from './wearable/mockWearable'
+import { SteadyPoint } from './steadyPoint'
 
 class Rolling {
   private v: number[] = []
@@ -94,6 +95,15 @@ export class SpatialRuntime {
   }
 
   private rawHistory: { tMs: number; p: Point2 }[] = []
+  private rangeHold = new SteadyPoint()
+  autoRangeCapture = false
+  onControlSelect: ((pointer: PointerEstimate) => boolean) | null = null
+  get calibrationProgress() { return this.rangeHold.progress }
+  /** Unmapped camera position, so a bad saved range cannot hide calibration. */
+  get calibrationPointer(): Point2 | null {
+    if (!this.latestFeatures || !this.latestCamera || performance.now() - this.latestCamera.tMs > 180) return null
+    return orient(this.anchor === 'palm' ? this.latestFeatures.palm : this.latestFeatures.indexTip, this.profile)
+  }
   /** Gestures since the last tick; `at` pins a gesture to where the pointer was when it happened. */
   private pending: { g: GestureEvent; at?: Point2 }[] = []
   private mouse: { x: number; y: number; tMs: number } | null = null
@@ -130,8 +140,9 @@ export class SpatialRuntime {
   }
 
   async startCamera() {
+    const loadCameraProfile = this.tracker.status !== 'running'
     await this.tracker.start()
-    if (this.tracker.status === 'running') this.profile = loadProfile(this.tracker.deviceKey)
+    if (loadCameraProfile && this.tracker.status === 'running') this.profile = loadProfile(this.tracker.deviceKey)
     this.notify()
   }
 
@@ -185,6 +196,11 @@ export class SpatialRuntime {
     this.interaction.aspect = w / Math.max(1, h)
   }
 
+  setObjects(objects: SpatialObject[]) {
+    this.interaction.resetObjects(objects)
+    this.notify()
+  }
+
   // ---- subscription -------------------------------------------------------
   subscribe = (fn: () => void) => {
     this.listeners.add(fn)
@@ -213,6 +229,15 @@ export class SpatialRuntime {
       while (this.rawHistory.length && observation.tMs - this.rawHistory[0].tMs > 1000) this.rawHistory.shift()
     }
     for (const g of this.detector.update(features, observation.tMs, observation.sensorConfidence)) this.queue(g)
+    if (this.autoRangeCapture && this.calibration.kind === 'region') {
+      const first = this.calibration.corners[0]
+      const a = first ? orient(first, this.profile) : null
+      const b = anchor ? orient(anchor, this.profile) : null
+      // The second corner must be down and right, not another sample of the first.
+      const eligible = !a || (b && b.x - a.x >= 0.08 && b.y - a.y >= 0.08)
+      const steady = this.rangeHold.update(features?.keyInFrame && eligible ? anchor : null, observation.tMs)
+      if (steady) this.captureCalibration(steady)
+    }
   }
 
   private onWearable(o: WearableObservation) {
@@ -280,7 +305,7 @@ export class SpatialRuntime {
   tick(now: number) {
     this.latestWearable = this.wearable?.latest() ?? null
     let est = this.fusion.update(now, this.cameraPointer(), this.latestWearable)
-    if (this.mouseFallback && !this.mouseDrivesMock && this.mouse && now - this.mouse.tMs < 1500) {
+    if (this.mouseFallback && !this.mouseDrivesMock && this.calibration.kind === 'none' && (!est.valid || this.interaction.pointer?.source === 'mouse' && !!this.interaction.grabbedId) && this.mouse && now - this.mouse.tMs < 1500) {
       est = { tMs: now, x: this.mouse.x, y: this.mouse.y, valid: true, source: 'mouse', confidence: 1, observationAgeMs: now - this.mouse.tMs }
     }
     this.pointer = est
@@ -310,10 +335,12 @@ export class SpatialRuntime {
   }
 
   private dispatch(g: GestureEvent, modal: boolean) {
-    const engage = g.kind === 'pinch_start' || g.kind === 'select'
+    const engage = g.kind === 'pinch_start' || g.kind === 'grasp_start' || g.kind === 'select'
     const cancel = g.kind === 'open_palm' || g.kind === 'cancel'
     if (g.kind === 'recenter') return this.recenter()
     if (modal) {
+      // During automatic range setup an open hand is the expected pose.
+      if (this.autoRangeCapture && this.calibration.kind === 'region' && g.source === 'camera') return
       if (engage) {
         if (this.calibration.kind !== 'none') this.captureCalibration()
         else this.captureAccuracy()
@@ -324,9 +351,10 @@ export class SpatialRuntime {
       }
       return
     }
+    if (engage && this.onControlSelect?.(this.interaction.pointer ?? this.pointer)) return
     let ev: InteractionEvent | null = null
-    if (g.kind === 'pinch_start') ev = { type: 'grab', tMs: g.tMs, source: g.source }
-    else if (g.kind === 'pinch_end') ev = { type: 'release', tMs: g.tMs, source: g.source }
+    if (g.kind === 'pinch_start' || g.kind === 'grasp_start') ev = { type: 'grab', tMs: g.tMs, source: g.source }
+    else if (g.kind === 'pinch_end' || g.kind === 'grasp_end') ev = { type: 'release', tMs: g.tMs, source: g.source }
     else if (g.kind === 'select') ev = this.interaction.grabbedId ? { type: 'release', tMs: g.tMs, source: g.source } : { type: 'grab', tMs: g.tMs, source: g.source }
     else if (cancel) ev = { type: 'cancel', tMs: g.tMs, source: g.source }
     if (ev) this.interaction.handle(ev)
@@ -342,6 +370,7 @@ export class SpatialRuntime {
   // ---- calibration --------------------------------------------------------------
   updateProfile(patch: Partial<CalibrationProfile>) {
     this.profile = { ...this.profile, ...patch, updatedAt: Date.now() }
+    this.fusion.resetPointer()
     saveProfile(this.tracker.deviceKey, this.profile)
     this.notify()
   }
@@ -352,6 +381,10 @@ export class SpatialRuntime {
   }
 
   startCalibration(kind: 'region' | 'points') {
+    this.interaction.handle({ type: 'cancel', tMs: performance.now(), source: 'keyboard' })
+    this.rangeHold.reset()
+    this.rawHistory = []
+    this.pending = []
     this.accuracy.active = false
     this.calibration = kind === 'region' ? { kind, corners: [] } : { kind, index: 0, samples: [] }
     this.notify()
@@ -365,13 +398,14 @@ export class SpatialRuntime {
     return { x: recent.reduce((s, h) => s + h.p.x, 0) / recent.length, y: recent.reduce((s, h) => s + h.p.y, 0) / recent.length }
   }
 
-  captureCalibration() {
+  captureCalibration(held?: Point2) {
     const step = this.calibration
     if (step.kind === 'none') return
-    const raw = this.heldRawPoint()
+    const raw = held ?? this.heldRawPoint()
     if (!raw) return this.say('No steady hand in view — hold still in front of the camera and try again')
     if (step.kind === 'region') {
       step.corners.push(raw)
+      this.rangeHold.reset()
       if (step.corners.length === 2) {
         const region = regionFromCorners(step.corners[0], step.corners[1], this.profile)
         if (region.x1 - region.x0 < 0.05 || region.y1 - region.y0 < 0.05) {
@@ -380,7 +414,7 @@ export class SpatialRuntime {
         }
         this.updateProfile({ region, affine: undefined, fitRms: undefined, offset: { x: 0, y: 0 } })
         this.calibration = { kind: 'none' }
-        this.say('Movement region saved')
+        this.say(`Range saved · horizontal gain ${(1 / (region.x1 - region.x0)).toFixed(1)}× · vertical gain ${(1 / (region.y1 - region.y0)).toFixed(1)}×`)
       }
       return
     }
@@ -401,6 +435,7 @@ export class SpatialRuntime {
   }
 
   cancelCalibration() {
+    this.rangeHold.reset()
     this.calibration = { kind: 'none' }
     this.notify()
   }

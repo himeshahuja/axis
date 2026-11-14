@@ -3,7 +3,7 @@ import { HAND_CONNECTIONS } from '../camera/handTracker'
 import type { SpatialRuntime } from '../runtime'
 
 /** Webcam frame + landmarks + active region, drawn as the user sees themself (mirror per profile). */
-export function CameraPreview({ rt, width = 320 }: { rt: SpatialRuntime; width?: number }) {
+export function CameraPreview({ rt, width = 320, fill = false }: { rt: SpatialRuntime; width?: number; fill?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const height = Math.round((width * 3) / 4)
 
@@ -47,7 +47,7 @@ export function CameraPreview({ rt, width = 320 }: { rt: SpatialRuntime; width?:
 
       const lm = rt.latestCamera?.landmarks ?? []
       if (lm.length === 21) {
-        const pinched = rt.detector.pinched
+        const pinched = rt.detector.engaged
         ctx.strokeStyle = pinched ? '#ff5a36' : '#5bf0a5'
         ctx.lineWidth = 2
         for (const { start, end } of HAND_CONNECTIONS) {
@@ -75,5 +75,5 @@ export function CameraPreview({ rt, width = 320 }: { rt: SpatialRuntime; width?:
     return () => cancelAnimationFrame(raf)
   }, [rt])
 
-  return <canvas ref={ref} width={width} height={height} style={{ width, height, borderRadius: 8, display: 'block', border: '1px solid #262a35' }} />
+  return <canvas ref={ref} width={width} height={height} style={{ width: fill ? '100%' : width, height: fill ? '100%' : height, borderRadius: 8, display: 'block', border: fill ? undefined : '1px solid #262a35' }} />
 }

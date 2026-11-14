@@ -61,6 +61,19 @@ export class InteractionEngine {
     this.config = { ...DEFAULT_INTERACTION_CONFIG, ...config }
   }
 
+  /** Replace the interactive layer when a presentation changes slides. */
+  resetObjects(objects: SpatialObject[]) {
+    this.objects = objects.map((o) => ({ ...o }))
+    this.state = 'IDLE'
+    this.hoverId = null
+    this.grabbedId = null
+    this.pointer = null
+    this.undoStack = []
+    this.lostSince = null
+    this.transientSince = null
+    this.changed()
+  }
+
   subscribe(fn: () => void) {
     this.listeners.add(fn)
     return () => this.listeners.delete(fn)
