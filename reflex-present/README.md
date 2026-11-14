@@ -1,5 +1,42 @@
 # Reflex Present — P0 vertical slice
 
+## VexoAI hackathon presenter
+
+The default route now opens a six-slide gesture presentation with the working
+name **Untitled demo**. Edit the name, slide copy, colors, movable objects and
+speaker notes in `src/data/presentationDeck.ts`.
+
+The webcam starts mirrored. Move your palm to steer, close all four fingers
+for a short steady grasp to grab, then open at least two fingers to release.
+Partial/uncertain poses keep the current state. Lost tracking freezes a grab.
+Grasp movement uses a pose-compensated cursor: wrist translation preserves real
+movement while finger-base landmarks shift during closing/opening. A short
+median filter rejects isolated spikes, adaptive smoothing reduces tremor, and a
+soft pixel-sized steadiness zone keeps resting jitter from moving the cursor.
+Filtering runs once per camera observation, not repeatedly per render frame.
+The spatial test routes retain their original pinch detector for comparison.
+
+Use **Calibrate** to set sensitivity through two steady palm positions. Smaller
+movement ranges increase cursor gain. The calibration view shows the full
+camera image and the raw palm position. No separate sensitivity slider is used.
+The single stage toolbar works with the hand cursor and mouse. Arrow keys change
+slides, Space grabs/releases, Esc cancels a grab, and Cmd/Ctrl+Z undoes a move.
+Slide layouts persist when navigating during the session.
+
+Hold a grasp still on a card to open the merged **Explain / Remember / Voice**
+menu. Move immediately to drag instead. Tilt the hand or use arrow keys to
+highlight an action, then open the hand to confirm. Esc cancels. M opens the
+menu on a hovered card for keyboard testing. Explain summarizes authored object
+content locally, Remember stores it locally, and Voice opens the provider panel
+(including a typed fallback). Camera/microphone providers retain their notices.
+
+Marketing handoff files are in `public/marketing/`: `creative-brief.md` has
+three art directions, production prompts and a rehearsal script;
+`concept-board.png` is AI-generated campaign reference artwork. Both can be
+downloaded from the presenter footer. No official event logo is included.
+
+The earlier command prototype remains available at `/command-demo`.
+
 Voice/typed command → semantic object resolution → highlight → deterministic
 transform → new visualization. No hardware or webcam required.
 

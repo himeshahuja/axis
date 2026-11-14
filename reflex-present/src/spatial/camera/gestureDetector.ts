@@ -28,6 +28,12 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v))
  * again and visibly opens, so losing the hand can never drop an object.
  */
 export class GestureDetector {
+  mode: 'pinch' | 'grasp' = 'pinch'
+  grasped = false
+  get engaged() { return this.mode === 'grasp' ? this.grasped : this.pinched }
+  private graspCandidate: number | null = null
+  private graspFrames = 0
+  private lastGraspFrame = -Infinity
   config: GestureConfig
   pinched = false
   pointing = false
@@ -45,12 +51,36 @@ export class GestureDetector {
       this.pinchCandidateFrames = 0
       this.pointCandidateFrames = 0
       this.openPalmSince = null
+      this.graspCandidate = null
+      this.graspFrames = 0
       return []
     }
     const { pinchOn, pinchOff, minFrames, openPalmHoldMs } = this.config
     const out: GestureEvent[] = []
     const emit = (kind: GestureEvent['kind'], classificationConfidence: number) =>
       out.push({ tMs, kind, source: 'camera', classificationConfidence, sensorConfidence })
+
+    if (this.mode === 'grasp') {
+      if (tMs - this.lastGraspFrame > 180) { this.graspCandidate = null; this.graspFrames = 0 }
+      this.lastGraspFrame = tMs
+      const fingers = Object.values(features.fingers)
+      const curled = fingers.filter((f) => f === 'curled').length
+      const extended = fingers.filter((f) => f === 'extended').length
+      // A full fist engages. Opening at least two fingers releases. The band
+      // between those poses holds state rather than flickering while moving.
+      const wantsToggle = this.grasped ? extended >= 2 : curled === 4
+      if (wantsToggle && sensorConfidence >= 0.6) {
+        this.graspCandidate ??= tMs
+        this.graspFrames++
+        if (this.graspFrames >= 3 && tMs - this.graspCandidate >= (this.grasped ? 90 : 120)) {
+          this.grasped = !this.grasped
+          this.graspCandidate = null
+          this.graspFrames = 0
+          emit(this.grasped ? 'grasp_start' : 'grasp_end', 0.9)
+        }
+      } else { this.graspCandidate = null; this.graspFrames = 0 }
+      return out
+    }
 
     const r = features.pinchRatio
     const wantsToggle = this.pinched ? r > pinchOff : r < pinchOn
@@ -84,6 +114,10 @@ export class GestureDetector {
   }
 
   reset() {
+    this.grasped = false
+    this.graspCandidate = null
+    this.graspFrames = 0
+    this.lastGraspFrame = -Infinity
     this.pinched = false
     this.pointing = false
     this.pinchCandidateFrames = 0

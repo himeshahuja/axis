@@ -68,11 +68,14 @@ export interface RadialMenuProps {
   /** The band is the kit's pretend band: its gyro data is simulated. */
   bandPretend: boolean
   onChoose: (a: RadialAction) => void
+  graspMode?: boolean
+  theme?: 'spatial' | 'presenter'
 }
 
-export function RadialActionMenu({ state, object, canvas, thresholdDeg, maxDeg, closing, bandLost, bandPretend, onChoose }: RadialMenuProps) {
+export function RadialActionMenu({ state, object, canvas, thresholdDeg, maxDeg, closing, bandLost, bandPretend, onChoose, graspMode = false, theme = 'spatial' }: RadialMenuProps) {
+  const quiet = theme === 'presenter'
   const sourceLabel = state.inputSource === 'vexo' && bandPretend ? 'Vexo PRETEND band · simulated gyro' : SOURCE_LABEL[state.inputSource]
-  const R = Math.round(Math.max(130, Math.min(220, Math.min(canvas.w, canvas.h) * 0.2)))
+  const R = Math.round(quiet ? Math.max(86, Math.min(160, Math.min(canvas.w, canvas.h) * .24)) : Math.max(130, Math.min(220, Math.min(canvas.w, canvas.h) * 0.2)))
   const rIn = R * 0.42
   const pad = 16
   const cx = Math.max(R + pad, Math.min(canvas.w - R - pad, (object.x + object.w / 2) * canvas.w))
@@ -84,12 +87,12 @@ export function RadialActionMenu({ state, object, canvas, thresholdDeg, maxDeg, 
   const fontSize = Math.round(R * 0.125)
 
   return (
-    <div className={`rm-root ${closing ? 'rm-closing' : ''} ${lost ? 'rm-lost' : ''}`} style={{ left: cx - R, top: cy - R, width: R * 2, height: R * 2 + 48 }}>
+    <div className={`rm-root ${quiet ? 'rm-presenter' : ''} ${closing ? 'rm-closing' : ''} ${lost ? 'rm-lost' : ''}`} style={{ left: cx - R, top: cy - R, width: R * 2, height: R * 2 + 48 }}>
       <svg width={R * 2} height={R * 2} viewBox={`${-R} ${-R} ${R * 2} ${R * 2}`} className="rm-svg">
         <defs>
           <radialGradient id="rm-bg">
-            <stop offset="40%" stopColor="rgba(14,22,40,0.88)" />
-            <stop offset="100%" stopColor="rgba(10,16,30,0.95)" />
+            <stop offset="40%" stopColor={quiet ? '#242426' : 'rgba(14,22,40,0.88)'} />
+            <stop offset="100%" stopColor={quiet ? '#202123' : 'rgba(10,16,30,0.95)'} />
           </radialGradient>
           <filter id="rm-glow" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="7" result="b" />
@@ -99,7 +102,7 @@ export function RadialActionMenu({ state, object, canvas, thresholdDeg, maxDeg, 
             </feMerge>
           </filter>
         </defs>
-        <circle r={R - 1} fill="url(#rm-bg)" stroke="rgba(120,200,255,0.18)" />
+        <circle r={R - 1} fill="url(#rm-bg)" stroke={quiet ? '#ffffff20' : 'rgba(120,200,255,0.18)'} />
         {SECTORS.map(({ action, mid }) => {
           const active = state.activeAction === action
           const [lx, ly] = pt((rIn + R) / 2, mid)
@@ -113,7 +116,7 @@ export function RadialActionMenu({ state, object, canvas, thresholdDeg, maxDeg, 
               }}
               onMouseDown={(e) => e.stopPropagation()}
             >
-              <path d={sectorPath(rIn + 4, R - 6, mid - SPAN / 2 + GAP / 2, mid + SPAN / 2 - GAP / 2)} filter={active ? 'url(#rm-glow)' : undefined} />
+              <path d={sectorPath(rIn + 4, R - 6, mid - SPAN / 2 + GAP / 2, mid + SPAN / 2 - GAP / 2)} filter={active && !quiet ? 'url(#rm-glow)' : undefined} />
               <g transform={`translate(${lx},${ly - fontSize * 0.55}) scale(${R / 150})`} className="rm-icon">
                 <Icon action={action} />
               </g>
@@ -124,46 +127,46 @@ export function RadialActionMenu({ state, object, canvas, thresholdDeg, maxDeg, 
           )
         })}
         {/* threshold ticks and wrist-orientation needle on the inner ring */}
-        <circle r={rIn - 6} fill="rgba(6,10,20,0.92)" stroke="rgba(120,200,255,0.25)" />
+        <circle r={rIn - 6} fill={quiet ? '#202123' : 'rgba(6,10,20,0.92)'} stroke={quiet ? '#ffffff14' : 'rgba(120,200,255,0.25)'} />
         {[-thresholdDeg, thresholdDeg].map((d) => {
           const [x0, y0] = pt(rIn - 6, -90 + d)
           const [x1, y1] = pt(rIn - 16, -90 + d)
-          return <line key={d} x1={x0} y1={y0} x2={x1} y2={y1} stroke="rgba(120,200,255,0.45)" strokeWidth={2} />
+          return <line key={d} x1={x0} y1={y0} x2={x1} y2={y1} stroke={quiet ? '#edca7c66' : 'rgba(120,200,255,0.45)'} strokeWidth={2} />
         })}
         <g className="rm-needle" style={{ transform: `rotate(${needle + 90}deg)` }}>
-          <line x1={0} y1={-(rIn - 10)} x2={0} y2={-(rIn - 24)} stroke="#7fe3ff" strokeWidth={4} strokeLinecap="round" />
+          <line x1={0} y1={-(rIn - 10)} x2={0} y2={-(rIn - 24)} stroke={quiet ? '#edca7c' : '#7fe3ff'} strokeWidth={quiet ? 2 : 4} strokeLinecap="round" />
         </g>
-        <circle r={rIn * 0.36} fill={object.color} opacity={0.9} />
+        {!quiet && <circle r={rIn * 0.36} fill={object.color} opacity={0.9} />}
         <text y={rIn * 0.62} textAnchor="middle" fontSize={Math.round(fontSize * 0.62)} className="rm-center-label">
-          {object.label.length > 18 ? `${object.label.slice(0, 17)}…` : object.label}
+          {quiet ? 'Actions' : object.label.length > 18 ? `${object.label.slice(0, 17)}…` : object.label}
         </text>
       </svg>
-      <div className="rm-hint" style={{ fontSize: Math.round(fontSize * 0.62) }}>
+      <div className="rm-hint" title={sourceLabel} style={{ fontSize: quiet ? Math.max(10, Math.round(fontSize * .7)) : Math.round(fontSize * 0.62) }}>
         {lost ? (
           <span className="rm-warn">Hand lost — menu held, nothing will run</span>
         ) : bandLost ? (
           <span className="rm-warn">Band disconnected — rotate by hand tilt, ← → keys or wheel</span>
         ) : (
           <>
-            Rotate wrist · release to {ACTION_LABEL[state.activeAction].toLowerCase()} · open palm to cancel
+            {quiet ? `Open hand to ${ACTION_LABEL[state.activeAction].toLowerCase()}` : graspMode ? `Tilt hand or use ← → · open hand to ${ACTION_LABEL[state.activeAction].toLowerCase()} · Esc cancels` : `Rotate wrist · release to ${ACTION_LABEL[state.activeAction].toLowerCase()} · open palm to cancel`}
           </>
         )}
-        <div className="rm-source">{sourceLabel}</div>
+        {!quiet && <div className="rm-source">{sourceLabel}</div>}
       </div>
     </div>
   )
 }
 
 /** Hold progress ring drawn around the object while a pinch is held still. */
-export function HoldRing({ object, canvas, progress }: { object: SpatialObject; canvas: { w: number; h: number }; progress: number }) {
+export function HoldRing({ object, canvas, progress, color = '#7fe3ff' }: { object: SpatialObject; canvas: { w: number; h: number }; progress: number; color?: string }) {
   const cx = (object.x + object.w / 2) * canvas.w
   const cy = (object.y + object.h / 2) * canvas.h
   const r = Math.max(object.w * canvas.w, object.h * canvas.h) * 0.62
   const c = 2 * Math.PI * r
   return (
     <svg className="rm-hold" style={{ left: cx - r - 6, top: cy - r - 6 }} width={r * 2 + 12} height={r * 2 + 12} viewBox={`${-r - 6} ${-r - 6} ${r * 2 + 12} ${r * 2 + 12}`}>
-      <circle r={r} fill="none" stroke="rgba(127,227,255,0.15)" strokeWidth={5} />
-      <circle r={r} fill="none" stroke="#7fe3ff" strokeWidth={5} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - Math.min(1, progress))} transform="rotate(-90)" />
+      <circle r={r} fill="none" stroke={color} strokeOpacity={.15} strokeWidth={3} />
+      <circle r={r} fill="none" stroke={color} strokeWidth={3} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - Math.min(1, progress))} transform="rotate(-90)" />
     </svg>
   )
 }

@@ -63,6 +63,8 @@ export class HandTracker {
   private lastTs = 0
   private frameId = 0
   private running = false
+  private generation = 0
+  private starting: Promise<void> | null = null
   private onFrame: (f: TrackerFrame) => void
   private onStatus: () => void
 
@@ -80,26 +82,39 @@ export class HandTracker {
     this.onStatus()
   }
 
-  async start() {
-    if (this.running) return
+  start(): Promise<void> {
+    if (this.starting) return this.starting
+    if (this.running) return Promise.resolve()
+    const generation = ++this.generation
+    const pending = this.open(generation)
+    this.starting = pending
+    void pending.finally(() => { if (this.starting === pending) this.starting = null })
+    return pending
+  }
+
+  private async open(generation: number) {
     this.running = true
     this.setStatus('loading')
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 60 }, facingMode: 'user' },
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 }, facingMode: 'user' },
         audio: false,
       })
+      if (generation !== this.generation) { stream.getTracks().forEach((t) => t.stop()); return }
+      this.stream = stream
       const track = this.stream.getVideoTracks()[0]
       this.deviceKey = track.getSettings().deviceId || track.label || 'default'
-      track.addEventListener('ended', () => this.stop('camera disconnected'))
+      track.addEventListener('ended', () => { if (generation === this.generation) this.stop('camera disconnected') })
       this.video.srcObject = this.stream
       await this.video.play()
+      if (generation !== this.generation) return
       landmarkerPromise ??= createLandmarker()
       this.landmarker = await landmarkerPromise
-      if (!this.running) return
+      if (generation !== this.generation || !this.running) return
       this.setStatus('running')
       this.schedule()
     } catch (err) {
+      if (generation !== this.generation) return
       landmarkerPromise = null
       this.running = false
       this.releaseStream()
@@ -159,6 +174,8 @@ export class HandTracker {
   }
 
   stop(reason: string | null = null) {
+    this.generation++
+    this.starting = null
     this.running = false
     if (this.loopHandle !== null) {
       if (this.video.cancelVideoFrameCallback) this.video.cancelVideoFrameCallback(this.loopHandle)

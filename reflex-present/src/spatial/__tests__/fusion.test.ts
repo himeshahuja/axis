@@ -72,6 +72,14 @@ describe('staleness and fallback', () => {
 })
 
 describe('fusion policy', () => {
+  it('does not add render-rate drift or double filtering to a stabilized camera sample', () => {
+    const f = new SensorFusion()
+    f.update(0, { ...cam(0, .5, .5), smoothed: true }, null)
+    const sample = { ...cam(30, .55, .52), smoothed: true }
+    expect(f.update(30, sample, null).x).toBe(.55)
+    expect(f.update(46, sample, null).x).toBe(.55)
+    expect(f.update(62, sample, null).x).toBe(.55)
+  })
   it('weights sources by sensor confidence in FUSED mode', () => {
     const f = new SensorFusion('FUSED', noSmoothing)
     const e = f.update(10, cam(10, 0.0, 0.0, 0.75), wear(10, 1.0, 1.0, { sensorConfidence: 0.25 }))

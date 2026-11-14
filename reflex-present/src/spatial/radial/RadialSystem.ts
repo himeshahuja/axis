@@ -148,7 +148,7 @@ export class RadialSystem {
   }
 
   // ---- per frame ------------------------------------------------------------------------
-  tick(now: number, p: { pointer: PointerEstimate; grabbedId: string | null; aspect: number; features: HandFeatures | null; mirrored: boolean }) {
+  tick(now: number, p: { pointer: PointerEstimate; grabbedId: string | null; aspect: number; features: HandFeatures | null; mirrored: boolean; graspMode?: boolean }) {
     this.stepGyroCalibration(now)
     if (p.features) this.camera.feed(p.features.handRollDeg, p.mirrored, now)
     else this.camera.lost()
@@ -169,7 +169,7 @@ export class RadialSystem {
       pointer: { x: p.pointer.x, y: p.pointer.y, valid: p.pointer.valid },
       grabbedId: p.grabbedId,
       rotation: active ? { angle: active.angle, source: active.source } : null,
-      openPalm: p.features?.openPalm ?? false,
+      openPalm: !p.graspMode && (p.features?.openPalm ?? false),
     }
     this.lastCtx = ctx
     const before = this.controller.state.status
@@ -203,7 +203,7 @@ export class RadialSystem {
   /** Gestures while the menu is open (the runtime routes them here instead of the engine). */
   onGesture(g: GestureEvent) {
     const c = this.controller
-    if (g.kind === 'pinch_end' || g.kind === 'select') {
+    if (g.kind === 'pinch_end' || g.kind === 'grasp_end' || g.kind === 'select') {
       this.timings.releaseMs = g.tMs
       this.handle([c.release(g.tMs, g.source === 'camera')])
     } else if (g.kind === 'cancel' || g.kind === 'open_palm') {

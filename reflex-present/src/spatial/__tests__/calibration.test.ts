@@ -3,6 +3,12 @@ import { CALIBRATION_TARGETS, cameraToCanvas, defaultProfile, fitAffine, orient,
 import type { CalibrationSample } from '../types'
 
 describe('region mapping', () => {
+  it('doubles sensitivity when the calibrated movement range halves', () => {
+    const wide = { ...defaultProfile(), mirrorX: false }
+    const narrow = { ...wide, region: { x0: .375, x1: .625, y0: .3375, y1: .6125 } }
+    const delta = (profile: typeof wide) => cameraToCanvas({ x: .55, y: .5 }, profile).x - cameraToCanvas({ x: .5, y: .5 }, profile).x
+    expect(delta(narrow)).toBeCloseTo(delta(wide) * 2)
+  })
   it('maps the active region corners onto the canvas corners', () => {
     const p = { ...defaultProfile(), mirrorX: false }
     expect(cameraToCanvas({ x: 0.25, y: 0.2 }, p)).toEqual({ x: 0, y: 0 })

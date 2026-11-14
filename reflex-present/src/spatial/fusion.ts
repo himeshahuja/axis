@@ -10,6 +10,8 @@ import type { PointerEstimate, PointerSource, SensorFusionMode, WearableObservat
 
 /** A camera pointer already mapped into the canvas frame by calibration. */
 export interface CalibratedCameraPointer {
+  /** Already filtered once per camera frame (e.g. grasp pose stabilization). */
+  smoothed?: boolean
   tMs: number
   captureTMs?: number
   x: number
@@ -98,6 +100,13 @@ export class SensorFusion {
     this.bias = { x: 0, y: 0 }
   }
 
+  resetPointer() {
+    this.filter.reset()
+    this.lastOut = null
+    this.lastSource = 'none'
+    this.handoff = { x: 0, y: 0 }
+  }
+
   update(nowMs: number, cam: CalibratedCameraPointer | null, wear: WearableObservation | null): PointerEstimate {
     const cfg = this.config
     const dtS = this.lastUpdateT === null ? 0 : Math.max(0, (nowMs - this.lastUpdateT) / 1000)
@@ -168,7 +177,7 @@ export class SensorFusion {
         }
       }
       const blended = { x: raw.x + this.handoff.x, y: raw.y + this.handoff.y }
-      const smooth = this.filter.filter(blended.x, blended.y, nowMs)
+      const smooth = source === 'camera' && cam?.smoothed ? blended : this.filter.filter(blended.x, blended.y, nowMs)
       const x = clamp01(smooth.x)
       const y = clamp01(smooth.y)
       this.lastOut = { x, y, tMs: nowMs }

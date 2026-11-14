@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PresentationBoard } from './components/PresentationBoard'
 import { sampleSlide } from './data/sampleDeck'
 import { execute } from './engine/actions'
 import { logDecision, route, telemetry } from './engine/router'
@@ -15,6 +16,9 @@ interface LogEntry {
 }
 
 function App() {
+  // The command prototype remains available at /command-demo; the default is
+  // the presenter surface used for the hackathon demo.
+  if (window.location.pathname !== '/command-demo') return <PresentationBoard />
   const [slide, setSlide] = useState<Slide>(sampleSlide)
   const [highlighted, setHighlighted] = useState<string[]>([])
   const [log, setLog] = useState<LogEntry[]>([])
