@@ -37,15 +37,46 @@ function FitWord({ text, className }: { text: string; className?: string }) {
     const el = ref.current!
     const fit = () => {
       const parent = el.parentElement!
+      const hero = el.closest('.hero') as HTMLElement | null
+      el.style.transform = ''
       el.style.fontSize = '100px'
       const w = el.scrollWidth
-      if (w > 0) el.style.fontSize = `${(100 * parent.clientWidth) / w}px`
+      if (w <= 0) return
+      // Fill the width, but never taller than ~46% of the hero.
+      const cs = getComputedStyle(el)
+      const ctx = document.createElement('canvas').getContext('2d')!
+      ctx.font = `${cs.fontWeight} 100px ${cs.fontFamily}`
+      const m = ctx.measureText(text)
+      const ink100 = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent || 72
+      const byWidth = (100 * parent.clientWidth) / w
+      const byHeight = hero ? (100 * hero.clientHeight * 0.46) / ink100 : byWidth
+      const size = Math.min(byWidth, byHeight)
+      el.style.fontSize = `${size}px`
+      // Seat the glyphs' ink (not the line box) on the bottom edge. Measure where the
+      // browser puts the baseline in a plain line-height:1 line of the same face, then
+      // add the 0.06em top padding each letter carries (see .hero-letter).
+      const line = document.createElement('div')
+      line.style.cssText = `position:absolute;visibility:hidden;left:0;top:0;white-space:nowrap;line-height:1;font-family:${cs.fontFamily};font-weight:${cs.fontWeight};font-size:${size}px`
+      line.textContent = text
+      const probe = document.createElement('span')
+      probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline'
+      line.appendChild(probe)
+      parent.appendChild(line)
+      const baseline = probe.getBoundingClientRect().top - line.getBoundingClientRect().top + size * 0.06
+      line.remove()
+      const descent = (m.actualBoundingBoxDescent * size) / 100
+      el.style.transform = `translateY(${(el.offsetHeight - baseline - descent).toFixed(1)}px)`
     }
     fit()
     const ro = new ResizeObserver(fit)
     ro.observe(el.parentElement!)
+    // Re-fit when the display face arrives: fallback metrics seat the ink wrongly.
     document.fonts?.ready.then(fit)
-    return () => ro.disconnect()
+    document.fonts?.addEventListener('loadingdone', fit)
+    return () => {
+      ro.disconnect()
+      document.fonts?.removeEventListener('loadingdone', fit)
+    }
   }, [text])
   return (
     <h1 ref={ref} className={className} aria-label={text}>
@@ -216,11 +247,6 @@ export function Hero() {
       </div>
 
       <div className="hero-copy">
-        <div className="hero-meta mono">
-          <span>[01]</span>
-          <span>Spatial interaction engine</span>
-          <span>VexoHacks 2026 · San Francisco</span>
-        </div>
         <p className="hero-statement">
           Your hands
           <br />

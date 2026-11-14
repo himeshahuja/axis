@@ -28,10 +28,6 @@ export function Intelligence() {
   return (
     <section className={`intel mode-${mode}`} id="intelligence" aria-label="Objects become intelligence">
       <div className="intel-top">
-        <div className="section-index mono">
-          <span>[05]</span>
-          <span>Objects become intelligence</span>
-        </div>
         <p className="intel-sentence" data-reveal>
           The same chart <span className="hot">{VERB[mode]}</span>
         </p>

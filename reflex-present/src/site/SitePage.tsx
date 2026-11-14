@@ -8,7 +8,6 @@ import { FieldCanvas } from './FieldCanvas'
 import { Hero } from './Hero'
 import { Intelligence } from './Intelligence'
 import { installPointer } from './motion'
-import { Orientation } from './Orientation'
 import { Playground } from './Playground'
 import { System } from './System'
 import './site.css'
@@ -23,7 +22,6 @@ function Nav() {
       <div className="nav-links mono">
         <a href="#shift">Shift</a>
         <a href="#playground">Playground</a>
-        <a href="#actions">Actions</a>
         <a href="#system">System</a>
       </div>
       <a href={ROUTES.liveDemo} className="nav-cta mono">
@@ -38,10 +36,6 @@ function Launch() {
     <section className="launch" id="launch" aria-label="Launch the live demo">
       <FieldCanvas className="launch-field" spacing={34} radius={300} />
       <div className="launch-inner">
-        <div className="section-index mono">
-          <span>[07]</span>
-          <span>Live demo</span>
-        </div>
         <h2 className="launch-title" data-reveal>
           The interface
           <br />
@@ -72,7 +66,6 @@ function Footer() {
       <a href={REPO_URL} target="_blank" rel="noreferrer">
         GitHub ↗
       </a>
-      <a href="#top">Top ↑</a>
     </footer>
   )
 }
@@ -109,7 +102,6 @@ export function SitePage() {
         <Hero />
         <Disappear />
         <Playground />
-        <Orientation />
         <Intelligence />
         <System />
         <Launch />

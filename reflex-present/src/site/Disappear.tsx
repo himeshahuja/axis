@@ -143,10 +143,6 @@ export function Disappear() {
     <section ref={root} className="disappear" id="shift" aria-label="The interface disappears">
       <div ref={stage} className="disappear-stage">
         <div className="disappear-copy">
-          <div className="section-index mono">
-            <span>[02]</span>
-            <span>The interface disappears</span>
-          </div>
           <h2 ref={textA} className="disappear-a">
             Why are we still pointing and clicking?
           </h2>
@@ -170,7 +166,7 @@ export function Disappear() {
             <i />
             <i />
             <i />
-            <span>dashboard — untitled.app</span>
+            <span>dashboard.app</span>
           </div>
           <div ref={winInner} className="fw-inner">
             <div className="fw-side">

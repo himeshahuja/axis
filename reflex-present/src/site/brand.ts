@@ -1,5 +1,5 @@
 // The one place the product name lives. Change it here and the whole site follows.
-export const BRAND_NAME = 'UNTITLED'
+export const BRAND_NAME = 'AXIS'
 
 export const ROUTES = {
   /** The real camera + wearable spatial demo (projector view). */

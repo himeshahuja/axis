@@ -501,10 +501,6 @@ export function Playground() {
   return (
     <section ref={root} className="playground" id="playground" aria-label="Interactive playground">
       <header className="pg-head">
-        <div className="section-index mono">
-          <span>[03]</span>
-          <span>Playground</span>
-        </div>
         <h2 className="pg-title" data-reveal>
           Grab something.
         </h2>
