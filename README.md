@@ -86,7 +86,7 @@ limit. Teach two gestures: **Take** lifts the writing around your hand, and **Pu
     python3 -m http.server 8000 --bind 127.0.0.1
 
 Open <http://localhost:8000/board.html> in Chrome or Edge, double-tap the band, check the band number
-(68, set in `js/board/config.js`) and press Connect. No band? Choose "Pretend band" and press "Play a
+(75, set in `js/board/config.js`) and press Connect. No band? Choose "Pretend band" and press "Play a
 pretend session".
 
 1. **Camera (for accuracy).** The camera card walks through five steps and ticks each off by itself:
