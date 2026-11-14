@@ -1,9 +1,9 @@
 {
-  "about": "Real band 68 recordings (guided captures on the bench) that tests/board.mjs replays. For each: when the left and right knocks happened (seconds from the start, a window around the jolt, checked by hand against the capture steps and the band's own tap events), and the true distance between the knocks in cm if it was measured (null if not). A new capture with the distance typed in can be added here.",
+  "about": "Real band 68 recordings (guided captures on the bench) that tests/board.mjs replays. For each: when the left and right knocks happened (seconds from the start, a window around the jolt, checked by hand against the capture steps and the band's own tap events), and the distance between the knocks in cm when known (tape-measured, or confirmed by the person; null if not). A new capture with the distance typed in can be added here.",
   "recordings": [
     {
       "file": "soft-knocks.json",
-      "about": "Gentle left knock (0.47 g jumps). A single 0.49 g jump at 11.4 s is the hand setting off toward the right edge, not a knock (one jump; a knock rings for several); the right knock is the 2.85 g one at 12.2 s. The band's tap detector heard only that one, 0.4 s late. On its own board; the person said the width came out right (not tape-measured, so not checked).",
+      "about": "Gentle left knock (0.47 g jumps). A single 0.49 g jump at 11.4 s is the hand setting off toward the right edge, not a knock (one jump; a knock rings for several); the right knock is the 2.85 g one at 12.2 s. The band's tap detector heard only that one, 0.4 s late. On its own board, 50.7 cm between the knocks: the band's own reading, confirmed by the person as accurate (not tape-measured).",
       "left": [
         6.3,
         6.6
@@ -12,11 +12,11 @@
         12.1,
         12.4
       ],
-      "width": null
+      "width": 50.7
     },
     {
       "file": "firm-knocks-hard-writing.json",
-      "about": "Firm knocks (4.3 and 7.7 g peaks); writing with jolts up to 1.6 g, as strong as a gentle knock, which must not be taken for knocks. On its own board; the person said the width came out right (not tape-measured, so not checked).",
+      "about": "Firm knocks (4.3 and 7.7 g peaks); writing with jolts up to 1.6 g, as strong as a gentle knock, which must not be taken for knocks. On its own board, 48.3 cm between the knocks: the band's own reading, confirmed by the person as accurate (not tape-measured).",
       "left": [
         6.55,
         6.85
@@ -25,11 +25,11 @@
         11.85,
         12.15
       ],
-      "width": null
+      "width": 48.3
     },
     {
       "file": "wobbly-right-edge.json",
-      "about": "A single 0.62 g jump at 10.9 s as the hand set off was once taken as the right knock (board 1.9 cm, refused); the knock is at 12.3 s. Held out at the far right, the hand turned 4-10 deg/s and never made a rest by the writing limits, so the edge waited 12 s to be placed. The band sent no tap events at all. On its own board, not measured.",
+      "about": "A single 0.62 g jump at 10.9 s as the hand set off was once taken as the right knock (board 1.9 cm, refused); the knock is at 12.3 s. Held out at the far right, the hand turned 4-10 deg/s and never made a rest by the writing limits, so the edge waited 12 s to be placed. The band sent no tap events at all. On its own board, 39.8 cm between the knocks: the band's own reading, confirmed by the person as accurate (not tape-measured).",
       "left": [
         5.9,
         6.2
@@ -38,7 +38,7 @@
         12.2,
         12.5
       ],
-      "width": null
+      "width": 39.8
     }
   ]
 }

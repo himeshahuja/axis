@@ -563,7 +563,7 @@ function realRecordings() {
       `${r.file}: the board set up ${right && s.setUpAt !== null ? `${(s.setUpAt - right.s).toFixed(2)} s` : 'never'} after the right knock (under 1.5 s: the hand held to the board is a rest)`);
     if (r.width !== null && s.width !== null) {
       const off = s.width * 100 - r.width;
-      check(Math.abs(off) <= Math.max(3, 0.1 * r.width), `${r.file}: board ${(s.width * 100).toFixed(1)} cm against ${r.width} cm measured (${off.toFixed(1)} cm off)`);
+      check(Math.abs(off) <= Math.max(3, 0.1 * r.width), `${r.file}: board ${(s.width * 100).toFixed(1)} cm against ${r.width} cm known (${off.toFixed(1)} cm off)`);
     }
   }
 }
