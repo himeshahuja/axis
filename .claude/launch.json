@@ -26,6 +26,21 @@
         "--strictPort"
       ],
       "port": 5180
+    },
+    {
+      "name": "pitch-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "reflex-present",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5190",
+        "--strictPort"
+      ],
+      "port": 5190
     }
   ]
 }

@@ -67,6 +67,17 @@ export class LocalMemoryStore implements MemoryStore {
     return this.entries
   }
 
+  /** Remove every entry (callers confirm with the user first). */
+  clear() {
+    this.entries = []
+    if (!this.key) return
+    try {
+      localStorage.removeItem(this.key)
+    } catch {
+      // storage blocked: nothing persisted anyway
+    }
+  }
+
   add(entry: MemoryEntry) {
     this.entries = [entry, ...this.entries].slice(0, 200)
     if (!this.key) return

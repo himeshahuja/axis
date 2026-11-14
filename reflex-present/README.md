@@ -1,5 +1,47 @@
 # Reflex Present — P0 vertical slice
 
+## The pitch — `/pitch`
+
+The Axis pitch (about 2:40) as five interactive scenes on the live spatial
+engine. Open `http://localhost:5173/pitch` on the external display (F for
+fullscreen) and press **P** to open the presenter console
+(`/pitch?view=presenter`) on the laptop; the two stay in sync in the same
+browser. Scenes, objects, beats and speaking notes are data in
+[`src/pitch/scenes.ts`](src/pitch/scenes.ts); progression rules live in
+[`src/pitch/pitchController.ts`](src/pitch/pitchController.ts) (tested).
+
+| Scene | Live interaction | → key fallback |
+| --- | --- | --- |
+| 01 Problem | grab the window, move it aside → the old interface falls away | yes |
+| 02 Product | drag Perception, Intent, Action from the pile into their slots → the pipeline connects | yes, one piece per press |
+| 03 Live | pull the revenue chart into the spotlight; hold it → Explain; hold → Remember (saved on the band), open Memory | spotlight only |
+| 04 Trade-offs | ask the Vexo band "What is the difference between this and conventional interfaces?" → the Axis card appears | yes |
+| 05 Close | grab any piece and let go → it assembles; pull the page across → "The interface is you." | yes |
+
+**Next with your hand:** grab empty space in the right quarter of the screen (or anywhere in
+the thin strip at the very right edge) and pull it left by a fifth of the width, then let
+go. It does what → does.
+
+**Memory on the band:** Remember writes a compact entry (≤ 232 bytes) into the band's own
+storage with the kit's `band.storage.put` (keys 901–940, index in 900), and the Memory tab
+reads them back with `band.storage.getText`. The kit has no "context" or memory API; this
+key-value store is the only thing a program can save on the wristband, and it is readable
+by whoever connects next. To check it on the real band from your own Terminal:
+`python3 reflex-present/scripts/check-band-memory.py` (needs `pip install --user bleak`).
+
+Scene 05 listens through band 75's own microphone: Gemini if `GEMINI_API_KEY` is set
+for the dev server (the other session's `/api/voice/gemini`), otherwise Deepgram with the
+team key typed into the rehearsal panel (D). Connect the band from that panel too
+(Bluetooth needs a click in the audience window). While it listens, the stage shows that
+sound is being sent off the laptop.
+
+Grabbing or dropping never advances a scene unless the scene names that
+interaction. Keys: → next (completes a pending step first), ⇧→ skip, ← back,
+Home restart, M reopen the actions menu, G pause gestures, K recalibrate,
+C camera on/off, X reset the scene's layout, ⌘Z undo a move, D rehearsal
+overlay (timing, steps, notes). Before going live, clear rehearsal entries
+with the console's "Clear memory…" (it asks first).
+
 ## VexoAI hackathon presenter
 
 The default route now opens a six-slide gesture presentation with the working
@@ -119,7 +161,7 @@ opens → rotate the wrist (Explain top, Remember clockwise, Voice
 counter-clockwise) → release to run. Open palm or Esc cancels; ← → / wheel /
 click work as fallbacks; **M** opens the menu on the hovered object.
 
-- **Band 68** (`wearable/band.ts`, the only place the number lives). Connect it
+- **Band 75** (`wearable/band.ts`, the only place the number lives). Connect it
   from the HUD or `/spatial-debug` (Bluetooth, USB or the kit's pretend band),
   then **Calibrate twist**: 2 s still (gyro bias), 4 s doorknob twist starting
   clockwise (finds the axis and sign). Saved per band in localStorage. Until
@@ -136,6 +178,17 @@ click work as fallbacks; **M** opens the menu on the hovered object.
   (team key typed into the page, memory only), the browser's speech
   recognition, or typed text, and shows a command preview bound to the object;
   nothing is executed.
+- **Voice → Gemini (the default).** Voice records band 75's microphone (Opus,
+  decoded with the kit's `BandAudio`) until you press *done* or go quiet (12 s
+  at most), sends it as a 16 kHz WAV to `/api/voice/gemini` on the dev server
+  ([`server/geminiVoice.ts`](server/geminiVoice.ts)), which asks Google Gemini
+  for the transcript and a short reply about the selected object; the reply pops
+  up in the Voice panel. The key stays on the laptop — put
+  `GEMINI_API_KEY=...` in `reflex-present/.env` (gitignored; optional
+  `GEMINI_MODEL`, default `gemini-3.8-flash`) and restart `npm run dev`. It is
+  never sent to the page. If the band isn't connected the panel says so; it
+  does not fall back to the laptop mic. The pretend band's mic plays the kit's
+  sample recording and is labelled that way.
 
 ## Known gaps
 

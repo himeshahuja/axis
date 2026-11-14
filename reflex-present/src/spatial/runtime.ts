@@ -101,6 +101,8 @@ export class SpatialRuntime {
   private graspCursor = new GraspCursor()
   private stabilizedCamera: { frameId: number; point: Point2 } | null = null
   autoRangeCapture = false
+  /** When false, camera gestures start nothing (the cursor still follows the hand). */
+  cameraGesturesEnabled = true
   onControlSelect: ((pointer: PointerEstimate) => boolean) | null = null
   get calibrationProgress() { return this.rangeHold.progress }
   /** Unmapped camera position, so a bad saved range cannot hide calibration. */
@@ -379,6 +381,9 @@ export class SpatialRuntime {
     const gestures = this.pending
     this.pending = []
     for (const { g, at } of gestures) {
+      // Camera gestures switched off: nothing new starts, but a hand that is already
+      // holding something can still let go.
+      if (!this.cameraGesturesEnabled && g.source === 'camera' && g.kind !== 'pinch_end' && g.kind !== 'grasp_end') continue
       // While the radial menu is open it owns every gesture: no drags, no drops.
       if (this.radial.capturesInput && !modal) {
         this.radial.onGesture(g)
