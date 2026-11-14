@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import type { SpatialObject } from '../../types'
 import type { MemoryEntry } from '../actions/memory'
 import { forgetDeepgramKey, hasDeepgramKey, setDeepgramKey, type VoiceProvider, type VoiceProviderId } from '../actions/voice'
-import { previewVoiceCommand, type VoiceCommandPreview } from '../actions/voiceCommand'
 import type { ExplainCard, VoiceSession } from '../RadialActionExecutor'
 
 const pct = (v: number) => `${v * 100}%`
@@ -143,9 +142,6 @@ export function VoiceCapturePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.id, providerId])
 
-  const transcript = providerId === 'typed' ? typed : [final, partial].filter(Boolean).join(' ')
-  const preview: VoiceCommandPreview | null = transcript.trim() ? previewVoiceCommand(transcript, object, objects) : null
-
   return (
     <div className="ap-card ap-voice" style={beside(object, 0.3)} onMouseDown={(e) => e.stopPropagation()} onMouseMove={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
       <div className="ap-head">
@@ -225,17 +221,6 @@ export function VoiceCapturePanel({
         </div>
       )}
 
-      {preview && (
-        <div className="ap-preview">
-          <div className="ap-muted ap-small">Command preview — not executed</div>
-          <div>
-            <b>{preview.intent}</b> → {preview.objectTitles.join(', ')}
-          </div>
-          {Object.keys(preview.parameters).length > 0 && <div className="ap-muted">{JSON.stringify(preview.parameters)}</div>}
-          {preview.computed && <div className="ap-computed">{preview.computed}</div>}
-          {preview.requiresClarification && <div className="ap-warnline">{preview.clarificationPrompt}</div>}
-        </div>
-      )}
     </div>
   )
 }
