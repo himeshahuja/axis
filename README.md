@@ -58,6 +58,23 @@ This holds each person out in turn, learns from the others and tests on them, an
 
 Copy the `model/` folder to the Pi if you trained elsewhere. The Pi runs the network with numpy alone: no PyTorch and no ONNX runtime to install. (`--onnx` on either training script also writes `model/model.onnx` if you want it.)
 
+## Guided air-writing trainer
+
+For collecting labelled IMU recordings and retraining a live classifier, use the
+standalone trainer in [`airwrite-trainer/`](airwrite-trainer/):
+
+    cd airwrite-trainer
+    pip install -r requirements.txt
+    python3 server.py --source sim
+
+Open http://localhost:8000. The simulated source works without hardware; use
+`--source serial --port /dev/ttyUSB0` for a wrist unit that emits
+`ax,ay,az,gx,gy,gz[,btn]` CSV lines, or `--source udp --port 9000` for UDP
+input. The trainer saves recordings under `airwrite-trainer/data/<person>/`
+(ignored by git), reloads them on startup, and retrains after each collected
+sample. See [`airwrite-trainer/README.md`](airwrite-trainer/README.md) for the
+workflow and options.
+
 ## If time runs short
 
 - No real recordings yet: the network in `model/` was trained on simulated readings and is there to start from. It may or may not read real writing; try it, but plan on step 4.
