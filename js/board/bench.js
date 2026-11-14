@@ -87,7 +87,7 @@ function seen(t, x, y) {
 }
 
 const camera = new CameraPanel(
-  { canvas: $('#cam'), status: $('#cam-status'), start: $('#cam-start'), corners: $('#cam-corners'), tip: $('#cam-tip'), hand: $('#cam-hand'), width: $('#cam-width'), height: $('#cam-height') },
+  { canvas: $('#cam'), status: $('#cam-status'), steps: $('#cam-steps'), start: $('#cam-start'), corners: $('#cam-corners'), tip: $('#cam-tip'), hand: $('#cam-hand'), width: $('#cam-width'), height: $('#cam-height') },
   {
     band() {
       const tr = board.tracker;

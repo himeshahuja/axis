@@ -89,11 +89,12 @@ Open <http://localhost:8000/board.html> in Chrome or Edge, double-tap the band, 
 (68, set in `js/board/config.js`) and press Connect. No band? Choose "Pretend band" and press "Play a
 pretend session".
 
-1. **Camera (for accuracy).** Point the laptop's camera, or a USB webcam, at the whiteboard, off to one
-   side so your body does not hide your hand. Press **Start camera**, say which hand the band is on, type
-   the board's width and height in cm, press **Set corners** and click its four corners in the picture
-   (top left, top right, bottom right, bottom left). Then hold the marker on the board, press **Marker
-   tip** and click the tip, so the cursor follows the tip rather than the wrist.
+1. **Camera (for accuracy).** The camera card walks through five steps and ticks each off by itself:
+   start the camera (pointed at the whiteboard from one side, so your body does not hide your hand); type
+   the board's width and height in cm; click its four corners in the picture (it opens full-window for
+   that; Backspace undoes a click, Esc cancels); step in with the band on, until a pink ring marks the
+   band's wrist; and, optionally, hold the marker on the board and click its tip, so the cursor follows
+   the tip rather than the wrist.
 2. After connecting, hold the band still for a second. That is when it learns which way is up and its
    gyroscope's bias; it waits until you are still.
 3. Setup starts by itself: knock the board's **left** edge with your band hand and hold still, then its

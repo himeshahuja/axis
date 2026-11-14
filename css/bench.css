@@ -42,4 +42,3 @@ canvas.mini { max-width: 520px; }
 .steps li.now { color: var(--ink); font-weight: 700; }
 .steps li.done { text-decoration: line-through; }
 
-canvas.cam { background: #000; cursor: crosshair; }

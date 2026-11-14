@@ -9,6 +9,7 @@
 <link rel="icon" href="favicon.svg">
 <link rel="stylesheet" href="vexo-open-kit/projects/shared/style.css">
 <link rel="stylesheet" href="css/board.css">
+<link rel="stylesheet" href="css/camera.css">
 <script src="js/board/boot.js" defer></script>
 </head>
 <body>
@@ -63,21 +64,37 @@ submodule. In this repository's folder run <code>git submodule update --init</co
   <aside class="side">
     <section class="card" aria-labelledby="camera-title">
       <h2 id="camera-title">Camera</h2>
-      <p class="soft">Point the laptop's camera, or a USB webcam, at the whiteboard. It finds you in the
-      picture and follows the wrist that wears the band (the one moving as the band says it moves), so the
-      cursor does not drift. Type the board's size, then click its four corners in the picture.</p>
+      <p class="soft cam-intro">The camera stops the cursor drifting. It finds you in the picture and follows
+      the wrist wearing the band. Five steps, once per board: each ticks itself off.</p>
       <canvas id="cam" class="cam" role="img" aria-label="The camera's picture of the board"></canvas>
-      <div class="fields pair">
-        <label>Board width, cm <input id="cam-width" inputmode="decimal" size="6"></label>
-        <label>Board height, cm <input id="cam-height" inputmode="decimal" size="6"></label>
-      </div>
-      <div class="row">
-        <button id="cam-start">Start camera</button>
-        <button id="cam-corners">Set corners</button>
-        <button id="cam-tip" title="Hold the marker on the board and click its tip in the picture">Marker tip</button>
-        <label>Band on <select id="cam-hand"><option value="right">right hand</option><option value="left">left hand</option></select></label>
-      </div>
-      <p id="cam-status" class="soft"></p>
+      <ol id="cam-steps" class="cam-steps">
+        <li data-step="camera">
+          <span class="title">Turn on the camera</span>
+          <span class="detail"></span>
+          <span class="controls"><button id="cam-start" class="go">Start camera</button></span>
+        </li>
+        <li data-step="size">
+          <span class="title">Type the board's size</span>
+          <span class="detail"></span>
+          <span class="controls"><label>Width <input id="cam-width" inputmode="decimal"> cm</label><label>Height <input id="cam-height" inputmode="decimal"> cm</label></span>
+        </li>
+        <li data-step="corners">
+          <span class="title">Mark the board's corners</span>
+          <span class="detail"></span>
+          <span class="controls"><button id="cam-corners" class="go">Mark corners</button></span>
+        </li>
+        <li data-step="seen">
+          <span class="title">Stand at the board, band on</span>
+          <span class="detail"></span>
+          <span class="controls"><label>Band on my <select id="cam-hand"><option value="right">right hand</option><option value="left">left hand</option></select></label></span>
+        </li>
+        <li data-step="tip">
+          <span class="title">Mark the marker's tip <small>(optional, better)</small></span>
+          <span class="detail"></span>
+          <span class="controls"><button id="cam-tip" class="go">Mark tip</button></span>
+        </li>
+      </ol>
+      <p id="cam-status" class="cam-status" role="status"></p>
     </section>
 
     <section class="card" aria-labelledby="gestures-title">

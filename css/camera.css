@@ -1,0 +1,45 @@
+/* The camera card, shared by board.html and bench.html: the picture, and the steps to set
+   it up as a checklist that ticks itself off (js/board/camera.js marks each step). */
+
+canvas.cam { display: block; width: 100%; background: #111; border-radius: 8px; margin: 8px 0; cursor: crosshair; }
+
+.cam-steps { list-style: none; counter-reset: step; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.cam-steps li {
+  counter-increment: step; display: grid; grid-template-columns: 24px minmax(0, 1fr); column-gap: 10px; row-gap: 4px;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card);
+}
+.cam-steps li::before {
+  content: counter(step); grid-row: 1 / span 3; width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 0.8rem; font-weight: 700; background: var(--line); color: var(--soft);
+}
+.cam-steps li > * { grid-column: 2; }
+.cam-steps .title { font-weight: 600; }
+.cam-steps .title small { font-weight: 400; color: var(--soft); }
+.cam-steps .detail { color: var(--soft); font-size: 0.88rem; }
+.cam-steps .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.cam-steps .controls label { display: flex; gap: 6px; align-items: center; font-size: 0.9rem; }
+.cam-steps .controls input { width: 5.5em; }
+
+.cam-steps li.now { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.cam-steps li.now::before { background: var(--accent); color: #fff; }
+.cam-steps li.now .detail { color: var(--ink); }
+.cam-steps li.done::before { content: '✓'; background: #2e9d5b; color: #fff; }
+.cam-steps li.later { opacity: 0.55; }
+.cam-steps li.later .detail { display: none; }
+.cam-steps li.now button.go { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.cam-status { margin: 6px 0 0; font-size: 0.92rem; padding: 6px 10px; border-radius: 8px; background: var(--paper); }
+.cam-status.good { color: #1f7a45; }
+.cam-status.warn { color: #a35a00; }
+@media (prefers-color-scheme: dark) {
+  .cam-status.good { color: #6fd39a; }
+  .cam-status.warn { color: #f5b45a; }
+}
+
+/* While corners or the tip are being clicked, the card fills the window, so the clicks are precise. */
+.cam-focus { position: fixed; inset: 12px; z-index: 50; margin: 0 !important; overflow: auto; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35); }
+.cam-focus canvas.cam { width: min(100%, calc((100vh - 190px) * 16 / 9)); margin: 8px auto; }
+.cam-focus .cam-intro, .cam-focus .cam-steps li:not(.now), .cam-focus .cam-extra, .cam-focus .cam-status { display: none; }
+.cam-focus .cam-steps li { grid-template-columns: minmax(0, 1fr); }
+.cam-focus .cam-steps li::before { display: none; }
+.cam-focus .cam-steps li > * { grid-column: 1; }
