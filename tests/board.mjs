@@ -18,7 +18,7 @@ import { BAND } from '../js/board/config.js';
 import { alongBoard, Fused } from '../js/board/fuse.js';
 import { decode, encode, Gestures, loadFromBand, saveToBand } from '../js/board/gestures.js';
 import { apply, homography, invert } from '../js/board/homography.js';
-import { findLight } from '../js/board/light.js';
+import { findColour, findLight, sample, vivid, VIVID_ENOUGH } from '../js/board/light.js';
 import { fromSession, readRecording, Recorder } from '../js/board/recording.js';
 import { examples, session } from '../js/board/simulate.js';
 import { bands, peaks, spectrum } from '../js/board/spectrum.js';
@@ -357,6 +357,23 @@ function cameraChecks() {
   paint(100, 5, 55, 30, [60, 230, 50]);
   const busy = findLight({ data, width, height }, { near: null });
   check(busy && Math.hypot(busy.u - 73.4, busy.v - 41.7) < 0.3, `green ink and a big green patch in the picture do not pass for the light (found at ${busy?.u.toFixed(1)}, ${busy?.v.toFixed(1)})`);
+
+  // The band by its own colour: an orange strap on a white board, half of it in shadow, beside black ink and a hand.
+  const pic = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const p = (y * width + x) * 4, grey = 228 + ((x * 5 + y * 11) % 7);
+      let rgb = [grey, grey, grey];
+      if (x >= 60 && x < 84 && y >= 30 && y < 40) rgb = x < 72 ? [230, 120, 40] : [138, 72, 24];   // the strap, its right half shaded
+      else if (y >= 70 && y < 74 && x >= 10 && x < 140) rgb = [30, 30, 34];                       // a line of black ink
+      else if (x >= 110 && x < 140 && y >= 20 && y < 50) rgb = [215, 170, 140];                    // a hand
+      [pic[p], pic[p + 1], pic[p + 2]] = rgb;
+      pic[p + 3] = 255;
+    }
+  }
+  const strap = { data: pic, width, height }, taught = sample(strap, 66, 35, 2), band = findColour(strap, taught, { near: null });
+  check(band && Math.hypot(band.u - 72, band.v - 35) < 1 && vivid(taught) > VIVID_ENOUGH && vivid([30, 30, 34]) < VIVID_ENOUGH,
+    `the band by its colour: taught by one click, found at (${band?.u.toFixed(1)}, ${band?.v.toFixed(1)}) for (72, 35), shade and all, not the hand or the ink; a black band is flagged as too grey`);
 
   const s = session('reach', { rate: 208, camera: {} }), on = fuseSession(s), late = fuseSession(s, { compensate: false }), alone = fuseSession(s, { imu: false });
   check(on.median < 0.01 && on.p95 < 0.03, `camera and band: trail within ${cm(on.median).trim()} cm half the time, ${cm(on.p95).trim()} cm 95% (camera alone: ${cm(alone.median).trim()}, ${cm(alone.p95).trim()})`);

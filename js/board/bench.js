@@ -87,7 +87,7 @@ function seen(t, x, y) {
 }
 
 const camera = new CameraPanel(
-  { canvas: $('#cam'), status: $('#cam-status'), start: $('#cam-start'), corners: $('#cam-corners'), tip: $('#cam-tip'), width: $('#cam-width'), height: $('#cam-height') },
+  { canvas: $('#cam'), status: $('#cam-status'), start: $('#cam-start'), corners: $('#cam-corners'), tip: $('#cam-tip'), colour: $('#cam-colour'), width: $('#cam-width'), height: $('#cam-height') },
   {
     onFix(fix) {
       if (fix.x === null || clock === null || player) return;
