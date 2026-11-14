@@ -256,7 +256,11 @@ export class BandGeminiProvider implements VoiceProvider {
 
   unavailable() {
     const a = this.adapter()
-    if (!a?.band || !a.connected) return `Connect band ${BAND_NUMBER} first (Bluetooth or USB).`
+    if (a?.status === 'connecting') return `Connecting to band ${BAND_NUMBER}…`
+    if (a?.status === 'reconnecting') return `Band ${BAND_NUMBER} dropped; reconnecting…`
+    if (a?.status === 'error' && a.error) return a.error
+    // This page holds its own link: a band connected in another tab or app is invisible here.
+    if (!a?.band || !a.connected) return `Band ${BAND_NUMBER} isn’t connected on this page. Connect it here (it takes one Bluetooth connection at a time: close other tabs using it).`
     if (typeof AudioDecoder !== 'function') return 'This browser cannot decode the band’s sound: use a current Chrome or Edge.'
     if (this.status?.offline) return 'The Gemini endpoint is not running: start the app with npm run dev.'
     if (this.status && !this.status.configured) return 'No Gemini key on this laptop: put GEMINI_API_KEY=... in reflex-present/.env, then restart npm run dev.'

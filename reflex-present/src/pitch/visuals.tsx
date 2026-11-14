@@ -92,9 +92,118 @@ function Pillar({ o, lit }: { o: PitchObject; lit: boolean }) {
   )
 }
 
-export function ObjectVisual({ o, lit }: { o: PitchObject; lit: boolean }) {
+/** y = ax² + bx + c plotted over the window around its vertex; roots and vertex computed, not drawn by hand. */
+function Graph({ a, b, c }: { a: number; b: number; c: number }) {
+  const f = (x: number) => a * x * x + b * x + c
+  const vx = -b / (2 * a)
+  const x0 = vx - 3
+  const x1 = vx + 3
+  const ys = Array.from({ length: 61 }, (_, i) => f(x0 + ((x1 - x0) * i) / 60))
+  const y0 = Math.min(...ys, 0) - 1
+  const y1 = Math.max(...ys, 0) + 1
+  const X = (x: number) => ((x - x0) / (x1 - x0)) * 100
+  const Y = (y: number) => 100 - ((y - y0) / (y1 - y0)) * 100
+  const d = ys.map((y, i) => `${i ? 'L' : 'M'}${X(x0 + ((x1 - x0) * i) / 60).toFixed(2)},${Y(y).toFixed(2)}`).join(' ')
+  const disc = b * b - 4 * a * c
+  const roots = disc >= 0 ? [(-b - Math.sqrt(disc)) / (2 * a), (-b + Math.sqrt(disc)) / (2 * a)] : []
+  return (
+    <svg viewBox="0 0 100 100" className="pv-graph" preserveAspectRatio="none">
+      <line x1={0} x2={100} y1={Y(0)} y2={Y(0)} className="axis" />
+      <line y1={0} y2={100} x1={X(0)} x2={X(0)} className="axis" />
+      <path d={d} className="curve" />
+      {roots.map((r) => (
+        <circle key={r} cx={X(r)} cy={Y(0)} r={1.8} className="pt" />
+      ))}
+      <circle cx={X(vx)} cy={Y(f(vx))} r={1.8} className="pt v" />
+    </svg>
+  )
+}
+
+const num = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(2))
+
+function FutureCard({ o, transformed }: { o: PitchObject; transformed: boolean }) {
+  const c = o.content
+  let front: React.ReactNode = null
+  let back: React.ReactNode = null
+  if (o.visual === 'equation' && o.formula) {
+    const { a, b, c: k } = o.formula
+    const vx = -b / (2 * a)
+    const disc = b * b - 4 * a * k
+    const roots = disc >= 0 ? [(-b - Math.sqrt(disc)) / (2 * a), (-b + Math.sqrt(disc)) / (2 * a)] : []
+    front = <div className="pv-eq">{o.lines?.[0]}</div>
+    back = (
+      <>
+        <Graph a={a} b={b} c={k} />
+        <p className="facts">
+          roots {roots.map(num).join(', ') || 'none'} · vertex ({num(vx)}, {num(a * vx * vx + b * vx + k)})
+        </p>
+      </>
+    )
+  } else if (o.visual === 'table' && c?.kind === 'chart') {
+    front = (
+      <table className="pv-table">
+        <tbody>
+          {c.series.map((p) => (
+            <tr key={p.label}>
+              <td>{p.label}</td>
+              <td>{p.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )
+    back = <Bars series={c.series} highlight={c.series.length - 1} />
+  } else if (o.visual === 'sticky' && c?.kind === 'note') {
+    const lines = c.text.split('\n')
+    front = (
+      <div className="pv-stickies">
+        {lines.map((l, i) => (
+          <b key={l} style={{ transform: `rotate(${[-4, 3, -2][i % 3]}deg)` }}>
+            {l}
+          </b>
+        ))}
+      </div>
+    )
+    back = (
+      <ul className="pv-tasks">
+        {lines.map((l) => (
+          <li key={l}>
+            <i /> {l}
+            <em>To do</em>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+  return (
+    <div className={`pv-future ${transformed ? 'is-done' : ''}`}>
+      <div className="face front">
+        <header>
+          <span className="idx">{o.index}</span>
+          <strong>{o.label}</strong>
+        </header>
+        <div className="body">{front}</div>
+        <footer>Hold · Voice · ask</footer>
+      </div>
+      <div className="face back">
+        <header>
+          <span className="idx">{o.index}</span>
+          <strong>{o.visual === 'equation' ? 'Graph' : o.visual === 'table' ? 'Chart' : 'Tasks'}</strong>
+        </header>
+        <div className="body">{back}</div>
+        <footer>Next: opens in {o.destination}</footer>
+      </div>
+    </div>
+  )
+}
+
+export function ObjectVisual({ o, lit, transformed = false }: { o: PitchObject; lit: boolean; transformed?: boolean }) {
   const c = o.content
   switch (o.visual) {
+    case 'equation':
+    case 'table':
+    case 'sticky':
+      return <FutureCard o={o} transformed={transformed} />
     case 'window':
       return (
         <div className="pv-window">

@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Band } from 'vexo-kit/index.js'
 import type { MemoryEntry } from '../../spatial/radial/actions/memory'
 import { BAND_NUMBER } from '../../spatial/wearable/band'
-import { clearBand, decodeEntry, encodeEntry, INDEX_KEY, readFromBand, saveToBand, storageOf, VALUE_MAX } from '../vexoMemory'
+import { PLACEHOLDER_MEMORY } from '../placeholderMemory'
+import { clearBand, decodeEntry, encodeEntry, INDEX_KEY, readFromBand, saveToBand, seedBand, storageOf, VALUE_MAX } from '../vexoMemory'
 
 const entry = (title: string, over: Partial<MemoryEntry> = {}): MemoryEntry => ({
   id: title,
@@ -54,5 +55,20 @@ describe('through the Vexo library (pretend band)', () => {
     expect(await s.getText(INDEX_KEY)).toBe('[901,902]')
     await clearBand(s)
     expect(await readFromBand(s)).toEqual([])
+  })
+
+  it('remembering the same thing twice updates it instead of adding a duplicate', async () => {
+    band = await Band.connect(BAND_NUMBER, { transport: 'sim' })
+    const s = storageOf(band)!
+    await seedBand(s, PLACEHOLDER_MEMORY())
+    expect((await readFromBand(s)).length).toBe(5)
+    await saveToBand(s, entry('Quarterly Revenue'))
+    await saveToBand(s, entry('Quarterly Revenue'))
+    const rows = await readFromBand(s)
+    expect(rows.length).toBe(6)
+    expect(rows.filter((r) => r.title === 'Quarterly Revenue')).toHaveLength(1)
+    // seeding again resets it to the placeholders
+    await seedBand(s, PLACEHOLDER_MEMORY())
+    expect((await readFromBand(s)).map((r) => r.title)).not.toContain('Quarterly Revenue')
   })
 })

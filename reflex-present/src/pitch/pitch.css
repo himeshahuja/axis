@@ -273,19 +273,19 @@
 
 /* 03 / 04 / 05 */
 .copy-demo,
-.copy-utility,
+.copy-future,
 .copy-compare {
   inset: 0;
 }
 .copy-demo .kicker,
-.copy-utility .kicker,
+.copy-future .kicker,
 .copy-compare .kicker {
   position: absolute;
   left: 5.5%;
   top: 7%;
 }
 .copy-demo h1,
-.copy-utility h1,
+.copy-future h1,
 .copy-compare h1 {
   position: absolute;
   left: 5.5%;
@@ -294,7 +294,7 @@
   font-size: 3.7cqw;
 }
 .copy-demo .hint,
-.copy-utility .hint,
+.copy-future .hint,
 .copy-compare .hint {
   position: absolute;
   left: 50%;
@@ -1918,6 +1918,7 @@
 .pitch-memtab {
   position: absolute;
   z-index: 42;
+  background: #0b0b0b;
   right: 5.5%;
   top: 5.6%;
 }
@@ -2050,4 +2051,182 @@
 }
 .is-closing .pitch-obj {
   transition-duration: 1800ms;
+}
+
+/* ---- 04: the Axis card is the reply — it grows out of where the Voice panel was ------------------ */
+.pitch-obj.from-reply {
+  transform-origin: 0 0;
+  animation: reply-in 1100ms var(--ease-out) both !important;
+}
+@keyframes reply-in {
+  0% {
+    opacity: 0.35;
+    transform: translate(var(--fx), var(--fy)) scale(var(--sx), var(--sy));
+    filter: blur(2px);
+  }
+  60% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* ---- 05: future directions — each card flips from its input to its result ----------------------- */
+.pv-future {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  perspective: 160cqw;
+}
+.pv-future .face {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  padding: 6cqw;
+  border: 1px solid var(--line);
+  background: rgba(16, 16, 16, 0.94);
+  display: flex;
+  flex-direction: column;
+  backface-visibility: hidden;
+  transition: transform 1000ms var(--ease);
+}
+.pv-future .back {
+  transform: rotateY(180deg);
+  border-color: rgba(255, 90, 31, 0.55);
+}
+.pv-future.is-done .front {
+  transform: rotateY(-180deg);
+}
+.pv-future.is-done .back {
+  transform: rotateY(0deg);
+}
+.pv-future header {
+  display: flex;
+  align-items: baseline;
+  gap: 3cqw;
+  margin-bottom: 4cqh;
+}
+.pv-future header .idx {
+  font-size: 4cqw;
+}
+.pv-future header strong {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 7cqw;
+}
+.pv-future .body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.pv-future footer {
+  margin-top: 4cqh;
+  font-family: var(--mono);
+  font-size: 3.6cqw;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.pv-future .back footer {
+  color: var(--hot);
+}
+.pv-eq {
+  font-family: var(--display);
+  font-size: 11cqw;
+  text-align: center;
+  padding: 6cqh 0;
+  border: 1px dashed var(--line2);
+  background: rgba(242, 240, 235, 0.03);
+}
+.pv-graph {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+.pv-graph .axis {
+  stroke: var(--line2);
+  stroke-width: 0.4;
+}
+.pv-graph .curve {
+  fill: none;
+  stroke: var(--hot);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+.pv-graph .pt {
+  fill: var(--ink);
+}
+.pv-graph .pt.v {
+  fill: var(--hot);
+}
+.pv-future .facts {
+  margin: 2cqh 0 0;
+  font-family: var(--mono);
+  font-size: 3.6cqw;
+  color: var(--mute);
+}
+.pv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 6cqw;
+}
+.pv-table td {
+  padding: 2.4cqh 3cqw;
+  border: 1px solid var(--line);
+}
+.pv-table td:last-child {
+  text-align: right;
+  font-family: var(--mono);
+}
+.pv-future .back .pv-bars {
+  flex: 1;
+}
+.pv-stickies {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4cqw;
+}
+.pv-stickies b {
+  background: #ffd23f;
+  color: #141414;
+  font-weight: 600;
+  font-size: 5cqw;
+  line-height: 1.25;
+  padding: 5cqw;
+  min-height: 22cqh;
+  box-shadow: 0 2cqw 4cqw rgba(0, 0, 0, 0.4);
+}
+.pv-tasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3cqh;
+}
+.pv-tasks li {
+  display: flex;
+  align-items: center;
+  gap: 3cqw;
+  font-size: 5.6cqw;
+  padding: 2.6cqh 3cqw;
+  border: 1px solid var(--line);
+}
+.pv-tasks i {
+  width: 4cqw;
+  height: 4cqw;
+  border: 0.4cqw solid var(--mute);
+  flex: none;
+}
+.pv-tasks em {
+  margin-left: auto;
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 3.4cqw;
+  color: var(--hot);
+  text-transform: uppercase;
 }

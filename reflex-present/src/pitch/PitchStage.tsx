@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PresenterActions } from '../components/PresenterActions'
 import { LocalMemoryStore } from '../spatial/radial/actions/memory'
-import { BandDeepgramProvider, BandGeminiProvider, forgetDeepgramKey, hasDeepgramKey, setDeepgramKey, type VoiceProvider } from '../spatial/radial/actions/voice'
+import { forgetDeepgramKey, hasDeepgramKey, setDeepgramKey, type VoiceCallbacks, type VoiceContext } from '../spatial/radial/actions/voice'
 import { isMenuOpen } from '../spatial/radial/types'
 import { exposeForDev, SpatialRuntime, useRuntime } from '../spatial/runtime'
 import type { SpatialObject } from '../spatial/types'
@@ -11,12 +11,13 @@ import { pointer as fieldPointer } from '../site/motion'
 import { PitchController, TRANSITION_MS } from './pitchController'
 import { EVENT, objectsFor, PRODUCT, SCENES, type PitchObject, type PitchScene } from './scenes'
 import { BAND_NUMBER } from '../spatial/wearable/band'
-import { matchesPhrase } from './voiceTriggers'
-import { clearBand, readFromBand, saveToBand, storageOf, type BandMemoryRow } from './vexoMemory'
+import { PLACEHOLDER_MEMORY } from './placeholderMemory'
+import { clearBand, readFromBand, saveToBand, seedBand, storageOf, summarize, type BandMemoryRow } from './vexoMemory'
 import { openChannel, type StageCommand, type StageStatus } from './sync'
 import { MemoryGhost, ObjectVisual } from './visuals'
 
 const pct = (v: number) => `${v * 100}%`
+const pick = (o: { x: number; y: number; w: number; h: number }) => ({ x: o.x, y: o.y, w: o.w, h: o.h })
 /** How far (stage widths) a swipe from the right quarter must travel to advance. */
 const SWIPE_MIN = 0.2
 /** A swipe may start anywhere empty in the right quarter, or anywhere in this edge strip (no object reaches it). */
@@ -77,6 +78,18 @@ function SceneCopy({ scene, done, state }: { scene: PitchScene; done: ReadonlySe
           </h1>
         </section>
       )
+    case 'future':
+      return (
+        <section className={cls}>
+          <p className="kicker">
+            {scene.number} — {scene.kicker}
+          </p>
+          <h1>
+            Next: point at <span className="hot">anything</span> and ask.
+          </h1>
+          <p className="hint">Hold a card · Voice · ask the band</p>
+        </section>
+      )
     case 'vision':
       return (
         <section className={cls}>
@@ -109,15 +122,6 @@ function SceneCopy({ scene, done, state }: { scene: PitchScene; done: ReadonlySe
   }
 }
 
-/** Scene 05's empty right half: blank until the band hears something, then shows the words. */
-function VoiceSpace({ heard, listening }: { heard: string; listening: boolean }) {
-  return (
-    <div className={`pitch-voice-space ${listening ? 'is-listening' : ''}`} aria-live="polite">
-      {heard && <p>“{heard}”</p>}
-    </div>
-  )
-}
-
 // ---- the stage ------------------------------------------------------------------------------
 export function PitchStage() {
   const [rt] = useState(() => new SpatialRuntime(objectsFor(SCENES[0], [])))
@@ -142,13 +146,8 @@ export function PitchStage() {
   const [memOpen, setMemOpen] = useState(false)
   const [memRows, setMemRows] = useState<{ rows: BandMemoryRow[]; from: 'band' | 'browser'; at: number } | null>(null)
   const [memToast, setMemToast] = useState<{ text: string; ok: boolean; key: number } | null>(null)
-  const [heard, setHeard] = useState('')
-  const [listen, setListen] = useState<{ state: 'off' | 'listening' | 'thinking' | 'unavailable' | 'error'; via?: string; note?: string }>({ state: 'off' })
-  const [gemTick, setGemTick] = useState(0)
-  const [voice] = useState(() => ({
-    gemini: new BandGeminiProvider(() => rt.radial.band, () => setGemTick((t) => t + 1)),
-    deepgram: new BandDeepgramProvider(() => rt.radial.band),
-  }))
+  /** Where the Voice panel was when a spoken request became the scene's answer (the card grows out of it). */
+  const replyFrom = useRef<{ target: string; left: number; top: number; width: number; height: number } | null>(null)
 
   const scene = ctl.scene
   const done = ctl.done
@@ -325,55 +324,43 @@ export function PitchStage() {
     }
   }, [command, rt])
 
-  // ---- scene 05: wait for the spoken question, through the band's own microphone ------------------
-  const waiting = scene.id === 'compare' && !done.has('asked')
-  const bandReady = !!rt.radial.band?.connected
-  const keyReady = hasDeepgramKey()
+  // ---- Voice in the pitch: a spoken request on a scene's object *is* the cue ------------------
+  // Wrap each voice provider once: when a final transcript arrives for an object the current
+  // scene is waiting on, the scene answers (Axis card, graph, chart, tasks) instead of the
+  // model's reply, and the Voice panel steps aside.
   useEffect(() => {
-    if (!waiting) {
-      setListen({ state: 'off' })
-      setHeard('')
-      return
-    }
-    // Gemini (key on this laptop's dev server) if it is set up, else Deepgram (key typed in rehearsal).
-    const gemini = voice.gemini.status !== null && !voice.gemini.unavailable()
-    const provider: VoiceProvider | null = gemini ? voice.gemini : !voice.deepgram.unavailable() ? voice.deepgram : null
-    if (!provider) {
-      setListen({ state: 'unavailable', note: voice.gemini.unavailable() ?? voice.deepgram.unavailable() ?? '' })
-      return
-    }
-    const via = gemini ? 'mic → Gemini' : 'mic → Deepgram'
-    const note = gemini ? 'listening · what it hears is sent to Google Gemini' : 'listening · what it hears is sent to Deepgram'
-    let alive = true
-    let timer = 0
-    const begin = () => {
-      if (!alive) return
-      provider.start({
-        onText: (t) => {
-          if (!alive) return
-          setHeard(t)
-          ctl.onVoice(t, matchesPhrase, performance.now())
-        },
-        onState: (st) => {
-          if (!alive) return
-          setListen({ state: st === 'stopped' ? 'off' : st, via, note })
-          // Keep listening until the question is asked (Gemini returns one utterance at a time).
-          if (st === 'stopped') timer = window.setTimeout(begin, 350)
-        },
-        onError: (m) => {
-          if (!alive) return
-          setListen({ state: 'error', via, note: m })
-          timer = window.setTimeout(begin, 2500)
-        },
+    const restore: (() => void)[] = []
+    for (const p of rt.radial.voiceProviders) {
+      const original = p.start.bind(p)
+      p.start = (cb: VoiceCallbacks, ctx?: VoiceContext) =>
+        original(
+          {
+            ...cb,
+            onText: (text, final) => {
+              cb.onText(text, final)
+              const objectId = rt.radial.executor.voice?.objectId
+              const said = text.trim()
+              if (!final || !objectId || !said || /^\(no speech/i.test(said) || !ctl.takesVoiceFor(objectId)) return
+              const panel = document.querySelector('.ap-voice')?.getBoundingClientRect()
+              const stage = stageRef.current?.getBoundingClientRect()
+              const target = ctl.scene.id === 'compare' ? 'c-axis' : objectId
+              if (panel && stage) replyFrom.current = { target, left: panel.left - stage.left, top: panel.top - stage.top, width: panel.width, height: panel.height }
+              if (ctl.onVoiceReply(objectId, said, performance.now())) window.setTimeout(() => rt.radial.executor.closeVoice(), 700)
+            },
+            onReply: (reply) => {
+              const objectId = rt.radial.executor.voice?.objectId
+              if (objectId && ctl.takesVoiceFor(objectId)) return // the scene's card is the reply
+              cb.onReply?.(reply)
+            },
+          },
+          ctx,
+        )
+      restore.push(() => {
+        p.start = original
       })
     }
-    begin()
-    return () => {
-      alive = false
-      window.clearTimeout(timer)
-      provider.stop()
-    }
-  }, [waiting, bandReady, keyReady, gemTick, voice, ctl])
+    return () => restore.forEach((r) => r())
+  }, [rt, ctl])
 
   // ---- per frame: feed the controller from the live engine ---------------------------------------
   useEffect(() => {
@@ -397,6 +384,19 @@ export function PitchStage() {
       if (move && !seenMoves.current.has(move)) {
         seenMoves.current.add(move)
         ctl.onDrop(move.id, move.from, move.to, ix.objects, ix.aspect, now)
+        // Snap zones (the spotlight): the dropped card takes the zone, the one there goes home.
+        const dropped = ix.objects.find((o) => o.id === move.id)
+        const inZone = (o: { x: number; y: number; w: number; h: number }, z: { x: number; y: number; w: number; h: number }) => {
+          const cx = o.x + o.w / 2
+          const cy = o.y + o.h / 2
+          return cx >= z.x - 0.03 && cx <= z.x + z.w + 0.03 && cy >= z.y - 0.03 && cy <= z.y + z.h + 0.03
+        }
+        const zone = dropped && ctl.scene.zones?.find((z) => z.snap && inZone(dropped, z))
+        if (zone) {
+          const home = new Map(ctl.scene.objects.map((o) => [o.id, o]))
+          const rect = { x: zone.x, y: zone.y, w: zone.w, h: zone.h }
+          rt.setObjects(ix.objects.map((o) => (o.id === move.id ? { ...o, ...rect } : inZone(o, zone) && home.get(o.id) ? { ...o, ...pick(home.get(o.id)!) } : o)))
+        }
       }
       const focus = ix.grabbedId ?? ix.hoverId
       if (focus !== dwell.current.id) dwell.current = { id: focus, since: now }
@@ -447,6 +447,29 @@ export function PitchStage() {
     return () => cancelAnimationFrame(raf)
   }, [rt, ctl])
 
+  const bandReady = !!rt.radial.band?.connected
+  // Every load starts from the same demo memory: in the browser now, and on the band when it connects.
+  const [seeded, setSeeded] = useState<'none' | 'browser' | 'band'>('none')
+  useEffect(() => {
+    const m = rt.radial.executor.memory
+    if (!(m instanceof LocalMemoryStore)) return
+    m.clear()
+    for (const e of PLACEHOLDER_MEMORY()) m.add(e)
+    setSeeded('browser')
+  }, [rt])
+  useEffect(() => {
+    if (!bandReady) return
+    const store = storageOf(rt.radial.band?.band)
+    if (!store) return
+    let alive = true
+    seedBand(store, PLACEHOLDER_MEMORY())
+      .then(() => alive && setSeeded('band'))
+      .catch(() => alive && setSeeded('browser'))
+    return () => {
+      alive = false
+    }
+  }, [bandReady, rt])
+
   // Memory is read back from the band (on connect, after each save, and when opened),
   // so what it shows — and the count on the tab — is what the wristband really holds.
   useEffect(() => {
@@ -458,13 +481,18 @@ export function PitchStage() {
         .then((rows) => alive && setMemRows({ rows, from: 'band', at: Date.now() }))
         .catch(() => alive && setMemRows({ rows: [], from: 'band', at: 0 }))
     } else {
-      const rows = rt.radial.executor.memory.list().map((e, i) => ({ key: -1 - i, title: e.title, type: e.type, summary: '', at: Math.floor(new Date(e.createdAt).getTime() / 1000) }))
+      // Newest first, and the same thing remembered twice shows once.
+      const seen = new Set<string>()
+      const rows = rt.radial.executor.memory
+        .list()
+        .filter((e) => (seen.has(e.title) ? false : (seen.add(e.title), true)))
+        .map((e, i) => ({ key: -1 - i, title: e.title, type: e.type, summary: summarize(e), at: Math.floor(new Date(e.createdAt).getTime() / 1000) }))
       setMemRows({ rows, from: 'browser', at: Date.now() })
     }
     return () => {
       alive = false
     }
-  }, [memOpen, memToast, bandReady, rt])
+  }, [memOpen, memToast, bandReady, seeded, rt])
 
   useEffect(() => {
     if (!memToast) return
@@ -564,13 +592,18 @@ export function PitchStage() {
             const grabbed = ix.grabbedId === o.id
             const lit = scene.id === 'product' ? ctl.activated.has(o.id) || hovered || grabbed : hovered || grabbed
             const menu = radialOpen && rt.radial.state.objectId === o.id
+            // A card that is a spoken reply grows out of where the Voice panel was.
+            const rf = replyFrom.current?.target === o.id && o.revealedBy ? replyFrom.current : null
+            const W = rt.canvasPx.w
+            const H = rt.canvasPx.h
+            const morph: Record<string, string | number> = rf ? { '--fx': `${rf.left - o.x * W}px`, '--fy': `${rf.top - o.y * H}px`, '--sx': rf.width / (o.w * W), '--sy': rf.height / (o.h * H) } : {}
             return (
               <div
                 key={o.id}
-                className={`pitch-obj v-${o.visual} ${hovered ? 'is-hover' : ''} ${grabbed ? 'is-grabbed' : ''} ${lit ? 'is-lit' : ''} ${menu ? 'is-menu' : ''}`}
-                style={{ left: pct(o.x), top: pct(o.y), width: pct(o.w), height: pct(o.h), '--tilt': `${assembled ? 0 : (o.tilt ?? 0)}deg`, '--i': i } as React.CSSProperties}
+                className={`pitch-obj v-${o.visual} ${hovered ? 'is-hover' : ''} ${grabbed ? 'is-grabbed' : ''} ${lit ? 'is-lit' : ''} ${menu ? 'is-menu' : ''} ${rf ? 'from-reply' : ''}`}
+                style={{ left: pct(o.x), top: pct(o.y), width: pct(o.w), height: pct(o.h), '--tilt': `${assembled ? 0 : (o.tilt ?? 0)}deg`, '--i': i, ...morph } as unknown as React.CSSProperties}
               >
-                <ObjectVisual o={o} lit={lit} />
+                <ObjectVisual o={o} lit={lit} transformed={!!o.transformedBy && done.has(o.transformedBy)} />
               </div>
             )
           })}
@@ -578,7 +611,6 @@ export function PitchStage() {
 
         {scene.radial && !calibrating && <PresenterActions rt={rt} />}
         {ghost && <MemoryGhost key={ghost.key} o={ghost.o} stage={rt.canvasPx} />}
-        {scene.id === 'compare' && !done.has('asked') && <VoiceSpace heard={heard} listening={listen.state === 'listening' || listen.state === 'thinking'} />}
 
         {/* chrome: deliberately sparse */}
         <div className="pitch-chrome">
@@ -594,9 +626,6 @@ export function PitchStage() {
             ))}
           </div>
           {status && <span className="status">{status}</span>}
-          <button className="pitch-chrome-btn air-next" data-air-action="next" onClick={() => command({ type: 'cmd', cmd: 'next' })} aria-label="Next">
-            Next <span>→</span>
-          </button>
         </div>
 
         {/* swipe affordance: the page edge you can grab */}
@@ -619,7 +648,7 @@ export function PitchStage() {
         )}
         {scene.radial && (
           <button className="pitch-chrome-btn pitch-memtab" data-air-action="memory" onClick={() => setMemOpen((v) => !v)}>
-            Memory <span>{memRows?.from === 'band' && bandReady ? memRows.rows.length : rt.radial.executor.memory.list().length}</span>
+            Memory <span>{memRows?.from === 'band' && bandReady ? memRows.rows.length : new Set(rt.radial.executor.memory.list().map((e) => e.title)).size}</span>
           </button>
         )}
         {memOpen && (
@@ -671,9 +700,8 @@ export function PitchStage() {
           </div>
         )}
 
-        {(listen.state === 'listening' || listen.state === 'thinking') && <div className="pitch-mic">Vexo band {listen.via} · {listen.note}</div>}
         {calibrating && <CalibrationOverlay rt={rt} />}
-        {mode === 'rehearsal' && <Rehearsal rt={rt} ctl={ctl} onCommand={command} listen={listen} heard={heard} />}
+        {mode === 'rehearsal' && <Rehearsal rt={rt} ctl={ctl} onCommand={command} />}
       </div>
     </div>
   )
@@ -703,9 +731,7 @@ function CalibrationOverlay({ rt }: { rt: SpatialRuntime }) {
 }
 
 // ---- rehearsal: timing, the expected steps, and the controls ------------------------------------
-type ListenState = { state: 'off' | 'listening' | 'thinking' | 'unavailable' | 'error'; via?: string; note?: string }
-
-function Rehearsal({ rt, ctl, onCommand, listen, heard }: { rt: SpatialRuntime; ctl: PitchController; onCommand: (c: StageCommand) => void; listen: ListenState; heard: string }) {
+function Rehearsal({ rt, ctl, onCommand }: { rt: SpatialRuntime; ctl: PitchController; onCommand: (c: StageCommand) => void }) {
   const [key, setKey] = useState('')
   const band = rt.radial.band
   const now = performance.now()
@@ -746,12 +772,11 @@ function Rehearsal({ rt, ctl, onCommand, listen, heard }: { rt: SpatialRuntime; 
         <span>last: {ctl.lastReason}</span>
       </div>
       <div className="voice">
-        <strong>Voice trigger · scene 05</strong>
+        <strong>Band · voice and memory</strong>
         <span>
-          Band {band ? `${band.status}${band.link === 'sim' ? ' (pretend)' : ` · ${band.link}`}` : 'not connected'} · {listen.state}
-          {listen.note ? ` — ${listen.note}` : ''}
+          Band {band ? `${band.status}${band.link === 'sim' ? ' (pretend)' : ` · ${band.link}`}` : 'not connected'}
+          {band?.error ? ` — ${band.error}` : ''}
         </span>
-        {heard && <span>heard: “{heard}”</span>}
         <div className="btns">
           {(!band || band.status === 'error' || band.status === 'closed') && (
             <>

@@ -73,12 +73,20 @@ function parseIndex(text: string | null): number[] {
   }
 }
 
-/** Save one entry: the next free key in 901..940, else the oldest is reused. Returns the key. */
+/**
+ * Save one entry. Remembering the same thing again updates it (no duplicates); otherwise the
+ * next free key in 901..940, else the oldest is reused. Returns the key.
+ */
 export async function saveToBand(storage: BandStorageLike, entry: MemoryEntry): Promise<number> {
   const index = parseIndex(await storage.getText(INDEX_KEY))
   let key = FIRST_KEY
-  while (index.includes(key) && key <= LAST_KEY) key++
-  if (key > LAST_KEY) key = index[0]
+  let same: number | null = null
+  for (const k of index) if (decodeEntry(k, await storage.getText(k))?.title === entry.title.slice(0, 60)) same = k
+  if (same !== null) key = same
+  else {
+    while (index.includes(key) && key <= LAST_KEY) key++
+    if (key > LAST_KEY) key = index[0]
+  }
   await storage.put(key, encodeEntry(entry))
   const next = [...index.filter((k) => k !== key), key]
   await storage.put(INDEX_KEY, JSON.stringify(next))
@@ -96,14 +104,20 @@ export async function readFromBand(storage: BandStorageLike): Promise<BandMemory
   return rows.reverse()
 }
 
-/** Remove the pitch's entries from the band (callers confirm first). */
+/** Remove the pitch's entries from the band. Deleting an empty key is an error on the band, so only full ones go. */
 export async function clearBand(storage: BandStorageLike) {
   const index = parseIndex(await storage.getText(INDEX_KEY))
-  for (const key of index) await storage.delete(key)
-  await storage.delete(INDEX_KEY)
+  for (const key of index) if ((await storage.getText(key)) !== null) await storage.delete(key)
+  if ((await storage.getText(INDEX_KEY)) !== null) await storage.delete(INDEX_KEY)
 }
 
 export const storageOf = (band: unknown): BandStorageLike | null => {
   const s = (band as { storage?: BandStorageLike } | null)?.storage
   return s && typeof s.put === 'function' ? s : null
+}
+
+/** Replace the pitch's entries on the band with these (the page does this on connect). */
+export async function seedBand(storage: BandStorageLike, entries: MemoryEntry[]) {
+  await clearBand(storage)
+  for (const e of entries) await saveToBand(storage, e)
 }

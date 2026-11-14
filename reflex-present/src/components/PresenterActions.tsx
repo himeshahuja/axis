@@ -21,7 +21,7 @@ export function PresenterActions({ rt }: { rt: SpatialRuntime }) {
       const target = find(card.objectId)
       return target ? <ExplainPanel key={card.objectId} card={card} object={target} compact onClose={() => executor.closeExplain(card.objectId)} /> : null
     })}
-    {executor.voice && voiceObject && <VoiceCapturePanel session={executor.voice} object={voiceObject} objects={rt.interaction.objects} providers={rt.radial.voiceProviders} onClose={() => executor.closeVoice()} />}
+    {executor.voice && voiceObject && <VoiceCapturePanel session={executor.voice} object={voiceObject} objects={rt.interaction.objects} providers={rt.radial.voiceProviders} onClose={() => executor.closeVoice()} onConnectBand={() => rt.radial.connectBand('ble')} bandStatus={rt.radial.band?.status} />}
     {recentSave && <SavedToast entry={executor.lastSaved!} />}
     {(memoryOpen || executor.memory.list().length > 0) && <MemoryPanel entries={executor.memory.list()} label={executor.memory.label} highlightId={recentSave ? executor.lastSaved!.id : null} open={memoryOpen} onToggle={() => setMemoryOpen((v) => !v)} />}
   </div>

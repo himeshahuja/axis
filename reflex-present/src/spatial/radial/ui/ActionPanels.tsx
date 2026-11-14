@@ -94,12 +94,17 @@ export function VoiceCapturePanel({
   objects,
   providers,
   onClose,
+  onConnectBand,
+  bandStatus,
 }: {
   session: VoiceSession
   object: SpatialObject
   objects: SpatialObject[]
   providers: VoiceProvider[]
   onClose: () => void
+  /** Connect the band from right here (must run in a click: Web Bluetooth needs a user gesture). */
+  onConnectBand?: () => void
+  bandStatus?: string
 }) {
   // Voice uses the Vexo band by default: the team band's microphone → Gemini. If the band is not
   // ready the panel says why instead of quietly switching to the laptop's microphone.
@@ -283,6 +288,11 @@ export function VoiceCapturePanel({
             </button>
           )}
           {why && phase === 'idle' && <span className="ap-muted">{why}</span>}
+          {why && phase === 'idle' && onConnectBand && provider.id.startsWith('band') && bandStatus !== 'connected' && bandStatus !== 'connecting' && (
+            <button className="ap-btn" onClick={onConnectBand}>
+              Connect band
+            </button>
+          )}
         </div>
       ) : (
         <div className="ap-row">

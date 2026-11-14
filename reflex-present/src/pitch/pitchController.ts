@@ -182,7 +182,7 @@ export class PitchController {
         const moved = Math.hypot((to.x - from.x) * aspect, to.y - from.y)
         if (moved >= t.minMove) return this.completeBeat(now, `moved ${objectId} ${moved.toFixed(2)}`, beat)
       }
-      if (t.kind === 'drop_in_zone' && t.objectId === objectId) {
+      if (t.kind === 'drop_in_zone' && (t.objectId === '*' || t.objectId === objectId)) {
         const o = objects.find((x) => x.id === objectId)
         const z = this.scene.zones?.find((x) => x.id === t.zoneId)
         if (!o || !z) continue
@@ -195,11 +195,19 @@ export class PitchController {
     return false
   }
 
-  /** Speech heard while a scene waits for a phrase. */
-  onVoice(transcript: string, matches: (phrase: import('./scenes').VoicePhrase, t: string) => boolean, now: number) {
-    if (!this.live(now)) return false
-    const beat = this.scene.beats.find((b) => !this.done.has(b.id) && b.trigger.kind === 'voice_phrase' && matches(b.trigger.phrase, transcript))
-    return beat ? this.completeBeat(now, `heard: “${transcript.slice(0, 60)}”`, beat) : false
+  /**
+   * Someone spoke a request into Voice while holding an object. In the pitch the spoken
+   * request itself is the cue: the scene's answer (a card, a graph) replaces the model's reply.
+   */
+  onVoiceReply(objectId: string, transcript: string, now: number) {
+    if (!this.live(now) || !transcript.trim()) return false
+    const beat = this.scene.beats.find((b) => !this.done.has(b.id) && b.trigger.kind === 'voice_reply' && (!b.trigger.objectId || b.trigger.objectId === objectId))
+    return beat ? this.completeBeat(now, `asked about ${objectId}: “${transcript.slice(0, 60)}”`, beat) : false
+  }
+
+  /** Whether the current scene turns a spoken request on this object into a scene beat. */
+  takesVoiceFor(objectId: string) {
+    return this.scene.beats.some((b) => b.trigger.kind === 'voice_reply' && (!b.trigger.objectId || b.trigger.objectId === objectId))
   }
 
   /** An object was pointed at long enough, or grabbed (used for highlighting only). */

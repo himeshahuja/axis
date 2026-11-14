@@ -28,6 +28,9 @@ export type VisualKind =
   | 'glyph-ring'
   | 'glyph-memory'
   | 'glyph-voice'
+  | 'equation'
+  | 'table'
+  | 'sticky'
 
 export interface PitchObject extends SpatialObject {
   visual: VisualKind
@@ -39,10 +42,18 @@ export interface PitchObject extends SpatialObject {
   lines?: string[]
   /** Not on the canvas until this beat is done. */
   revealedBy?: string
+  /** Future-directions cards: this beat turns the object into its result. */
+  transformedBy?: string
+  /** What the result would open in (shown as "Next: …"). */
+  destination?: string
+  /** y = a·x² + b·x + c, for the equation card. */
+  formula?: { a: number; b: number; c: number }
 }
 
 /** A place on the stage where an object can be put down. */
 export interface DropZone {
+  /** Whatever is dropped in takes the zone's size; the piece already there goes back. */
+  snap?: boolean
   id: string
   label: string
   index?: string
@@ -52,16 +63,14 @@ export interface DropZone {
   h: number
 }
 
-/** Spoken phrases a beat can wait for (matched in voiceTriggers.ts). */
-export type VoicePhrase = 'difference_question'
-
 export type BeatTrigger =
   | { kind: 'object_drop'; objectId: string; minMove: number }
-  /** The object is let go with its centre inside the zone. */
+  /** The object ('*' = any) is let go with its centre inside the zone. */
   | { kind: 'drop_in_zone'; objectId: string; zoneId: string }
   | { kind: 'any_drop' }
   | { kind: 'action_complete'; action: RadialAction }
-  | { kind: 'voice_phrase'; phrase: VoicePhrase }
+  /** A request spoken into Voice while holding the object (any object if omitted). */
+  | { kind: 'voice_reply'; objectId?: string }
   /** Grab empty space in the right quarter and pull it across (see PitchStage). */
   | { kind: 'swipe' }
   /** Only reached through the beat before it (a timed follow-up). */
@@ -80,7 +89,7 @@ export interface SceneBeat {
 }
 
 export interface PitchScene {
-  id: 'problem' | 'product' | 'demo' | 'compare' | 'vision'
+  id: 'problem' | 'product' | 'demo' | 'compare' | 'future' | 'vision'
   number: string
   kicker: string
   /** Console title. */
@@ -109,8 +118,7 @@ const prev = REVENUE[REVENUE.length - 2].value
 export const QOQ_GROWTH = (last - prev) / prev
 
 /** Scene 03: the big frame you drag the information into to present it. */
-export const SPOTLIGHT: DropZone = { id: 'spotlight', label: 'Spotlight — put what you’re talking about here', x: 0.055, y: 0.27, w: 0.52, h: 0.56 }
-const SPOT = { x: SPOTLIGHT.x, y: SPOTLIGHT.y, w: SPOTLIGHT.w, h: SPOTLIGHT.h }
+export const SPOTLIGHT: DropZone = { id: 'spotlight', label: 'Spotlight — put what you’re talking about here', x: 0.055, y: 0.27, w: 0.52, h: 0.56, snap: true }
 
 // Scene 03 starts with everything small, "on the desk" at the right.
 const workspace: PitchObject[] = [
@@ -240,7 +248,7 @@ export const SCENES: PitchScene[] = [
     number: '02',
     kicker: 'Introducing',
     title: `${PRODUCT}: point, hold, act`,
-    targetSeconds: 25,
+    targetSeconds: 22,
     radial: false,
     notes: [
       `So we built ${PRODUCT}: a spatial workspace that understands what you point at and what you want to do with it.`,
@@ -296,13 +304,13 @@ export const SCENES: PitchScene[] = [
     number: '03',
     kicker: 'Live',
     title: 'Point at the information',
-    targetSeconds: 52,
+    targetSeconds: 45,
     radial: true,
     canvasGroup: 'workspace',
     zones: [SPOTLIGHT],
     notes: [
       'Instead of describing what you want to change, you point at it.',
-      'I want to talk about revenue — so I pull it off the desk, into the spotlight.',
+      'I want to talk about revenue — so I pull it off the desk, into the spotlight. Any card goes in; the one there steps back.',
       'Close your hand on it and hold — the actions open around it. Explain. Open your hand.',
       'Every number in that card is computed from the chart itself. No model is guessing.',
       'Hold it again — Remember. It’s saved onto the Vexo band on my wrist. Open Memory to show it.',
@@ -311,10 +319,9 @@ export const SCENES: PitchScene[] = [
     beats: [
       {
         id: 'spotlit',
-        step: 'Drag the revenue chart into the spotlight',
-        trigger: { kind: 'drop_in_zone', objectId: 'revenue', zoneId: 'spotlight' },
+        step: 'Drag any card into the spotlight (the revenue chart for Explain)',
+        trigger: { kind: 'drop_in_zone', objectId: '*', zoneId: 'spotlight' },
         fallback: true,
-        layout: { revenue: SPOT },
       },
       {
         id: 'explained',
@@ -334,7 +341,7 @@ export const SCENES: PitchScene[] = [
     radial: true,
     notes: [
       'Conventional interfaces make you operate the controls: menus, tools, one element at a time.',
-      'Into the band: “What is the difference between this and conventional interfaces?”',
+      'Hold the card, Voice, and ask the band: “What is the difference between this and conventional interfaces?”',
       'Honestly: a mouse is more precise at a desk. This is for when you’re standing up, teaching, sharing a room.',
     ],
     objects: [
@@ -371,16 +378,84 @@ export const SCENES: PitchScene[] = [
     beats: [
       {
         id: 'asked',
-        step: 'Into the Vexo band: “What is the difference between this and conventional interfaces?”',
-        trigger: { kind: 'voice_phrase', phrase: 'difference_question' },
+        step: 'Hold Conventional interfaces → Voice → into the band: “What is the difference between this and conventional interfaces?”',
+        trigger: { kind: 'voice_reply' },
         fallback: true,
         layout: {},
       },
     ],
   },
   {
-    id: 'vision',
+    id: 'future',
     number: '05',
+    kicker: 'What’s next',
+    title: 'Point at anything. Ask.',
+    targetSeconds: 30,
+    radial: true,
+    notes: [
+      'Where this goes: anything you can point at becomes something you can ask about.',
+      'An equation on the whiteboard — hold it, “graph this” — it opens in Desmos.',
+      'A table — “chart this” — Excel. Sticky notes from a retro — “make these tasks” — Linear.',
+      'These results are computed here from the card’s own data; the hand-offs to Desmos, Excel and Linear are the next step.',
+    ],
+    objects: [
+      {
+        id: 'f-equation',
+        label: 'On the whiteboard',
+        visual: 'equation',
+        color: '#f2f0eb',
+        shape: 'card',
+        index: 'A',
+        x: 0.055,
+        y: 0.29,
+        w: 0.27,
+        h: 0.54,
+        transformedBy: 't-equation',
+        destination: 'Desmos',
+        lines: ['y = x² − 2x − 3'],
+        formula: { a: 1, b: -2, c: -3 },
+        content: { kind: 'note', text: 'y = x² − 2x − 3' },
+      },
+      {
+        id: 'f-table',
+        label: 'Signups by month',
+        visual: 'table',
+        color: '#f2f0eb',
+        shape: 'card',
+        index: 'B',
+        x: 0.365,
+        y: 0.29,
+        w: 0.27,
+        h: 0.54,
+        transformedBy: 't-table',
+        destination: 'Excel',
+        content: { kind: 'chart', series: [{ label: 'Jan', value: 420 }, { label: 'Feb', value: 510 }, { label: 'Mar', value: 640 }, { label: 'Apr', value: 780 }] },
+      },
+      {
+        id: 'f-notes',
+        label: 'Retro notes',
+        visual: 'sticky',
+        color: '#ffd23f',
+        shape: 'card',
+        index: 'C',
+        x: 0.675,
+        y: 0.29,
+        w: 0.27,
+        h: 0.54,
+        transformedBy: 't-notes',
+        destination: 'Linear',
+        content: { kind: 'note', text: 'Onboarding takes too long\nDocs are hard to find\nAdd a dark theme' },
+      },
+    ],
+    beats: [
+      { id: 't-equation', step: 'Hold the equation → Voice → “graph this”', trigger: { kind: 'voice_reply', objectId: 'f-equation' }, fallback: true },
+      { id: 't-table', step: 'Hold the table → Voice → “chart this”', trigger: { kind: 'voice_reply', objectId: 'f-table' }, fallback: true },
+      { id: 't-notes', step: 'Hold the notes → Voice → “make these tasks”', trigger: { kind: 'voice_reply', objectId: 'f-notes' }, fallback: true },
+    ],
+  },
+  {
+    id: 'vision',
+    number: '06',
     kicker: 'Where this goes',
     title: 'The interface is you',
     targetSeconds: 26,

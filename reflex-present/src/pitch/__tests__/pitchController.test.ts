@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PitchController, TRANSITION_MS } from '../pitchController'
 import { objectsFor, QOQ_GROWTH, REVENUE, SCENES, SPOTLIGHT } from '../scenes'
-import { matchesPhrase } from '../voiceTriggers'
 
 const settled = (c: PitchController, t: number) => {
   c.tick(t + TRANSITION_MS + 1)
@@ -9,12 +8,12 @@ const settled = (c: PitchController, t: number) => {
 }
 
 describe('pitch progression', () => {
-  it('has five scenes, under three minutes in total', () => {
-    expect(SCENES.map((s) => s.id)).toEqual(['problem', 'product', 'demo', 'compare', 'vision'])
-    expect(SCENES.map((s) => s.number)).toEqual(['01', '02', '03', '04', '05'])
+  it('has six scenes, about three minutes in total', () => {
+    expect(SCENES.map((s) => s.id)).toEqual(['problem', 'product', 'demo', 'compare', 'future', 'vision'])
+    expect(SCENES.map((s) => s.number)).toEqual(['01', '02', '03', '04', '05', '06'])
     const total = SCENES.reduce((a, s) => a + s.targetSeconds, 0)
-    expect(total).toBeGreaterThanOrEqual(150)
-    expect(total).toBeLessThanOrEqual(180)
+    expect(total).toBeGreaterThanOrEqual(160)
+    expect(total).toBeLessThanOrEqual(190)
   })
 
   it('a small move of the window does not advance; a real move does, then the scene follows', () => {
@@ -85,17 +84,15 @@ describe('pitch progression', () => {
     expect(placed.tilt).toBe(0)
   })
 
-  it('the chart only goes into the spotlight when dropped inside it', () => {
+  it('any card goes into the spotlight, only when dropped inside it', () => {
     const c = new PitchController(SCENES, 0)
     c.goto(2, 0)
     const t = settled(c, 0)
     const objs = objectsFor(SCENES[2], [])
-    expect(c.onDrop('revenue', { x: 0.61, y: 0.27 }, { x: 0.6, y: 0.27 }, objs, 16 / 9, t)).toBe(false)
-    const inside = objs.map((o) => (o.id === 'revenue' ? { ...o, x: 0.2, y: 0.4 } : o))
-    expect(c.onDrop('notes', { x: 0, y: 0 }, { x: 0.2, y: 0.4 }, inside.map((o) => (o.id === 'notes' ? { ...o, x: 0.2, y: 0.4 } : o)), 16 / 9, t)).toBe(false)
-    expect(c.onDrop('revenue', { x: 0.61, y: 0.27 }, { x: 0.2, y: 0.4 }, inside, 16 / 9, t)).toBe(true)
-    const r = objectsFor(SCENES[2], c.done).find((o) => o.id === 'revenue')!
-    expect(r).toMatchObject({ x: SPOTLIGHT.x, y: SPOTLIGHT.y, w: SPOTLIGHT.w, h: SPOTLIGHT.h })
+    expect(c.onDrop('notes', { x: 0.61, y: 0.54 }, { x: 0.6, y: 0.54 }, objs, 16 / 9, t)).toBe(false)
+    const inside = objs.map((o) => (o.id === 'notes' ? { ...o, x: SPOTLIGHT.x + 0.1, y: SPOTLIGHT.y + 0.1 } : o))
+    expect(c.onDrop('notes', { x: 0.61, y: 0.54 }, { x: 0.2, y: 0.4 }, inside, 16 / 9, t)).toBe(true)
+    expect(SPOTLIGHT.snap).toBe(true)
   })
 
   it('counts Explain and Remember in the live scene in any order', () => {
@@ -108,22 +105,36 @@ describe('pitch progression', () => {
     expect(c.pendingBeat?.id).toBe('spotlit')
   })
 
-  it('reveals the Axis card only when the question is asked', () => {
+  it('a spoken request in 04 reveals the Axis card as its reply', () => {
     const c = new PitchController(SCENES, 0)
     c.goto(3, 0)
     const t = settled(c, 0)
     expect(objectsFor(SCENES[3], c.done).map((o) => o.id)).toEqual(['c-conventional'])
-    expect(c.onVoice('conventional interfaces make you navigate menus', matchesPhrase, t)).toBe(false)
-    expect(c.onVoice('What is the difference between this and conventional interfaces?', matchesPhrase, t)).toBe(true)
+    expect(c.takesVoiceFor('c-conventional')).toBe(true)
+    expect(c.onVoiceReply('c-conventional', '   ', t)).toBe(false)
+    expect(c.onVoiceReply('c-conventional', 'What is the difference between this and conventional interfaces?', t)).toBe(true)
     expect(objectsFor(SCENES[3], c.done).map((o) => o.id)).toEqual(['c-conventional', 'c-axis'])
-    // nothing further to do in this scene: next moves on
     expect(c.next(t + 1)).toBe(true)
     expect(c.sceneIndex).toBe(4)
   })
 
-  it('the closing line waits for the presenter to pull the page across', () => {
+  it('future directions: each card answers only a request about itself', () => {
     const c = new PitchController(SCENES, 0)
     c.goto(4, 0)
+    const t = settled(c, 0)
+    expect(c.onVoiceReply('f-table', 'chart this', t)).toBe(true)
+    expect(c.done.has('t-table')).toBe(true)
+    expect(c.done.has('t-equation')).toBe(false)
+    expect(c.onVoiceReply('f-table', 'again', t)).toBe(false)
+    expect(c.onVoiceReply('f-equation', 'graph this', t)).toBe(true)
+    // in a scene without voice beats, speech is just a normal Voice request
+    c.goto(2, t + 1000)
+    expect(c.takesVoiceFor('revenue')).toBe(false)
+  })
+
+  it('the closing line waits for the presenter to pull the page across', () => {
+    const c = new PitchController(SCENES, 0)
+    c.goto(5, 0)
     const t = settled(c, 0)
     c.onDrop('v-note', { x: 0, y: 0 }, { x: 0.01, y: 0 }, [], 16 / 9, t)
     expect(c.pendingBeat?.id).toBe('statement')
@@ -155,21 +166,6 @@ describe('pitch progression', () => {
     c.reset(TRANSITION_MS + 5)
     expect(c.sceneIndex).toBe(0)
     expect(c.startedAt).toBeNull()
-  })
-})
-
-describe('voice phrase', () => {
-  it('accepts how speech-to-text tends to write the question', () => {
-    for (const t of [
-      'What is the difference between this and conventional interfaces?',
-      'what’s the difference between this and a conventional interface',
-      'Whats different between this and traditional interfaces',
-    ])
-      expect(matchesPhrase('difference_question', t)).toBe(true)
-  })
-  it('ignores the presenter just talking about interfaces', () => {
-    for (const t of ['Conventional interfaces make you operate the controls', 'the difference is huge', ''])
-      expect(matchesPhrase('difference_question', t)).toBe(false)
   })
 })
 

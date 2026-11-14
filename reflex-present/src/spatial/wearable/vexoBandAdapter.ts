@@ -36,7 +36,7 @@ export class VexoBandAdapter implements WearableAdapter {
   band: Band | null = null
   /** Only for link 'sim': the pretend band, which can be told to twist. */
   sim: SimTransport | null = null
-  sensors: 'gyro' | 'both' = 'gyro'
+  sensors: 'gyro' | 'both' | 'none' = 'gyro'
   private clock = new ClockAligner()
   private subs = new Set<(o: WearableObservation) => void>()
   private last: WearableObservation | null = null
@@ -93,15 +93,23 @@ export class VexoBandAdapter implements WearableAdapter {
         this.clock.reset()
         this.set('connected')
       })
+      // Motion is only needed for wrist rotation: if the band won't stream it, stay connected
+      // for the microphone and storage instead of failing with the link still open.
       try {
         await band.configure({ motion: MOTION_HZ, sensors: 'gyro' })
         this.sensors = 'gyro'
       } catch {
-        await band.configure({ motion: MOTION_HZ, sensors: 'both' })
-        this.sensors = 'both'
+        try {
+          await band.configure({ motion: MOTION_HZ, sensors: 'both' })
+          this.sensors = 'both'
+        } catch {
+          this.sensors = 'none'
+        }
       }
       this.set('connected')
     } catch (err) {
+      // Never leave a half-open link holding the band's one Bluetooth connection.
+      void this.band?.disconnect().catch(() => {})
       this.band = null
       this.set('error', err instanceof Error ? err.message : String(err))
     }
