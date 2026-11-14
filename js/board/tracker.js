@@ -23,6 +23,12 @@ const SETTLE_S = 0.15;          // a tap's place is read at least this long afte
 const FAST_S = 0.015;           // the hand's acceleration is averaged over about this long before it is judged
 const SLOW_S = 0.25;            // ... and over about this long, to see whether it holds steady
 const NO_REST_S = 3;            // waiting this long for a rest is worth saying so
+// A knock on the board is a jolt: the acceleration changes by this much (g) from one sample
+// to the next, at 208 a second. On a real band, knocks gave 0.47 to 2.9 g; writing at most
+// 0.22 g and a still hand 0.02. The band's own tap events missed two knocks in three, and
+// come about 0.4 s late (it waits to rule out a double-tap), so knocks are found here.
+const KNOCK_G = 0.35;
+const KNOCK_GAP_MS = 300;       // one knock, however it rings: the next can come this long after
 
 /** A motion event from the kit's Band (t in ms, ax ay az in g, gx gy gz in degrees/second) as a Tracker sample. */
 export function fromBand(m) {
@@ -71,9 +77,17 @@ export class BoardTracker {
    * ranges (g, degrees/second), to count readings cut off at them. `auto`: ask for the
    * board's two edges by itself whenever there is no board. Any other option goes to Tracker.
    */
-  constructor({ rate = 208, accelRange = 16, gyroRange = 2000, auto = false, lowpass = null, ...options } = {}) {
+  /**
+   * `knocks`: find knocks on the board in the motion itself (true), rather than being
+   * told of taps through tap().
+   */
+  constructor({ rate = 208, accelRange = 16, gyroRange = 2000, auto = false, lowpass = null, knocks = true, ...options } = {}) {
     this.rate = rate;
     this.auto = auto;
+    this.knocks = knocks;
+    this.knockLimit = KNOCK_G * Math.sqrt(208 / rate);   // slower sampling, bigger steps between samples
+    this.raw = null;            // the last reading from the band, to see jolts
+    this.knockedAt = -Infinity;
     this.options = trackerOptions(rate, options);
     this.intake = new Intake({ accelRange, gyroRange, lowpass, rate });
     this.news = [];             // what happened, oldest first, for the page to show: { type, ... }
@@ -113,6 +127,7 @@ export class BoardTracker {
    * is scaled so that the band at rest reads 1 g.
    */
   feed(m, arrival = null) {
+    if (this.knocks) this.knock(m);
     const { samples, gap } = this.intake.feed(m, arrival);
     if (gap !== null) {
       // Too many samples lost, or the link was down: the hand moved in ways nobody saw.
@@ -123,6 +138,19 @@ export class BoardTracker {
     for (const s of samples) this.step(s);
     if (this.auto && this.tracker.ready && !this.frame && !this.want && !this.pending.length) this.setUp();
     if (this.pending.length) this.place();
+  }
+
+  // A knock on the board, found as a jolt between two readings. It is taken as a tap
+  // (the board's edges, a re-anchor); if nothing was waiting for one, the page hears of it.
+  knock(m) {
+    const last = this.raw;
+    this.raw = m;
+    if (!last || m.t - last.t > 50) return;
+    const jolt = Math.hypot(m.ax - last.ax, m.ay - last.ay, m.az - last.az);
+    if (jolt < this.knockLimit || m.t - this.knockedAt < KNOCK_GAP_MS) return;
+    this.knockedAt = m.t;
+    const use = this.tap(last.t);
+    this.news.push({ type: 'knock', t: last.t, jolt, use });
   }
 
   step(m) {
@@ -187,7 +215,7 @@ export class BoardTracker {
     }
     const noRest = quiet !== null && quiet > NO_REST_S ? `No rest for ${Math.floor(quiet)} s: is the hand still?` : '';
     if (this.pending.length) return { text: 'Heard the knock: hold still', detail: noRest || lost };
-    if (this.want === 'left') return { text: 'Knock the board\'s left edge', detail: this.heard ? lost : `No taps heard yet. ${lost}`.trim() };
+    if (this.want === 'left') return { text: 'Knock the board\'s left edge', detail: this.heard ? lost : `No knocks felt yet. ${lost}`.trim() };
     if (this.want === 'right') return { text: 'Now knock its far right edge', detail: lost };
     if (this.want === 'anchor') return { text: 'Knock the left or right edge to re-anchor', detail: '' };
     if (!this.frame) return { text: 'Set up the board', detail: lost };

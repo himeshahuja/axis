@@ -106,7 +106,7 @@ function onTap(t, kind) {
     }
     return;
   }
-  if (board.tap(t) === null && measuring && board.frame) marks.push(t);
+  // A single tap from the band is not used: knocks are found in the motion (BoardTracker), on time.
 }
 
 /** Something that happened, into the session being recorded: replayed by tests/board.mjs --bench. */
@@ -162,6 +162,11 @@ $('#clear').onclick = () => {
 
 function news() {
   for (const n of board.news.splice(0)) {
+    if (n.type === 'knock') {
+      note('knock', { t: n.t });
+      if (n.use === null && measuring && board.frame) marks.push(n.t);
+      continue;
+    }
     if ((n.type === 'left' || n.type === 'board') && fused) {
       // The camera saw where the knock was: it must be the edge asked for.
       const edge = n.type === 'left' ? 'left' : 'right', k = fused.knockAt(n.t, edge);

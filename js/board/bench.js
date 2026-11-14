@@ -140,6 +140,11 @@ function ingest(m, arrived = null) {
   if (Number.isFinite(m.time)) clock = m.time - m.t;
   board.feed(m, arrived);
   for (const n of board.news.splice(0)) {
+    if (n.type === 'knock') {
+      marks.taps.push({ t: n.t, kind: 'knock' });
+      note(`knock felt (a jolt of ${n.jolt.toFixed(2)} g)${n.use ? `: taken as the ${n.use === 'anchor' ? 're-anchor' : `${n.use} edge`}` : `, not used (${board.status().text.toLowerCase()})`}`);
+      continue;
+    }
     note(describe(n));
     if (fused && (n.type === 'left' || n.type === 'board')) {
       const k = fused.knockAt(n.t, n.type === 'left' ? 'left' : 'right');
@@ -183,8 +188,7 @@ function heard(t, kind) {
     if (board.frame) board.reanchor();
     return;
   }
-  const use = board.tap(t);
-  note(use ? `tap: taken as the ${use === 'anchor' ? 're-anchor' : `${use} edge`}` : `tap, not used (${board.status().text.toLowerCase()})`);
+  note('the band\'s own tap event (not used: knocks are found in the motion, on time)');
 }
 
 onConnect(async (theBand, pretend) => {

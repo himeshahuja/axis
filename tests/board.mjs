@@ -35,14 +35,13 @@ const quantile = (xs, q) => {
   return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : NaN;
 };
 
-/** Feed a session to a board tracker as the page does: taps as they come, the board set up by the first two. */
+/** Feed a session to a board tracker as the page does: the board set up by the first two knocks it feels. */
 export function track(s, options = {}) {
   const bt = new BoardTracker({ rate: s.rate, ...options });
   bt.setUp();
   const live = new Map();
   let k = 0;
   s.samples.forEach((m, i) => {
-    while (k < s.taps.length && s.taps[k] <= m.t) bt.tap(s.taps[k++]);
     bt.feed(m);
     if (bt.frame) live.set(i, bt.cursor);
   });
@@ -132,7 +131,7 @@ function trackerRules() {
   check(gap.news.some((n) => n.type === 'lost') && !gap.ready, 'a 400 ms gap in the samples loses track and starts again');
 
   // Two taps too close together are not a board: it asks for the left edge again.
-  const close = new BoardTracker({ rate: 208 });
+  const close = new BoardTracker({ rate: 208, knocks: false });
   close.setUp();
   const left = s.samples.findIndex((m) => m.t >= firstTap), soon = s.samples.findIndex((m) => m.t > firstTap + 1000);
   s.samples.forEach((m, i) => {
@@ -164,7 +163,6 @@ function gestures() {
   const found = [];
   let k = 0;
   for (const m of s.samples) {
-    while (k < s.taps.length && s.taps[k] <= m.t) bt.tap(s.taps[k++]);
     bt.feed(m);
     const g = book.feed(m);
     if (g && (g.label === 'take' || g.label === 'put')) found.push({ label: g.label, t0: g.samples[0].t, at: bt.at(g.samples[0].t), distance: g.distance });
@@ -282,7 +280,6 @@ function realInput() {
   const auto = new BoardTracker({ rate: 208, auto: true });
   let k = 0;
   for (const m of base.samples) {
-    while (k < base.taps.length && base.taps[k] <= m.t) auto.tap(base.taps[k++]);
     auto.feed(m);
   }
   check(Boolean(auto.frame) && Math.abs(auto.frame.width - base.board.width) < 0.02, `with nothing pressed, the board sets itself up from the first two knocks (${cm(auto.frame?.width ?? NaN).trim()} cm wide)`);
@@ -310,7 +307,6 @@ export function fuseSession(s, { compensate = true, imu = true } = {}) {
       const fx = fixes[f++], [x, y] = apply(toBoard, [fx.u, fx.v]);
       fused.fix(compensate ? fx.t : fx.arrives, x, y);
     }
-    while (k < s.taps.length && s.taps[k] <= m.t) bt.tap(s.taps[k++]);
     bt.feed(m);
   }
   // Against the truth, in metres, while writing (and, separately, while the light was hidden).
@@ -431,9 +427,7 @@ export function benchReport(rec, { lowpass = null } = {}) {
       if (bt.frame) bt.reanchor();
       return;
     }
-    const use = bt.tap(e.t);
-    if (use === null && measuring && bt.frame) placed.push(e.t);
-    timeline.push(`${at(e.t)}  tap${use ? `: taken as the ${use === 'anchor' ? 're-anchor' : `${use} edge`}` : `, not used (${bt.status().text.toLowerCase()})`}`);
+    timeline.push(`${at(e.t)}  the band's own tap event (knocks are found in the motion instead)`);
   };
   for (const m of samples) {
     while (k < rec.events.length && rec.events[k].t <= m.t) {
@@ -467,6 +461,11 @@ export function benchReport(rec, { lowpass = null } = {}) {
       if (fused && (n.type === 'left' || n.type === 'board')) {
         const k = fused.knockAt(n.t, n.type === 'left' ? 'left' : 'right');
         if (k.across !== null) timeline.push(`${at(m.t)}  the camera saw that knock ${Math.round(k.across * 100)}% across${k.ok ? '' : ': the wrong edge'}`);
+      }
+      if (n.type === 'knock') {
+        if (n.use === null && measuring && bt.frame) placed.push(n.t);
+        timeline.push(`${at(n.t)}  knock felt (a jolt of ${n.jolt.toFixed(2)} g)${n.use ? `: taken as the ${n.use === 'anchor' ? 're-anchor' : `${n.use} edge`}` : `, not used (${bt.status().text.toLowerCase()})`}`);
+        continue;
       }
       const text = n.type === 'board' ? `board set up: ${(n.width * 100).toFixed(1)} cm wide` : n.type === 'lost' ? `lost track: ${Math.round(n.gap)} ms missing` : n.type === 'left' ? 'left edge placed' : `${n.type} ${JSON.stringify(n)}`;
       timeline.push(`${at(m.t)}  ${text}`);
