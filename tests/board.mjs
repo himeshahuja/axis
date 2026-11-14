@@ -420,7 +420,7 @@ export function benchReport(rec, { lowpass = null } = {}) {
   };
   fresh();
   const timeline = [], fails = { turning: 0, size: 0, push: 0, judged: 0, calm: 0 }, placed = [], knocks = [];
-  let k = 0, measuring = false, wasStill = false, wasReady = false, rests = 0, firstRest = null;
+  let k = 0, measuring = false, wasStill = false, wasReady = false, rests = 0, firstRest = null, setUpAt = null;
   const heard = (e) => {
     if (e.kind === 'double-tap') {
       timeline.push(`${at(e.t)}  double-tap${bt.frame ? ': re-anchor next' : ''}`);
@@ -468,6 +468,7 @@ export function benchReport(rec, { lowpass = null } = {}) {
         timeline.push(`${at(n.t)}  knock felt (a jolt of ${n.jolt.toFixed(2)} g)${n.use ? `: taken as the ${n.use === 'anchor' ? 're-anchor' : `${n.use} edge`}` : `, not used (${bt.status().text.toLowerCase()})`}`);
         continue;
       }
+      if (n.type === 'board') setUpAt ??= (m.t - t0) / 1000;
       const text = n.type === 'board' ? `board set up: ${(n.width * 100).toFixed(1)} cm wide` : n.type === 'lost' ? `lost track: ${Math.round(n.gap)} ms missing` : n.type === 'left' ? 'left edge placed' : `${n.type} ${JSON.stringify(n)}`;
       timeline.push(`${at(m.t)}  ${text}`);
     }
@@ -540,7 +541,7 @@ export function benchReport(rec, { lowpass = null } = {}) {
     const r = measure({ ...rec, words: rec.words ?? [] }, { bt, live: new Map() });
     line(`against the truth: width ${cm(r.width).trim()} cm off, trail ${cm(r.settled[0]).trim()} cm (95%: ${cm(r.settled[1]).trim()}), word shapes ${cm(r.shape[0]).trim()} cm`);
   }
-  return { lines, bt, summary: { width: bt.frame?.width ?? null, ready: bt.ready, rests, heard: bt.heard, lost: h.lost, calm: fails.judged ? fails.calm / fails.judged : null, knocks } };
+  return { lines, bt, summary: { width: bt.frame?.width ?? null, ready: bt.ready, rests, heard: bt.heard, lost: h.lost, calm: fails.judged ? fails.calm / fails.judged : null, knocks, setUpAt } };
 }
 
 /**
@@ -558,6 +559,8 @@ function realRecordings() {
     check(within(left, r.left) && within(right, r.right) && used.length === 2 && s.width !== null,
       `${r.file}: left knock taken at ${when(left)} (it was ${r.left.join('–')} s), right at ${when(right)} (${r.right.join('–')} s); ` +
       `${used.length} knocks used of ${s.knocks.length} jolts; board ${s.width === null ? 'not set up' : `${(s.width * 100).toFixed(1)} cm wide`}`);
+    check(right && s.setUpAt !== null && s.setUpAt - right.s < 1.5,
+      `${r.file}: the board set up ${right && s.setUpAt !== null ? `${(s.setUpAt - right.s).toFixed(2)} s` : 'never'} after the right knock (under 1.5 s: the hand held to the board is a rest)`);
     if (r.width !== null && s.width !== null) {
       const off = s.width * 100 - r.width;
       check(Math.abs(off) <= Math.max(3, 0.1 * r.width), `${r.file}: board ${(s.width * 100).toFixed(1)} cm against ${r.width} cm measured (${off.toFixed(1)} cm off)`);

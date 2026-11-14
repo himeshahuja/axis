@@ -28,7 +28,17 @@ const NO_REST_S = 3;            // waiting this long for a rest is worth saying 
 // 0.22 g and a still hand 0.02. The band's own tap events missed two knocks in three, and
 // come about 0.4 s late (it waits to rule out a double-tap), so knocks are found here.
 const KNOCK_G = 0.35;
-const KNOCK_GAP_MS = 300;       // one knock, however it rings: the next can come this long after
+// A knock rings: on the real band every knock made 4 to 21 such jumps within 20 to 150 ms.
+// A hand jerking into motion makes one, and was taken for a knock (the board's right edge
+// read 2 cm from its left), so a knock needs this many jumps within KNOCK_RING_MS.
+const KNOCK_JUMPS = 3;
+const KNOCK_RING_MS = 60;
+const KNOCK_GAP_MS = 300;
+// After a knock the hand is pressed to the board, asked to hold still, and its place is read
+// at the next rest. On the real band a hand held out at the far right edge turned 4 to 10 °/s
+// and pushed 0.3 to 0.6 m/s^2: never a rest by the limits for writing, so the edge waited 12 s.
+// While a knock waits, the limits are this many times looser.
+const KNOCK_HOLD = 3;       // one knock, however it rings: the next can come this long after
 
 /** A motion event from the kit's Band (t in ms, ax ay az in g, gx gy gz in degrees/second) as a Tracker sample. */
 export function fromBand(m) {
@@ -87,6 +97,7 @@ export class BoardTracker {
     this.knocks = knocks;
     this.knockLimit = KNOCK_G * Math.sqrt(208 / rate);   // slower sampling, bigger steps between samples
     this.raw = null;            // the last reading from the band, to see jolts
+    this.jumps = [];            // times of the recent jumps over the limit, to hear a knock ring
     this.knockedAt = -Infinity;
     this.options = trackerOptions(rate, options);
     this.intake = new Intake({ accelRange, gyroRange, lowpass, rate });
@@ -148,9 +159,14 @@ export class BoardTracker {
     if (!last || m.t - last.t > 50) return;
     const jolt = Math.hypot(m.ax - last.ax, m.ay - last.ay, m.az - last.az);
     if (jolt < this.knockLimit || m.t - this.knockedAt < KNOCK_GAP_MS) return;
+    this.jumps.push({ t: last.t, jolt });
+    while (this.jumps.length && last.t - this.jumps[0].t > KNOCK_RING_MS) this.jumps.shift();
+    if (this.jumps.length < KNOCK_JUMPS) return;
+    const first = this.jumps[0], strongest = Math.max(...this.jumps.map((j) => j.jolt));
+    this.jumps = [];
     this.knockedAt = m.t;
-    const use = this.tap(last.t);
-    this.news.push({ type: 'knock', t: last.t, jolt, use });
+    const use = this.tap(first.t);
+    this.news.push({ type: 'knock', t: first.t, jolt: strongest, use });
   }
 
   step(m) {
@@ -193,7 +209,8 @@ export class BoardTracker {
         turning: this.turning, size: this.size - G, push: Math.hypot(...this.push),
         steady: Math.hypot(this.push[0] - this.held[0], this.push[1] - this.held[1], this.push[2] - this.held[2]),
       };
-      why.calm = why.turning < o.stillGyro && Math.abs(why.size) < o.stillAccel && (why.push < o.stillWorld || why.steady < o.stillSteady);
+      const k = this.pending.length ? KNOCK_HOLD : 1;
+      why.calm = why.turning < k * o.stillGyro && Math.abs(why.size) < o.stillAccel && (why.push < k * o.stillWorld || why.steady < k * o.stillSteady);
       this.why = why;
       tr.o.stillGyro = why.calm ? Infinity : -1;
       tr.o.stillAccel = why.calm ? Infinity : -1;

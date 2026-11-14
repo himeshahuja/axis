@@ -3,13 +3,13 @@
   "recordings": [
     {
       "file": "soft-knocks.json",
-      "about": "Gentle knocks (0.47 and 0.49 g jumps; a harder 2.85 g knock 0.8 s after the right one). The band's tap detector heard only that last one, 0.4 s late, so the board never set up before knocks were found in the motion. On its own board; the person said the width came out right (not tape-measured, so not checked).",
+      "about": "Gentle left knock (0.47 g jumps). A single 0.49 g jump at 11.4 s is the hand setting off toward the right edge, not a knock (one jump; a knock rings for several); the right knock is the 2.85 g one at 12.2 s. The band's tap detector heard only that one, 0.4 s late. On its own board; the person said the width came out right (not tape-measured, so not checked).",
       "left": [
         6.3,
         6.6
       ],
       "right": [
-        11.3,
+        12.1,
         12.4
       ],
       "width": null
@@ -24,6 +24,19 @@
       "right": [
         11.85,
         12.15
+      ],
+      "width": null
+    },
+    {
+      "file": "wobbly-right-edge.json",
+      "about": "A single 0.62 g jump at 10.9 s as the hand set off was once taken as the right knock (board 1.9 cm, refused); the knock is at 12.3 s. Held out at the far right, the hand turned 4-10 deg/s and never made a rest by the writing limits, so the edge waited 12 s to be placed. The band sent no tap events at all. On its own board, not measured.",
+      "left": [
+        5.9,
+        6.2
+      ],
+      "right": [
+        12.2,
+        12.5
       ],
       "width": null
     }
