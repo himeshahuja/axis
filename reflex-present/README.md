@@ -9,6 +9,11 @@ speaker notes in `src/data/presentationDeck.ts`.
 The webcam starts mirrored. Move your palm to steer, close all four fingers
 for a short steady grasp to grab, then open at least two fingers to release.
 Partial/uncertain poses keep the current state. Lost tracking freezes a grab.
+Grasp movement uses a pose-compensated cursor: wrist translation preserves real
+movement while finger-base landmarks shift during closing/opening. A short
+median filter rejects isolated spikes, adaptive smoothing reduces tremor, and a
+soft pixel-sized steadiness zone keeps resting jitter from moving the cursor.
+Filtering runs once per camera observation, not repeatedly per render frame.
 The spatial test routes retain their original pinch detector for comparison.
 
 Use **Calibrate** to set sensitivity through two steady palm positions. Smaller

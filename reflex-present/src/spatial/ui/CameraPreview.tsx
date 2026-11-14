@@ -3,7 +3,7 @@ import { HAND_CONNECTIONS } from '../camera/handTracker'
 import type { SpatialRuntime } from '../runtime'
 
 /** Webcam frame + landmarks + active region, drawn as the user sees themself (mirror per profile). */
-export function CameraPreview({ rt, width = 320, fill = false }: { rt: SpatialRuntime; width?: number; fill?: boolean }) {
+export function CameraPreview({ rt, width = 320, fill = false, guides = true }: { rt: SpatialRuntime; width?: number; fill?: boolean; guides?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const height = Math.round((width * 3) / 4)
 
@@ -37,6 +37,7 @@ export function CameraPreview({ rt, width = 320, fill = false }: { rt: SpatialRu
         ctx.fillText(rt.tracker.status === 'error' ? `camera error: ${rt.tracker.error}` : `camera ${rt.tracker.status}`, 10, 20)
       }
 
+      if (!guides) return
       // Active region is stored in oriented coords: x already mirrored, y flipped if flipY.
       const ry0 = flipY ? 1 - region.y1 : region.y0
       const ry1 = flipY ? 1 - region.y0 : region.y1
@@ -73,7 +74,7 @@ export function CameraPreview({ rt, width = 320, fill = false }: { rt: SpatialRu
     }
     draw()
     return () => cancelAnimationFrame(raf)
-  }, [rt])
+  }, [rt, guides])
 
   return <canvas ref={ref} width={width} height={height} style={{ width: fill ? '100%' : width, height: fill ? '100%' : height, borderRadius: 8, display: 'block', border: fill ? undefined : '1px solid #262a35' }} />
 }

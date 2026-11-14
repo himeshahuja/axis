@@ -15,11 +15,11 @@ export function PresenterActions({ rt }: { rt: SpatialRuntime }) {
   const voiceObject = find(executor.voice?.objectId ?? null)
   const recentSave = executor.lastSaved && Date.now() - new Date(executor.lastSaved.createdAt).getTime() < 2500
   return <div className="presenter-actions" onMouseDown={(e) => e.stopPropagation()}>
-    {object && state.status === 'HOLDING' && <HoldRing object={object} canvas={rt.canvasPx} progress={state.holdProgress} />}
-    {object && isMenuOpen(state.status) && <RadialActionMenu state={state} object={object} canvas={rt.canvasPx} thresholdDeg={rt.radial.controller.mapper.config.thresholdDeg} maxDeg={rt.radial.controller.mapper.config.maxDeg} closing={false} bandLost={state.status === 'DEVICE_DISCONNECTED'} bandPretend={rt.radial.band?.link === 'sim'} graspMode onChoose={(a) => rt.radial.choose(a)} />}
+    {object && state.status === 'HOLDING' && <HoldRing object={object} canvas={rt.canvasPx} progress={state.holdProgress} color="#edca7c" />}
+    {object && isMenuOpen(state.status) && <RadialActionMenu state={state} object={object} canvas={rt.canvasPx} thresholdDeg={rt.radial.controller.mapper.config.thresholdDeg} maxDeg={rt.radial.controller.mapper.config.maxDeg} closing={false} bandLost={state.status === 'DEVICE_DISCONNECTED'} bandPretend={rt.radial.band?.link === 'sim'} graspMode theme="presenter" onChoose={(a) => rt.radial.choose(a)} />}
     {[...executor.explainCards.values()].map((card) => {
       const target = find(card.objectId)
-      return target ? <ExplainPanel key={card.objectId} card={card} object={target} onClose={() => executor.closeExplain(card.objectId)} /> : null
+      return target ? <ExplainPanel key={card.objectId} card={card} object={target} compact onClose={() => executor.closeExplain(card.objectId)} /> : null
     })}
     {executor.voice && voiceObject && <VoiceCapturePanel session={executor.voice} object={voiceObject} objects={rt.interaction.objects} providers={rt.radial.voiceProviders} onClose={() => executor.closeVoice()} />}
     {recentSave && <SavedToast entry={executor.lastSaved!} />}

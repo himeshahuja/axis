@@ -5,6 +5,7 @@ import type { SpatialObject } from '../spatial/types'
 import { CameraPreview } from '../spatial/ui/CameraPreview'
 import './PresentationBoard.css'
 import { PresenterActions } from './PresenterActions'
+import './PresenterTheme.css'
 
 const pct = (value: number) => `${value * 100}%`
 
@@ -25,6 +26,8 @@ export function PresentationBoard() {
   const [slideIndex, setSlideIndex] = useState(0)
   const [showCamera, setShowCamera] = useState(true)
   const [showNotes, setShowNotes] = useState(false)
+  const [showSlides, setShowSlides] = useState(false)
+  const [showTools, setShowTools] = useState(false)
   const [startingCalibration, setStartingCalibration] = useState(false)
   const [calibrationError, setCalibrationError] = useState<string | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
@@ -71,6 +74,7 @@ export function PresentationBoard() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return
+      if (event.key === 'Escape' && showTools) { setShowTools(false); event.preventDefault(); return }
       if (runtime.radial.capturesInput && runtime.onKey(event)) { event.preventDefault(); return }
       if (event.key === 'ArrowRight') changeSlide(slideIndex + 1)
       else if (event.key === 'ArrowLeft') changeSlide(slideIndex - 1)
@@ -84,7 +88,7 @@ export function PresentationBoard() {
     window.addEventListener('mouseup', onRelease)
     window.addEventListener('blur', onRelease)
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('mouseup', onRelease); window.removeEventListener('blur', onRelease) }
-  }, [runtime, slideIndex])
+  }, [runtime, slideIndex, showTools])
 
   const point = (event: React.MouseEvent) => {
     const box = stageRef.current!.getBoundingClientRect()
@@ -110,12 +114,17 @@ export function PresentationBoard() {
   const triggerAirControl = useCallback((action: string) => {
     if (action === 'mirror') runtime.updateProfile({ mirrorX: !runtime.profile.mirrorX })
     else if (action === 'calibrate') void beginCalibration()
-    else if (action === 'camera') void runtime.startCamera()
+    else if (action === 'camera') { if (runtime.tracker.status === 'running') runtime.stopCamera(); else void runtime.startCamera() }
     else if (action === 'preview') setShowCamera((value) => !value)
     else if (action === 'center') runtime.recenter()
     else if (action === 'next') changeSlide(slideIndex + 1)
     else if (action === 'previous') changeSlide(slideIndex - 1)
     else if (action === 'fullscreen') void (document.fullscreenElement ? document.exitFullscreen() : stageRef.current?.requestFullscreen())
+    else if (action === 'tools') setShowTools((v) => !v)
+    else if (action === 'slides') setShowSlides((v) => !v)
+    else if (action === 'notes') setShowNotes((v) => !v)
+    else if (action.startsWith('close-explain:')) runtime.radial.executor.closeExplain(action.slice('close-explain:'.length))
+    if (action !== 'tools') setShowTools(false)
   }, [runtime, beginCalibration, slideIndex])
 
   // Resolve controls before the interaction engine can grab an object below.
@@ -143,48 +152,50 @@ export function PresentationBoard() {
   return (
     <main className="presentation-shell">
       <header className="workspace-header">
-        <div><span className="workspace-mark">↗</span><span>{demoIdentity.event}<small>Gesture presentation prototype</small></span></div>
-        <span className="demo-name">{demoIdentity.name}<small>Working title</small></span>
+        <span className="demo-name">{demoIdentity.name}</span>
+        <span className="event-name">{demoIdentity.event}</span>
       </header>
       <div
         ref={stageRef}
         className="presentation-stage"
         style={{ '--accent': slide.accent } as React.CSSProperties}
         onMouseMove={(event) => { const p = point(event); runtime.onMouseMove(p.x, p.y) }}
-        onMouseDown={(event) => { const p = point(event); runtime.onMouseButton(true, p.x, p.y) }}
+        onMouseDown={(event) => { if (!(event.target as HTMLElement).closest('.stage-controls, .presenter-tools')) setShowTools(false); const p = point(event); runtime.onMouseButton(true, p.x, p.y) }}
         onMouseUp={(event) => { const p = point(event); runtime.onMouseButton(false, p.x, p.y) }}
       >
         <div className="presentation-glow" />
-        {showCamera && <div className="presenter-mirror"><CameraPreview rt={runtime} width={1280} fill /></div>}
-        <header className="presentation-header">
-          <span className="brand">{demoIdentity.event}</span>
-          <span>{String(slideIndex + 1).padStart(2, '0')} / {String(presentationDeck.length).padStart(2, '0')}</span>
-        </header>
+        {showCamera && <div className="presenter-mirror"><CameraPreview rt={runtime} width={1280} fill guides={false} /></div>}
         <div className="stage-controls" data-hover={hoverControl} aria-label="Hand-controlled presentation tools" onMouseDown={(event) => event.stopPropagation()} onMouseUp={(event) => event.stopPropagation()}>
           <button data-air-action="previous" aria-label="Previous slide" onClick={() => triggerAirControl('previous')}>←</button>
           <span className="toolbar-page">{slideIndex + 1} / {presentationDeck.length}</span>
           <button data-air-action="next" aria-label="Next slide" onClick={() => triggerAirControl('next')}>→</button>
           <i />
+          <span className={`tracking-indicator ${rawPointer ? 'tracked' : ''}`} role="status" aria-label={rawPointer ? 'Hand tracked' : runtime.tracker.status === 'running' ? 'Raise a hand into view' : `Camera ${runtime.tracker.status}`} title={rawPointer ? 'Hand tracked' : runtime.tracker.status === 'running' ? 'Raise a hand into view' : `Camera ${runtime.tracker.status}`} />
           <button data-air-action="calibrate" onClick={() => triggerAirControl('calibrate')}>{startingCalibration ? 'Starting…' : 'Calibrate'}</button>
-          <button data-air-action="mirror" aria-pressed={runtime.profile.mirrorX} className={runtime.profile.mirrorX ? 'active' : ''} onClick={() => triggerAirControl('mirror')}>Mirror</button>
-          <button data-air-action="center" onClick={() => triggerAirControl('center')}>Center</button>
-          <button data-air-action="preview" onClick={() => triggerAirControl('preview')}>{showCamera ? 'Hide me' : 'Show me'}</button>
-          <button data-air-action="fullscreen" aria-label="Fullscreen" onClick={() => triggerAirControl('fullscreen')}>⤢</button>
+          <button data-air-action="tools" aria-label="More controls" aria-expanded={showTools} onClick={() => triggerAirControl('tools')}>···</button>
         </div>
+        {showTools && <div className="presenter-tools" data-hover={hoverControl} onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
+          <button data-air-action="mirror" aria-pressed={runtime.profile.mirrorX} onClick={() => triggerAirControl('mirror')}>Mirror <span>{runtime.profile.mirrorX ? 'On' : 'Off'}</span></button>
+          <button data-air-action="center" onClick={() => triggerAirControl('center')}>Recenter cursor <span>R</span></button>
+          <button data-air-action="preview" onClick={() => triggerAirControl('preview')}>Camera view <span>{showCamera ? 'On' : 'Off'}</span></button>
+          <button data-air-action="fullscreen" onClick={() => triggerAirControl('fullscreen')}>Fullscreen <span>F</span></button>
+          <hr />
+          <button data-air-action="slides" onClick={() => triggerAirControl('slides')}>Slide overview <span>{showSlides ? 'Hide' : 'Show'}</span></button>
+          <button data-air-action="notes" onClick={() => triggerAirControl('notes')}>Speaker notes <span>{showNotes ? 'Hide' : 'Show'}</span></button>
+          <button data-air-action="camera" onClick={() => triggerAirControl('camera')}>{runtime.tracker.status === 'running' ? 'Pause' : 'Start'} tracking</button>
+          <hr />
+          <a href="/marketing/creative-brief.md" download>Creative brief ↗</a><a href="/marketing/concept-board.png" download>Concept art ↗</a>
+        </div>}
         <section className="presentation-copy">
           <p>{slide.eyebrow}</p>
           <h1>{slide.title}</h1>
           <h2>{slide.subtitle}</h2>
         </section>
         <div className="presentation-objects">
-          {ix.objects.map((object) => <SlideCard key={object.id} object={object} active={ix.hoverId === object.id} grabbed={ix.grabbedId === object.id} />)}
+          {ix.objects.map((object) => <SlideCard key={object.id} object={object} active={ix.hoverId === object.id && !runtime.radial.capturesInput} grabbed={ix.grabbedId === object.id} />)}
         </div>
         {calibration.kind === 'none' && <PresenterActions rt={runtime} />}
         {pointer.valid && <div className={`presentation-cursor ${runtime.detector.engaged || ix.grabbedId ? 'is-grasped' : ''}`} style={{ left: pct(pointer.x), top: pct(pointer.y) }} />}
-        <div className="presentation-footer">
-          <span className={rawPointer ? 'tracking-live' : ''}>{runtime.tracker.status === 'loading' ? 'Starting camera…' : runtime.tracker.status === 'error' ? 'Camera unavailable' : runtime.tracker.status === 'running' ? rawPointer ? 'Hand tracked' : 'Raise a hand into view' : 'Mouse demo ready'}</span>
-          <span>Close to grab · Hold for actions · Open to release</span>
-        </div>
         {calibration.kind === 'region' && (
           <div className="range-setup">
             <CameraPreview rt={runtime} width={1280} fill />
@@ -204,9 +215,9 @@ export function PresentationBoard() {
         {calibration.kind === 'none' && notice && <div className="presenter-notice" role="status">{notice}</div>}
       </div>
 
-      <aside className="presentation-dock">
+      {showSlides && <aside className="presentation-dock">
         {presentationDeck.map((item, index) => <button key={item.id} className={`slide-thumbnail ${index === slideIndex ? 'selected' : ''}`} onClick={() => changeSlide(index)} aria-label={`Open slide ${index + 1}: ${item.eyebrow}`} aria-current={index === slideIndex ? 'step' : undefined}><span style={{ color: item.accent }}>{String(index + 1).padStart(2, '0')}</span><strong>{item.eyebrow}</strong><small>{item.title.replace('\n', ' ')}</small></button>)}
-      </aside>
+      </aside>}
       {calibrationError && (
         <div className="presentation-error" role="alert">
           <strong>Calibration needs the camera.</strong>
@@ -215,7 +226,6 @@ export function PresentationBoard() {
           <button className="quiet" onClick={() => setCalibrationError(null)}>Dismiss</button>
         </div>
       )}
-      <footer className="workspace-footer"><span>← → slides <kbd>F</kbd> fullscreen <kbd>Space</kbd> grab</span><div><button onClick={() => setShowNotes((v) => !v)}>{showNotes ? 'Hide' : 'Speaker'} notes</button><a href="/marketing/creative-brief.md" download>Creative brief ↗</a><a href="/marketing/concept-board.png" download>Concept art ↗</a><button onClick={() => runtime.tracker.status === 'running' ? runtime.stopCamera() : void runtime.startCamera()}>{runtime.tracker.status === 'running' ? 'Pause camera' : 'Start camera'}</button></div></footer>
       {showNotes && <section className="speaker-notes"><span>Slide {slideIndex + 1}</span><p>{slide.note}</p></section>}
     </main>
   )

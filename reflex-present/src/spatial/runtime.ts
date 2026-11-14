@@ -31,6 +31,7 @@ import { RadialSystem } from './radial/RadialSystem'
 import type { WearableAdapter } from './wearable/adapter'
 import { MockWearableAdapter } from './wearable/mockWearable'
 import { SteadyPoint } from './steadyPoint'
+import { GraspCursor } from './graspCursor'
 
 class Rolling {
   private v: number[] = []
@@ -97,6 +98,8 @@ export class SpatialRuntime {
 
   private rawHistory: { tMs: number; p: Point2 }[] = []
   private rangeHold = new SteadyPoint()
+  private graspCursor = new GraspCursor()
+  private stabilizedCamera: { frameId: number; point: Point2 } | null = null
   autoRangeCapture = false
   onControlSelect: ((pointer: PointerEstimate) => boolean) | null = null
   get calibrationProgress() { return this.rangeHold.progress }
@@ -158,6 +161,8 @@ export class SpatialRuntime {
   }
 
   stopCamera() {
+    this.graspCursor.reset()
+    this.stabilizedCamera = null
     this.tracker.stop()
     this.latestCamera = null
     this.latestFeatures = null
@@ -190,6 +195,8 @@ export class SpatialRuntime {
   }
 
   setAnchor(a: 'palm' | 'indexTip') {
+    this.graspCursor.reset()
+    this.stabilizedCamera = null
     this.anchor = a
     this.rawHistory = []
   }
@@ -240,6 +247,17 @@ export class SpatialRuntime {
       while (this.rawHistory.length && observation.tMs - this.rawHistory[0].tMs > 1000) this.rawHistory.shift()
     }
     for (const g of this.detector.update(features, observation.tMs, observation.sensorConfidence)) this.queue(g)
+    if (features && this.detector.mode === 'grasp' && this.anchor === 'palm' && this.calibration.kind === 'none' && features.keyInFrame) {
+      const fingers = Object.values(features.fingers)
+      const curled = fingers.filter((f) => f === 'curled').length
+      const extended = fingers.filter((f) => f === 'extended').length
+      const changing = this.detector.grasped ? extended >= 1 : curled >= 1 || extended < 4
+      const wrist = observation.landmarks[0] ?? features.palm
+      this.stabilizedCamera = { frameId: observation.frameId, point: this.graspCursor.update(cameraToCanvas(features.palm, this.profile), cameraToCanvas(wrist, this.profile), observation.tMs, this.detector.grasped, changing, this.canvasPx) }
+    } else {
+      this.graspCursor.reset()
+      this.stabilizedCamera = null
+    }
     if (this.autoRangeCapture && this.calibration.kind === 'region') {
       const first = this.calibration.corners[0]
       const a = first ? orient(first, this.profile) : null
@@ -325,13 +343,15 @@ export class SpatialRuntime {
     if (!obs || this.tracker.status !== 'running') return null
     const f = this.latestFeatures
     const anchor = f ? (this.anchor === 'palm' ? f.palm : f.indexTip) : null
-    const p = anchor ? cameraToCanvas(anchor, this.profile) : { x: 0, y: 0 }
+    const stable = this.detector.mode === 'grasp' && this.anchor === 'palm' && this.stabilizedCamera?.frameId === obs.frameId ? this.stabilizedCamera.point : null
+    const p = stable ?? (anchor ? cameraToCanvas(anchor, this.profile) : { x: 0, y: 0 })
     return {
       tMs: obs.tMs,
       captureTMs: obs.captureTMs,
+      smoothed: !!stable,
       x: p.x,
       y: p.y,
-      trackingValid: !!anchor,
+      trackingValid: !!anchor && (!(this.detector.mode === 'grasp' && this.anchor === 'palm' && this.calibration.kind === 'none') || !!stable),
       confidence: obs.sensorConfidence * obs.inFrameFraction,
     }
   }
@@ -419,6 +439,8 @@ export class SpatialRuntime {
 
   // ---- calibration --------------------------------------------------------------
   updateProfile(patch: Partial<CalibrationProfile>) {
+    this.graspCursor.reset()
+    this.stabilizedCamera = null
     this.profile = { ...this.profile, ...patch, updatedAt: Date.now() }
     this.fusion.resetPointer()
     saveProfile(this.tracker.deviceKey, this.profile)
@@ -431,6 +453,8 @@ export class SpatialRuntime {
   }
 
   startCalibration(kind: 'region' | 'points') {
+    this.graspCursor.reset()
+    this.stabilizedCamera = null
     this.radial.controller.cancel(performance.now(), 'hand range calibration')
     this.interaction.handle({ type: 'cancel', tMs: performance.now(), source: 'keyboard' })
     this.rangeHold.reset()

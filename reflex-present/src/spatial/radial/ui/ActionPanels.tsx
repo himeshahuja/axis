@@ -17,13 +17,13 @@ function beside(o: SpatialObject, cardW: number) {
   return { left: pct(left), top: pct(Math.max(0.02, Math.min(0.62, o.y))), width: pct(cardW) }
 }
 
-export function ExplainPanel({ card, object, onClose }: { card: ExplainCard; object: SpatialObject; onClose: () => void }) {
+export function ExplainPanel({ card, object, onClose, compact = false }: { card: ExplainCard; object: SpatialObject; onClose: () => void; compact?: boolean }) {
   return (
     <div className="ap-card ap-explain" style={beside(object, 0.24)} onMouseDown={(e) => e.stopPropagation()}>
       <div className="ap-head">
         <span className="ap-dot" style={{ background: object.color }} />
         <strong>Explain · {object.label}</strong>
-        <button className="ap-x" onClick={onClose} aria-label="Close">
+        <button className="ap-x" data-air-action={compact ? `close-explain:${card.objectId}` : undefined} onClick={onClose} aria-label="Close explanation">
           ×
         </button>
       </div>
@@ -32,11 +32,11 @@ export function ExplainPanel({ card, object, onClose }: { card: ExplainCard; obj
       {card.status === 'done' && (
         <>
           <ul className="ap-facts">
-            {card.explanation.facts.map((f, i) => (
+            {(compact && card.explanation.kind === 'note' && card.explanation.facts.length > 1 ? card.explanation.facts.slice(1) : card.explanation.facts).map((f, i) => (
               <li key={i}>{f}</li>
             ))}
           </ul>
-          <div className={`ap-badge ${card.explanation.provider.kind === 'local' ? 'ap-badge-local' : ''}`}>{card.explanation.provider.label}</div>
+          <div title={card.explanation.provider.label} className={`ap-badge ${card.explanation.provider.kind === 'local' ? 'ap-badge-local' : ''}`}>{compact && card.explanation.provider.kind === 'local' ? 'Local summary' : card.explanation.provider.label}</div>
         </>
       )}
     </div>
