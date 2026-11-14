@@ -136,6 +136,10 @@ submodule. In this repository's folder run <code>git submodule update --init</co
     <p class="soft">Records a session with each step marked, for
     <code>node tests/board.mjs --bench file.json</code>. Stand at the board with the band on.</p>
     <ol id="steps" class="steps"></ol>
+    <div class="fields">
+      <label>Distance between your two knocks, cm (measure it with a tape: it is what the band's width is checked against)
+        <input id="capture-width" inputmode="decimal" size="6"></label>
+    </div>
     <div class="row">
       <button id="capture" disabled>Start capture</button>
       <button id="record" disabled>Record freely</button>

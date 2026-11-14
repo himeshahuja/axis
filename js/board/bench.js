@@ -409,6 +409,12 @@ function save(rec, prefix = '') {
   $('#rec-note').textContent = `${prefix}Saved ${rec.samples.length} samples (${fixed(rec.seconds)} s) as ${rec.name}. Check it with: node tests/board.mjs --bench ${rec.name}`;
 }
 
+/** The distance measured between the two knocks, cm, or null. */
+function knockWidth() {
+  const cm = parseFloat($('#capture-width').value);
+  return cm > 5 ? cm : null;
+}
+
 function startRecording(extra = {}) {
   // A recording starts from a fresh tracker, so that it plays back exactly as it went.
   newBoard();
@@ -423,7 +429,7 @@ $('#capture').onclick = () => {
     recorder = null;
     return;
   }
-  startRecording({ capture: STEPS.map((s) => s.label) });
+  startRecording({ capture: STEPS.map((s) => s.label), knockWidth: knockWidth() });
   capture = { step: -1, until: 0 };
   nextStep(performance.now());
 };
@@ -432,6 +438,7 @@ function nextStep(now) {
   capture.step++;
   if (capture.step >= STEPS.length) {
     capture = null;
+    recorder.about.knockWidth = knockWidth();         // typed in during the capture is fine too
     save(recorder, 'Capture done. ');
     recorder = null;
     say('Capture done.');

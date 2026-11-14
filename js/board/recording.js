@@ -9,6 +9,9 @@
 //            picture taken at the band's time t; with `camera` in the header: the board's
 //            corners in the picture, its width and height (m) and the marker tip's offset
 //
+// A guided capture may carry `knockWidth`: the distance between the two knocks in cm,
+// measured with a tape, for the band's width to be checked against.
+//
 // Version 1 (board.html before the bench) kept samples as [t, ax, ay, az, gx, gy, gz].
 
 export const KIND = 'air-draw band recording';

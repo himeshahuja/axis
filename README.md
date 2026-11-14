@@ -145,6 +145,12 @@ far the band alone strays from the camera. A low-pass filter can be tried live. 
 records a marked session; `node tests/board.mjs --bench <file>` reports on it (add `--lowpass 8` to replay
 it filtered). Recordings from `board.html`'s **Record session** read the same way.
 
+**Real recordings as tests.** `tests/recordings/` holds captures from band 68, listed in
+`recordings.json` with when each knock really happened (and the distance between the knocks, when it was
+measured). `node tests/board.mjs` replays every one and checks the board sets up from those two knocks
+and nothing else. To add one: type the distance between your knocks (measured with a tape) on the bench
+before a guided capture, then put the file in `tests/recordings/` and list it.
+
 **Not done yet:**
 - Telling a marker on the board from a lifted one: every movement draws.
 - Turning the writing into text. Each Put fires a `board:put` event carrying the strokes, ready for that.

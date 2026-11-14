@@ -6,3 +6,4 @@ recordings/
 airwrite-trainer/data/
 model/model.onnx
 vendor/
+!tests/recordings/

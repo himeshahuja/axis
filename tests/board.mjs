@@ -419,7 +419,7 @@ export function benchReport(rec, { lowpass = null } = {}) {
     }
   };
   fresh();
-  const timeline = [], fails = { turning: 0, size: 0, push: 0, judged: 0, calm: 0 }, placed = [];
+  const timeline = [], fails = { turning: 0, size: 0, push: 0, judged: 0, calm: 0 }, placed = [], knocks = [];
   let k = 0, measuring = false, wasStill = false, wasReady = false, rests = 0, firstRest = null;
   const heard = (e) => {
     if (e.kind === 'double-tap') {
@@ -463,6 +463,7 @@ export function benchReport(rec, { lowpass = null } = {}) {
         if (k.across !== null) timeline.push(`${at(m.t)}  the camera saw that knock ${Math.round(k.across * 100)}% across${k.ok ? '' : ': the wrong edge'}`);
       }
       if (n.type === 'knock') {
+        knocks.push({ s: (n.t - t0) / 1000, use: n.use, jolt: n.jolt });
         if (n.use === null && measuring && bt.frame) placed.push(n.t);
         timeline.push(`${at(n.t)}  knock felt (a jolt of ${n.jolt.toFixed(2)} g)${n.use ? `: taken as the ${n.use === 'anchor' ? 're-anchor' : `${n.use} edge`}` : `, not used (${bt.status().text.toLowerCase()})`}`);
         continue;
@@ -516,6 +517,9 @@ export function benchReport(rec, { lowpass = null } = {}) {
   for (const entry of timeline.slice(0, 60)) line(`  ${entry}`);
   if (timeline.length > 60) line(`  ... and ${timeline.length - 60} more`);
   line(`at the end: ${bt.status().text}${bt.status().detail ? ` (${bt.status().detail})` : ''}`);
+  if (rec.knockWidth && bt.frame) {
+    line(`the knocks were ${rec.knockWidth} cm apart (measured); the band made it ${(bt.frame.width * 100).toFixed(1)} cm: ${(bt.frame.width * 100 - rec.knockWidth).toFixed(1)} cm off`);
+  }
 
   if (cam) {
     const fps = rec.fixes.length / seconds;
@@ -536,7 +540,29 @@ export function benchReport(rec, { lowpass = null } = {}) {
     const r = measure({ ...rec, words: rec.words ?? [] }, { bt, live: new Map() });
     line(`against the truth: width ${cm(r.width).trim()} cm off, trail ${cm(r.settled[0]).trim()} cm (95%: ${cm(r.settled[1]).trim()}), word shapes ${cm(r.shape[0]).trim()} cm`);
   }
-  return { lines, bt, summary: { width: bt.frame?.width ?? null, ready: bt.ready, rests, heard: bt.heard, lost: h.lost, calm: fails.judged ? fails.calm / fails.judged : null } };
+  return { lines, bt, summary: { width: bt.frame?.width ?? null, ready: bt.ready, rests, heard: bt.heard, lost: h.lost, calm: fails.judged ? fails.calm / fails.judged : null, knocks } };
+}
+
+/**
+ * Real recordings from the band (tests/recordings/), replayed as the page would have
+ * taken them: the board must set up from the knocks a person checked by hand, from
+ * nothing else, and come out the measured width where one was measured.
+ */
+function realRecordings() {
+  const dir = new URL('./recordings/', import.meta.url), list = JSON.parse(readFileSync(new URL('recordings.json', dir), 'utf8')).recordings;
+  for (const r of list) {
+    const rec = readRecording(readFileSync(new URL(r.file, dir), 'utf8')), { summary: s } = benchReport(rec);
+    const used = s.knocks.filter((k) => k.use), left = used.find((k) => k.use === 'left'), right = used.find((k) => k.use === 'right');
+    const within = (k, [a, b]) => Boolean(k) && k.s >= a && k.s <= b, when = (k) => (k ? `${k.s.toFixed(2)} s` : 'never');
+    check(s.lost === 0 && s.ready, `${r.file}: ${rec.samples.length} samples, none lost, the tracker started`);
+    check(within(left, r.left) && within(right, r.right) && used.length === 2 && s.width !== null,
+      `${r.file}: left knock taken at ${when(left)} (it was ${r.left.join('–')} s), right at ${when(right)} (${r.right.join('–')} s); ` +
+      `${used.length} knocks used of ${s.knocks.length} jolts; board ${s.width === null ? 'not set up' : `${(s.width * 100).toFixed(1)} cm wide`}`);
+    if (r.width !== null && s.width !== null) {
+      const off = s.width * 100 - r.width;
+      check(Math.abs(off) <= Math.max(3, 0.1 * r.width), `${r.file}: board ${(s.width * 100).toFixed(1)} cm against ${r.width} cm measured (${off.toFixed(1)} cm off)`);
+    }
+  }
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -551,6 +577,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     realInput();
     cameraChecks();
     benchParts();
+    realRecordings();
     const book = gestures();
     await throughTheKit(book);
     process.exitCode = failed ? 1 : 0;
