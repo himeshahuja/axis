@@ -1,0 +1,116 @@
+{
+  "labels": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+  "input": [
+    28,
+    28
+  ],
+  "layers": [
+    {
+      "name": "conv1.weight",
+      "shape": [
+        24,
+        1,
+        3,
+        3
+      ]
+    },
+    {
+      "name": "conv1.bias",
+      "shape": [
+        24
+      ]
+    },
+    {
+      "name": "conv2.weight",
+      "shape": [
+        48,
+        24,
+        3,
+        3
+      ]
+    },
+    {
+      "name": "conv2.bias",
+      "shape": [
+        48
+      ]
+    },
+    {
+      "name": "conv3.weight",
+      "shape": [
+        64,
+        48,
+        3,
+        3
+      ]
+    },
+    {
+      "name": "conv3.bias",
+      "shape": [
+        64
+      ]
+    },
+    {
+      "name": "fc1.weight",
+      "shape": [
+        128,
+        576
+      ]
+    },
+    {
+      "name": "fc1.bias",
+      "shape": [
+        128
+      ]
+    },
+    {
+      "name": "fc2.weight",
+      "shape": [
+        36,
+        128
+      ]
+    },
+    {
+      "name": "fc2.bias",
+      "shape": [
+        36
+      ]
+    }
+  ],
+  "accuracy": 0.9147,
+  "tested_on": 14400,
+  "most_confused": [
+    {
+      "pair": "1/L",
+      "count": 257
+    },
+    {
+      "pair": "0/O",
+      "count": 250
+    },
+    {
+      "pair": "1/I",
+      "count": 192
+    },
+    {
+      "pair": "2/Z",
+      "count": 57
+    },
+    {
+      "pair": "5/S",
+      "count": 47
+    },
+    {
+      "pair": "I/L",
+      "count": 42
+    },
+    {
+      "pair": "0/D",
+      "count": 27
+    },
+    {
+      "pair": "U/V",
+      "count": 19
+    }
+  ]
+}

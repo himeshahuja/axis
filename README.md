@@ -12,7 +12,13 @@ Any static server from this folder, for example:
 
 then open http://localhost:8000. Drag the drawing to turn it.
 
-## How it works
+The page has two modes:
+
+- **Sensor** plays the simulated readings and draws the path recovered from them.
+- **Write** is a pad: draw a character with the cursor or a finger, pause, and a small neural network reads it into text. It knows digits and capital letters.
+
+## How the sensor path is recovered
+
 
 `js/fusion.js` holds a `Tracker`. Feed it samples and read back positions:
 
@@ -27,9 +33,24 @@ then open http://localhost:8000. Drag the drawing to turn it.
 
 So a drawing has to be made of movements with a short rest (about a third of a second) between them. A long movement with no rest drifts, and so does heading over many strokes: nothing here measures which way is north.
 
+## How a character is read
+
+1. **Picture.** `js/raster.js` scales the strokes to fit a 20 × 20 box in the middle of a 28 × 28 picture and draws them with a soft pen. Stroke order and direction are thrown away on purpose: they vary between people, and will be rough from a sensor.
+2. **Network.** `js/net.js` runs a small convolutional network (three 3 × 3 convolutions, two dense layers, about 117,000 weights, 470 KB) in plain JavaScript. It scores all 36 characters.
+3. **Text.** After three quarters of a second without drawing, the best guess joins the text. The other guesses stay on show; picking one corrects it.
+
+The network is trained by `train/train.py` on EMNIST "balanced" (86,400 handwritten digits and capitals), with each image thickened, thinned, turned, resized and slanted at random so cursor drawings look familiar. It reads **91.5%** of 14,400 held-out test images. Most of what it misses nobody could tell apart alone: 1/L/I and 0/O are two thirds of the errors. EMNIST also files some lower-case letters under their capitals (l with L, for one), which is where 1/L comes from.
+
+To train it again:
+
+    python3 train/get_data.py
+    uv run --with torch --with numpy train/train.py
+
 ## Checked
 
 `node tests/check.mjs` draws every shape with five different noise seeds and compares the recovered path with the true one. Drawings are 20 to 40 cm across; the recovered path stays within about 3 cm on average.
+
+`node tests/read.mjs` checks that the JavaScript network gives the same scores as the trained one on saved test images, and that 15 characters drawn as plain strokes are read correctly.
 
 ## Using a real sensor
 

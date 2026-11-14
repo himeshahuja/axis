@@ -1,1 +1,4 @@
 .DS_Store
+train/data/
+__pycache__/
+.venv/

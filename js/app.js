@@ -164,6 +164,8 @@ function offBy() {
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000 || 0);
   last = now;
+  // Nothing to play or draw while the other mode is showing.
+  if (document.body.dataset.mode !== 'sensor') return requestAnimationFrame(frame);
   if (!still) {
     clock += dt;
     while (fed < data.samples.length && data.samples[fed].t <= clock) tracker.feed(data.samples[fed++]);
