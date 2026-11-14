@@ -7,14 +7,33 @@
 //   typed    — no microphone at all.
 // Every provider that sends sound off the computer says so before it starts.
 
-import type { VexoBandAdapter } from '../../wearable/vexoBandAdapter'
+//   band-gemini — the Vexo band's microphone, recorded until you stop or go quiet, then
+//              sent as one WAV to Google Gemini through this laptop's dev server
+//              (server/geminiVoice.ts holds the key). Gemini returns the transcript
+//              and a reply about the selected object. The default for Voice.
 
-export type VoiceProviderId = 'band' | 'browser' | 'typed'
+import type { SpatialObject } from '../../types'
+import { BandAudio, AUDIO_RATE } from '../../wearable/vexoKit'
+import { BAND_NUMBER } from '../../wearable/band'
+import type { VexoBandAdapter } from '../../wearable/vexoBandAdapter'
+import { encodeWav, rms, toBase64 } from './wav'
+
+export type VoiceProviderId = 'band-gemini' | 'band' | 'browser' | 'typed'
 
 export interface VoiceCallbacks {
   onText(text: string, final: boolean): void
-  onState(state: 'listening' | 'stopped'): void
+  onState(state: 'listening' | 'thinking' | 'stopped'): void
   onError(message: string): void
+  /** A spoken reply to what was said (band-gemini only). */
+  onReply?(reply: { text: string; model: string }): void
+  /** Microphone loudness 0..1, about 50 times a second while recording. */
+  onLevel?(level: number): void
+}
+
+/** What the request is about, so a reply can use the object's real data. */
+export interface VoiceContext {
+  object: SpatialObject
+  objects: SpatialObject[]
 }
 
 export interface VoiceProvider {
@@ -24,8 +43,10 @@ export interface VoiceProvider {
   notice: string
   /** null when ready, else why not. */
   unavailable(): string | null
-  start(cb: VoiceCallbacks): void
+  start(cb: VoiceCallbacks, ctx?: VoiceContext): void
   stop(): void
+  /** Records first and sends when done (band-gemini): stop recording and send now. */
+  finish?(): void
 }
 
 // ---- browser speech recognition ---------------------------------------------------------
@@ -158,6 +179,194 @@ export class BandDeepgramProvider implements VoiceProvider {
   stop() {
     this.stopLink?.()
     this.stopLink = null
+  }
+}
+
+// ---- band microphone → Google Gemini ------------------------------------------------------
+export interface GeminiAnswer {
+  transcript: string
+  reply: string
+  model: string
+}
+
+/**
+ * Asks the dev server's Gemini endpoint to answer what was said about the selected object.
+ * `audio` is a base64 WAV from the band; `text` is words already transcribed or typed.
+ */
+export async function askGemini(said: { audio: string } | { text: string }, ctx: VoiceContext | undefined, signal?: AbortSignal): Promise<GeminiAnswer> {
+  const body = { ...said, ...(ctx ? { object: { label: ctx.object.label, content: ctx.object.content ?? null }, others: ctx.objects.filter((o) => o.id !== ctx.object.id).map((o) => o.label) } : {}) }
+  const r = await fetch('/api/voice/gemini', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal })
+  const j = (await r.json().catch(() => ({}))) as { transcript?: string; reply?: string; model?: string; error?: string }
+  if (!r.ok || typeof j.reply !== 'string') throw new Error(j.error ?? `The Gemini endpoint answered status ${r.status}.`)
+  return { transcript: j.transcript ?? '', reply: j.reply, model: j.model ?? '' }
+}
+
+const MAX_RECORD_S = 12
+const MIN_RECORD_S = 0.5
+const SPEECH_RMS = 0.02 // louder than this counts as speech
+const QUIET_STOP_MS = 1400 // after speech, this much quiet ends the recording
+
+interface GeminiStatus {
+  configured: boolean
+  model: string
+  offline?: boolean
+}
+
+interface Recording {
+  cb: VoiceCallbacks
+  ctx?: VoiceContext
+  chunks: Float32Array[]
+  samples: number
+  heardAt: number | null
+  lastLoudAt: number
+  cleanup: () => void
+}
+
+export class BandGeminiProvider implements VoiceProvider {
+  id = 'band-gemini' as const
+  label = 'Vexo band microphone → Google Gemini'
+  notice =
+    'Records the Vexo band’s microphone, which hears everyone near it (its light turns solid blue). When you stop, or go quiet, the recording and the selected object’s data are sent to Google Gemini (generativelanguage.googleapis.com) through this laptop to be transcribed and answered.'
+  status: GeminiStatus | null = null
+  private adapter: () => VexoBandAdapter | null
+  private rec: Recording | null = null
+  private abort: AbortController | null = null
+  private onStatus: () => void
+
+  constructor(adapter: () => VexoBandAdapter | null, onStatus: () => void = () => {}) {
+    this.adapter = adapter
+    this.onStatus = onStatus
+    void this.refresh()
+  }
+
+  /** Asks the dev server whether it has a Gemini key (the key itself never comes back). */
+  refresh(): Promise<void> {
+    if (typeof fetch !== 'function' || typeof location === 'undefined') return Promise.resolve()
+    return fetch('/api/voice/gemini/status')
+      .then((r) => (r.ok ? (r.json() as Promise<GeminiStatus>) : Promise.reject(new Error(String(r.status)))))
+      .then((s) => (this.status = s))
+      .catch(() => (this.status = { configured: false, model: '', offline: true }))
+      .then(() => this.onStatus())
+  }
+
+  /** True when the connected band is the kit's pretend band (its microphone plays a sample recording). */
+  get pretend() {
+    return this.adapter()?.link === 'sim'
+  }
+
+  unavailable() {
+    const a = this.adapter()
+    if (!a?.band || !a.connected) return `Connect band ${BAND_NUMBER} first (Bluetooth or USB).`
+    if (typeof AudioDecoder !== 'function') return 'This browser cannot decode the band’s sound: use a current Chrome or Edge.'
+    if (this.status?.offline) return 'The Gemini endpoint is not running: start the app with npm run dev.'
+    if (this.status && !this.status.configured) return 'No Gemini key on this laptop: put GEMINI_API_KEY=... in reflex-present/.env, then restart npm run dev.'
+    return null
+  }
+
+  get recording() {
+    return this.rec !== null
+  }
+
+  start(cb: VoiceCallbacks, ctx?: VoiceContext) {
+    const why = this.unavailable()
+    if (why) return cb.onError(why)
+    this.stop()
+    const band = this.adapter()!.band!
+    const rec: Recording = { cb, ctx, chunks: [], samples: 0, heardAt: null, lastLoudAt: 0, cleanup: () => {} }
+    let sound: BandAudio
+    try {
+      sound = new BandAudio(
+        (s) => {
+          if (this.rec !== rec) return
+          rec.chunks.push(s)
+          rec.samples += s.length
+          const level = rms(s)
+          const now = performance.now()
+          cb.onLevel?.(Math.min(1, level * 8))
+          if (level > SPEECH_RMS) {
+            rec.heardAt ??= now
+            rec.lastLoudAt = now
+          }
+          const seconds = rec.samples / AUDIO_RATE
+          const quietAfterSpeech = rec.heardAt !== null && now - rec.lastLoudAt > QUIET_STOP_MS && now - rec.heardAt > 500
+          if (seconds >= MAX_RECORD_S || quietAfterSpeech) this.finish()
+        },
+        { onError: (e) => (this.rec === rec ? (this.stop(), cb.onError(e.message)) : undefined) },
+      )
+    } catch (e) {
+      return cb.onError(e instanceof Error ? e.message : String(e))
+    }
+    const offAudio = band.on('audio', (a) => sound.push(a))
+    const offReconnect = band.on('reconnected', () => sound.restart())
+    const offDrop = band.on('disconnect', () => {
+      if (this.rec !== rec) return
+      if (rec.samples / AUDIO_RATE >= MIN_RECORD_S) this.finish()
+      else {
+        this.stop()
+        cb.onError(`Band ${BAND_NUMBER} disconnected while recording.`)
+      }
+    })
+    rec.cleanup = () => {
+      offAudio()
+      offReconnect()
+      offDrop()
+      sound.close()
+      if (band.connected) void band.configure({ audio: false }).catch(() => {})
+    }
+    this.rec = rec
+    band
+      .configure({ audio: true })
+      .then(() => this.rec === rec && cb.onState('listening'))
+      .catch((err: unknown) => {
+        if (this.rec !== rec) return
+        this.stop()
+        cb.onError(`Band ${BAND_NUMBER} would not turn its microphone on: ${err instanceof Error ? err.message : String(err)}`)
+      })
+  }
+
+  /** Stop recording and send what was heard to Gemini. */
+  finish() {
+    const rec = this.rec
+    if (!rec) return
+    this.rec = null
+    rec.cleanup()
+    const { cb, ctx } = rec
+    if (rec.samples / AUDIO_RATE < MIN_RECORD_S) {
+      cb.onState('stopped')
+      return cb.onError('Nothing was recorded from the band (under half a second of sound).')
+    }
+    const all = new Float32Array(rec.samples)
+    let at = 0
+    for (const c of rec.chunks) {
+      all.set(c, at)
+      at += c.length
+    }
+    const audio = toBase64(encodeWav(all, AUDIO_RATE))
+    cb.onState('thinking')
+    const abort = new AbortController()
+    this.abort = abort
+    askGemini({ audio }, ctx, abort.signal)
+      .then((a) => {
+        if (abort.signal.aborted) return
+        cb.onText(a.transcript || '(no speech heard)', true)
+        cb.onReply?.({ text: a.reply, model: a.model })
+        cb.onState('stopped')
+      })
+      .catch((e: unknown) => {
+        if (abort.signal.aborted) return
+        cb.onError(e instanceof Error ? e.message : String(e))
+        cb.onState('stopped')
+      })
+      .finally(() => this.abort === abort && (this.abort = null))
+  }
+
+  /** Stop without sending anything. */
+  stop() {
+    const rec = this.rec
+    this.rec = null
+    rec?.cleanup()
+    this.abort?.abort()
+    this.abort = null
   }
 }
 

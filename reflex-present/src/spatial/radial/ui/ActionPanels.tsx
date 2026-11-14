@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { SpatialObject } from '../../types'
+import { BAND_NUMBER } from '../../wearable/band'
 import type { MemoryEntry } from '../actions/memory'
-import { forgetDeepgramKey, hasDeepgramKey, setDeepgramKey, type VoiceProvider, type VoiceProviderId } from '../actions/voice'
+import { askGemini, BandGeminiProvider, forgetDeepgramKey, hasDeepgramKey, setDeepgramKey, type VoiceProvider, type VoiceProviderId } from '../actions/voice'
 import { previewVoiceCommand, type VoiceCommandPreview } from '../actions/voiceCommand'
 import type { ExplainCard, VoiceSession } from '../RadialActionExecutor'
 
@@ -100,51 +101,109 @@ export function VoiceCapturePanel({
   providers: VoiceProvider[]
   onClose: () => void
 }) {
-  const [providerId, setProviderId] = useState<VoiceProviderId>(() => {
-    const b = providers.find((p) => p.id === 'band')
-    return b && !b.unavailable() ? 'band' : 'browser'
-  })
-  const [listening, setListening] = useState(false)
+  // Voice uses the Vexo band by default: the team band's microphone → Gemini. If the band is not
+  // ready the panel says why instead of quietly switching to the laptop's microphone.
+  const [providerId, setProviderId] = useState<VoiceProviderId>(() => (providers.some((p) => p.id === 'band-gemini') ? 'band-gemini' : providers[0].id))
+  const [phase, setPhase] = useState<'idle' | 'listening' | 'thinking'>('idle')
+  const listening = phase === 'listening'
   const [partial, setPartial] = useState('')
   const [final, setFinal] = useState('')
   const [typed, setTyped] = useState('')
+  const [reply, setReply] = useState<{ text: string; model: string } | null>(null)
+  const [level, setLevel] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [keyInput, setKeyInput] = useState('')
   const [, force] = useState(0)
   const active = useRef<VoiceProvider | null>(null)
   const provider = providers.find((p) => p.id === providerId)!
+  const gemini = provider instanceof BandGeminiProvider ? provider : null
+  // The same dev-server endpoint answers words from any provider (browser speech, Deepgram, typed).
+  const answerer = providers.find((p): p is BandGeminiProvider => p instanceof BandGeminiProvider) ?? null
+  const canAnswer = !!answerer?.status?.configured
   const why = provider.unavailable()
+  const [asking, setAsking] = useState(false)
+  const askAbort = useRef<AbortController | null>(null)
+  const askTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const finalRef = useRef('')
+
+  /** Words from a provider that only transcribes → Gemini for a reply about this object. */
+  const ask = (text: string) => {
+    const words = text.trim()
+    if (!words || !canAnswer) return
+    askAbort.current?.abort()
+    const abort = new AbortController()
+    askAbort.current = abort
+    setAsking(true)
+    setError(null)
+    setReply(null)
+    askGemini({ text: words }, { object, objects }, abort.signal)
+      .then((a) => !abort.signal.aborted && setReply({ text: a.reply, model: a.model }))
+      .catch((e: unknown) => !abort.signal.aborted && setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => !abort.signal.aborted && setAsking(false))
+  }
+  /** Deepgram sends several final pieces: ask once the speaker pauses. */
+  const askSoon = () => {
+    if (askTimer.current) clearTimeout(askTimer.current)
+    askTimer.current = setTimeout(() => ask(finalRef.current), 900)
+  }
+  const cancelAsk = () => {
+    if (askTimer.current) clearTimeout(askTimer.current)
+    askAbort.current?.abort()
+    setAsking(false)
+  }
 
   const start = () => {
     consented.add(provider.id)
     setError(null)
     setPartial('')
     setFinal('')
+    setReply(null)
+    setLevel(0)
+    finalRef.current = ''
+    cancelAsk()
     active.current?.stop()
     active.current = provider
-    provider.start({
-      onText: (text, isFinal) => (isFinal ? (setFinal((f) => (f ? `${f} ${text}` : text)), setPartial('')) : setPartial(text)),
-      onState: (s) => setListening(s === 'listening'),
-      onError: (m) => {
-        setError(m)
-        setListening(false)
+    provider.start(
+      {
+        onText: (text, isFinal) => {
+          if (!isFinal) return setPartial(text)
+          finalRef.current = finalRef.current ? `${finalRef.current} ${text}` : text
+          setFinal(finalRef.current)
+          setPartial('')
+          if (!gemini) askSoon() // band-gemini answers in the same call
+        },
+        onState: (s) => setPhase(s === 'stopped' ? 'idle' : s),
+        onError: (m) => {
+          setError(m)
+          setPhase('idle')
+        },
+        onReply: setReply,
+        onLevel: setLevel,
       },
-    })
+      { object, objects },
+    )
   }
   const stop = () => {
     active.current?.stop()
-    setListening(false)
+    setPhase('idle')
   }
 
   useEffect(() => {
+    // Re-check the dev server's Gemini key each time the panel opens (the key never comes to the page).
+    if (answerer) void answerer.refresh().then(() => force((n) => n + 1))
     if (providerId !== 'typed' && consented.has(providerId) && !provider.unavailable()) start()
-    return () => active.current?.stop()
+    return () => {
+      active.current?.stop()
+      cancelAsk()
+    }
     // only when the panel opens for a new session or the provider changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.id, providerId])
 
   const transcript = providerId === 'typed' ? typed : [final, partial].filter(Boolean).join(' ')
-  const preview: VoiceCommandPreview | null = transcript.trim() ? previewVoiceCommand(transcript, object, objects) : null
+  const parsed: VoiceCommandPreview | null = transcript.trim() ? previewVoiceCommand(transcript, object, objects) : null
+  // The local parser only knows a few commands; a plain question is Gemini's to answer, not an error.
+  const preview = parsed && parsed.intent !== 'unknown' ? parsed : null
 
   return (
     <div className="ap-card ap-voice" style={beside(object, 0.3)} onMouseDown={(e) => e.stopPropagation()} onMouseMove={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
@@ -198,9 +257,33 @@ export function VoiceCapturePanel({
       )}
 
       <div className="ap-notice">{provider.notice}</div>
+      {gemini?.pretend && <div className="ap-warnline">Pretend band: its microphone plays the kit’s sample recording, not your voice.</div>}
 
       {providerId === 'typed' ? (
-        <input className="ap-typed" autoFocus placeholder='e.g. "Compare this with last quarter"' value={typed} onChange={(e) => setTyped(e.target.value)} />
+        <input className="ap-typed" autoFocus placeholder='Ask about it, then Enter — e.g. "Compare this with last quarter"' value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && ask(typed)} />
+      ) : gemini ? (
+        <div className="ap-row">
+          {phase === 'listening' ? (
+            <>
+              <button className="ap-btn ap-btn-stop" onClick={() => gemini.finish()}>
+                <span className="ap-pulse" /> Band {BAND_NUMBER} listening — done
+              </button>
+              <span className="ap-level" aria-label="Band microphone level">
+                <span style={{ width: `${Math.round(level * 100)}%` }} />
+              </span>
+              <button className="ap-link" onClick={stop}>
+                Cancel
+              </button>
+            </>
+          ) : phase === 'thinking' ? (
+            <span className="ap-muted">Gemini is transcribing and answering…</span>
+          ) : (
+            <button className="ap-btn" disabled={!!why} onClick={start}>
+              {reply ? 'Speak again' : `Speak into band ${BAND_NUMBER}`}
+            </button>
+          )}
+          {why && phase === 'idle' && <span className="ap-muted">{why}</span>}
+        </div>
       ) : (
         <div className="ap-row">
           {listening ? (
@@ -221,7 +304,19 @@ export function VoiceCapturePanel({
         <div className="ap-transcript">
           {final && <span>{final} </span>}
           {partial && <span className="ap-partial">{partial}</span>}
-          {!final && !partial && <span className="ap-muted">Transcript appears here.</span>}
+          {!final && !partial && <span className="ap-muted">{gemini ? 'What you said appears here when you finish (or go quiet).' : 'Transcript appears here.'}</span>}
+        </div>
+      )}
+
+      {!gemini && canAnswer && providerId !== 'typed' && <div className="ap-muted ap-small">The words and this object’s data are then sent to Google Gemini for a reply.</div>}
+      {transcript.trim() && answerer?.status && !canAnswer && phase === 'idle' && (
+        <div className="ap-warnline">No reply: {answerer.status.offline ? 'the Gemini endpoint is not running (start the app with npm run dev).' : 'there is no Gemini key on this laptop. Put GEMINI_API_KEY=... in reflex-present/.env and restart npm run dev.'}</div>
+      )}
+      {asking && <div className="ap-muted">Gemini is answering…</div>}
+      {reply && (
+        <div className="ap-reply" role="status">
+          <div className="ap-muted ap-small">Gemini{reply.model ? ` · ${reply.model}` : ''} · {gemini ? `heard through band ${BAND_NUMBER}` : providerId === 'typed' ? 'typed' : 'from the transcript'}</div>
+          <div className="ap-reply-text">{reply.text}</div>
         </div>
       )}
 

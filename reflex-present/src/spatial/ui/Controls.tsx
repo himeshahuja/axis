@@ -65,7 +65,7 @@ export function StatusRows({ rt }: { rt: SpatialRuntime }) {
   )
 }
 
-/** Band 68 for wrist rotation + mic, and its gyro calibration. */
+/** The team band (BAND_NUMBER) for wrist rotation + mic, and its gyro calibration. */
 export function BandControls({ rt }: { rt: SpatialRuntime }) {
   const r = rt.radial
   const b = r.band

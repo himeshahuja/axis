@@ -25,3 +25,7 @@ dist-ssr
 
 # vendored by scripts/vendor-mediapipe.mjs
 public/mediapipe
+
+# Gemini key for the Voice action (server side only)
+.env
+.env.*

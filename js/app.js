@@ -306,7 +306,7 @@ async function connectBand(transportKind) {
       ? Number(inputNum)
       : params.get('band')
         ? Number(params.get('band'))
-        : (transportKind === 'ble' ? 68 : null);
+        : (transportKind === 'ble' ? 75 : null);
 
     const b = await Band.connect(bandNum, { transport: transportKind });
     activeBand = b;

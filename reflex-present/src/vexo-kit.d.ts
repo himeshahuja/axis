@@ -23,6 +23,18 @@ declare module 'vexo-kit/index.js' {
   export class VexoError extends Error {
     code: string
   }
+  export const AUDIO_RATE: number
+  /** Decodes the band's Opus packets (WebCodecs) into Float32 samples. */
+  export class BandAudio {
+    constructor(onSamples: (samples: Float32Array, info: { rate: number; lost: number }) => void, options?: { rate?: number; onError?: (e: Error) => void })
+    readonly lost: number
+    push(packet: { seq: number; opus: Uint8Array }): void
+    restart(): void
+    close(): void
+  }
+  export function canDecodeAudio(): Promise<boolean>
+  /** The sound packets of an Ogg Opus file. */
+  export function oggPackets(bytes: Uint8Array): Uint8Array[]
   export class SimTransport {
     constructor(number: number, options?: Record<string, unknown>)
     playMotion(fn: (s: number) => Record<string, number>, options?: { seconds?: number }): void

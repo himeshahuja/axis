@@ -7,7 +7,7 @@
 // This adapter gives raw gyro (no pointer), so pointer fusion reports it as
 // uncalibrated and never fuses it. It is used for wrist rotation and the mic.
 
-import { Band, ClockAligner, SimTransport } from './vexoKit'
+import { Band, ClockAligner, SimTransport, oggPackets } from './vexoKit'
 import type { WearableObservation } from '../types'
 import type { WearableAdapter } from './adapter'
 import { BAND_NUMBER } from './band'
@@ -16,6 +16,17 @@ export type BandLink = 'ble' | 'serial' | 'sim'
 export type BandStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error' | 'closed'
 
 const MOTION_HZ = 100
+
+/** Opus packets of vexo-open-kit/dashboard/speech/sample-speech.opus, or null (pretend band sends silence). */
+async function sampleSpeech(): Promise<Uint8Array[] | null> {
+  try {
+    const { default: url } = await import('vexo-speech/sample-speech.opus?url')
+    const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer())
+    return oggPackets(bytes)
+  } catch {
+    return null
+  }
+}
 
 export class VexoBandAdapter implements WearableAdapter {
   readonly name = `vexo-band-${BAND_NUMBER}`
@@ -47,7 +58,9 @@ export class VexoBandAdapter implements WearableAdapter {
     if (this.status === 'connecting' || this.status === 'connected') return
     this.set('connecting')
     try {
-      this.sim = this.link === 'sim' ? new SimTransport(BAND_NUMBER) : null
+      // The pretend band's microphone plays the kit's sample recording (a person reading
+      // aloud), so the Voice path can be tried with no band. It is labelled as pretend in the UI.
+      this.sim = this.link === 'sim' ? new SimTransport(BAND_NUMBER, { audioPackets: await sampleSpeech() }) : null
       const band = await Band.connect(BAND_NUMBER, { transport: this.sim ?? this.link, autoReconnect: true })
       if (band.number !== BAND_NUMBER) {
         await band.disconnect()
