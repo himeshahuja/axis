@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'">
 <title>Air Draw board</title>
 <meta name="description" content="Where the band hand is on a whiteboard, set up with two taps, with Take and Put gestures.">
 <link rel="icon" href="favicon.svg">
@@ -63,8 +63,9 @@ submodule. In this repository's folder run <code>git submodule update --init</co
   <aside class="side">
     <section class="card" aria-labelledby="camera-title">
       <h2 id="camera-title">Camera</h2>
-      <p class="soft">Point the laptop's camera, or a USB webcam, at the whiteboard. It follows the band's green
-      light, so the cursor does not drift. Type the board's size, then click its four corners in the picture.</p>
+      <p class="soft">Point the laptop's camera, or a USB webcam, at the whiteboard. It finds you in the
+      picture and follows the wrist that wears the band (the one moving as the band says it moves), so the
+      cursor does not drift. Type the board's size, then click its four corners in the picture.</p>
       <canvas id="cam" class="cam" role="img" aria-label="The camera's picture of the board"></canvas>
       <div class="fields pair">
         <label>Board width, cm <input id="cam-width" inputmode="decimal" size="6"></label>
@@ -74,7 +75,7 @@ submodule. In this repository's folder run <code>git submodule update --init</co
         <button id="cam-start">Start camera</button>
         <button id="cam-corners">Set corners</button>
         <button id="cam-tip" title="Hold the marker on the board and click its tip in the picture">Marker tip</button>
-        <button id="cam-colour" title="Click on the band in the picture: the camera then follows its colour instead of its light">Band colour</button>
+        <label>Band on <select id="cam-hand"><option value="right">right hand</option><option value="left">left hand</option></select></label>
       </div>
       <p id="cam-status" class="soft"></p>
     </section>

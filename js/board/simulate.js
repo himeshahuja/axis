@@ -403,7 +403,7 @@ export function session(name = 'reach', {
   tremor = 0,     // m/s^2 of hand tremor (8 to 12 Hz), always there, as with a real hand
   drop = [],      // [seconds into the session, ms] stretches of samples lost on the way, as Bluetooth loses frames
   reversed = false, // knock the right edge first, then the left
-  camera = null,  // { fps, noise (px), delay (ms), hide: [[s, s]] }: what a webcam sees of the band's light
+  camera = null,  // { fps, noise (m), delay (ms), hide: [[s, s]], side }: what a webcam sees of people's wrists
 } = {}) {
   const s = new Script(TABLE);
   s.pause = pause;
@@ -436,27 +436,42 @@ export function session(name = 'reach', {
 }
 
 /**
- * What a webcam off to one side of the board sees of the band's light: a fix every
- * 1/fps seconds, at the pixel where the light really was (plus a little noise), and
- * none while the light is hidden. Each fix has the band's time of the picture (`t`) and
- * of its arrival (`arrives`, `delay` ms later). Returns the corners as the camera sees
- * them (top left, top right, bottom right, bottom left), the board's size in metres, and
- * the fixes. The board runs from 0.8 m to 2.0 m above the floor.
+ * What a webcam off to one side of the board sees: a pose model's wrists, every 1/fps
+ * seconds. The band's wrist is where the hand really was, plus `noise` metres (a pose
+ * model's wrist is a centimetre or two off) and not seen while hidden; the person's
+ * other wrist hangs and sways; a second person walks about waving. Each frame has the
+ * band's time of the picture (`t`) and of its arrival (`arrives`, `delay` ms later).
+ * Returns the corners as the camera sees them (top left, top right, bottom right,
+ * bottom left), the board's size in metres, the band's wrist alone as pixels (`fixes`,
+ * for the fusion), and every wrist in board metres (`frames`, for choosing the band's).
+ * The board runs from 0.8 m to 2.0 m above the floor.
  */
-function see(samples, truth, board, { fps = 30, noise = 1.5, delay = 80, hide = [], seed = 1 } = {}) {
+function see(samples, truth, board, { fps = 30, noise = 0.015, delay = 80, hide = [], side = 'right', seed = 1 } = {}) {
   const W = board.width, bottom = 0.8, H = 1.2;
   const corners = [[170, 80], [1130, 120], [1150, 640], [150, 690]];
   const toPixels = homography([[0, H], [W, H], [W, 0], [0, 0]], corners);
   const rand = mulberry(seed * 31 + 7), gauss = () => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());
-  const fixes = [], t0 = samples[0].t, t1 = samples.at(-1).t;
+  const other = side === 'right' ? 'left' : 'right';
+  const fixes = [], frames = [], t0 = samples[0].t, t1 = samples.at(-1).t;
   let i = 0;
   for (let t = t0; t <= t1; t += 1000 / fps) {
     while (i < samples.length - 1 && samples[i + 1].t <= t) i++;
-    if (hide.some(([at, len]) => t >= t0 + at * 1000 && t < t0 + (at + len) * 1000)) continue;
-    const [u, v] = apply(toPixels, [truth[i][0], truth[i][1] - bottom]);
-    fixes.push({ t: samples[i].t, arrives: samples[i].t + delay, u: u + noise * gauss(), v: v + noise * gauss(), size: 20, confidence: 1 });
+    const s = (t - t0) / 1000, hidden = hide.some(([at, len]) => s >= at && s < at + len);
+    const x = truth[i][0] + noise * gauss(), y = truth[i][1] - bottom + noise * gauss();
+    const wrists = [
+      { side, x, y, visibility: hidden ? 0.1 : 0.95, band: true },
+      // The writer's other hand hangs by their side, swaying a little (the same pose-model noise).
+      { side: other, x: 0.45 + 0.04 * Math.sin(1.3 * s) + noise * gauss(), y: 0.15 + 0.03 * Math.sin(0.9 * s) + noise * gauss(), visibility: 0.8 },
+      // Someone else, further along, waving and walking about.
+      { side: 'right', x: W + 0.3 + 0.3 * Math.sin(0.4 * s) + noise * gauss(), y: 0.5 + 0.2 * Math.sin(2.7 * s) + noise * gauss(), visibility: 0.9 },
+      { side: 'left', x: W + 0.6 + 0.3 * Math.sin(0.4 * s) + 0.15 * Math.sin(2.1 * s) + noise * gauss(), y: 0.4 + 0.15 * Math.sin(3.1 * s + 1) + noise * gauss(), visibility: 0.9 },
+    ];
+    frames.push({ t: samples[i].t, arrives: samples[i].t + delay, wrists });
+    if (hidden) continue;
+    const [u, v] = apply(toPixels, [x, y]);
+    fixes.push({ t: samples[i].t, arrives: samples[i].t + delay, u, v, visibility: 0.95 });
   }
-  return { corners, board: { width: W, height: H, bottom }, fixes };
+  return { corners, board: { width: W, height: H, bottom }, fixes, frames };
 }
 
 /**

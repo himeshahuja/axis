@@ -82,16 +82,18 @@ camera send. Across, 0 is the board's left edge and 1 its right; height uses the
 limit. Teach two gestures: **Take** lifts the writing around your hand, and **Put** drops it on the screen.
 
     git submodule update --init                 # the Vexo kit, once after cloning
+    node tools/get-vision.mjs                   # the camera's pose model, once (24 MB, into vendor/)
     python3 -m http.server 8000 --bind 127.0.0.1
 
 Open <http://localhost:8000/board.html> in Chrome or Edge, double-tap the band, check the band number
 (68, set in `js/board/config.js`) and press Connect. No band? Choose "Pretend band" and press "Play a
 pretend session".
 
-1. **Camera (for accuracy).** Point the laptop's camera, or a USB webcam, at the whiteboard. Press
-   **Start camera**, type the board's width and height in cm, press **Set corners** and click its four
-   corners in the picture (top left, top right, bottom right, bottom left). While the camera runs, the
-   band's light stays green and the camera follows it.
+1. **Camera (for accuracy).** Point the laptop's camera, or a USB webcam, at the whiteboard, off to one
+   side so your body does not hide your hand. Press **Start camera**, say which hand the band is on, type
+   the board's width and height in cm, press **Set corners** and click its four corners in the picture
+   (top left, top right, bottom right, bottom left). Then hold the marker on the board, press **Marker
+   tip** and click the tip, so the cursor follows the tip rather than the wrist.
 2. After connecting, hold the band still for a second. That is when it learns which way is up and its
    gyroscope's bias; it waits until you are still.
 3. Setup starts by itself: knock the board's **left** edge with your band hand and hold still, then its
@@ -110,11 +112,14 @@ pretend session".
   frame from the two knocks, rests timed for the short pauses of writing, and a check that a "rest" is
   not just the hand slowing down. Before any of that, `js/board/intake.js` fills in short gaps in the
   stream and learns what the band reads for 1 g (real accelerometers are a few percent off).
-- **With the camera:** `js/board/light.js` finds the green light in each frame, `js/board/homography.js`
-  turns its pixel into board metres from the four corners, and `js/board/fuse.js` (a Kalman filter for
-  each axis) moves on with the band's motion 208 times a second and is pulled to every camera fix. A
-  picture arrives a little after it was taken, so the filter goes back to the moment of the picture and
-  replays the band's samples since.
+- **With the camera:** a pose model (Google's MediaPipe Pose Landmarker, Apache-2.0, fetched by
+  `tools/get-vision.mjs`) finds every person in the picture and both of their wrists. It cannot see the
+  band, but the band says how it moves: `js/board/wrists.js` follows each wrist over 0.3 s and picks the
+  one whose movement agrees with the band's motion sensors, so the other hand and other people are left
+  out. `js/board/homography.js` turns its pixel into board metres from the four corners, and
+  `js/board/fuse.js` (a Kalman filter for each axis) moves on with the band's motion 208 times a second
+  and is pulled to every camera fix. A picture arrives a little after it was taken, so the filter goes
+  back to the moment of the picture and replays the band's samples since.
 - **Gestures** use the kit's gesture-trainer recogniser, copied unchanged into `js/board/recogniser.js`.
 
 **How accurate.** Simulated sessions at 208 samples a second (`node tests/board.mjs`). Nothing has been
@@ -125,12 +130,13 @@ measured on a real board yet.
 | Band alone, 1.2 m board, short pauses between letters | 3.0 / 9.2 cm | 0.9 cm |
 | Band alone, 2.4 m board, side-stepping | 3.2 / 10.0 cm | 1.2 cm |
 | Band alone, written without a single pause | 62 / 83 cm | 41 cm |
-| Camera and band (1.5 px camera noise, pictures 80 ms late) | 0.1 / 0.3 cm | |
-| Camera alone | 0.5 / 1.8 cm | |
-| Camera and band, light hidden for 1.5 s | worst 0.6 cm while hidden | |
+| Camera and band (the wrist 1.5 cm off in each frame, pictures 80 ms late) | 0.6 / 1.3 cm | |
+| Camera alone | 1.5 / 3.5 cm | |
+| Camera and band, wrist hidden for 1.5 s | worst 2.1 cm while hidden | |
 
-The simulated camera is kinder than a real one (no lens distortion, exact corners), so expect more on a
-real board; the bench measures it.
+In the simulation the band's wrist is picked out of four (the other hand, and two of another person's)
+in every frame, even with the hand setting wrong. The simulated camera is kinder than a real one (no lens
+distortion, exact corners), so expect more on a real board; the bench measures it.
 
 **The bench** (`bench.html`) takes in the band (live), a recording, or a simulated session, and shows the
 stream's health (rate, timing, lost samples, what 1 g reads as), the six signals, their spectrum (writing

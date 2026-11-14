@@ -44,10 +44,15 @@ let clock = null;           // the band's real time minus its own counter, ms: t
 // What the board shows: the camera and band together when there is a camera, else the band alone.
 const track = () => (fused && fused.length && board.frame ? fused : board);
 
-// The band's light is what the camera follows: while it does, the light stays green.
-const camOn = () => Boolean(camera.running);
-const led = (colour, options) => { if (band && !camOn()) attempt(band.setLed(colour, options)); };
-const dark = () => { if (band && !camOn()) attempt(band.ledOff()); };
+const led = (colour, options) => { if (band) attempt(band.setLed(colour, options)); };
+const dark = () => { if (band) attempt(band.ledOff()); };
+
+/** The band's velocity now, for the camera to tell which wrist wears it: [speed along the ground, speed up] m/s. */
+function bandVelocity() {
+  const tr = board.tracker;
+  if (!band || !tr.ready) return null;
+  return tr.still ? [0, 0] : [Math.hypot(tr.v[0], tr.v[2]), tr.v[1]];
+}
 
 // ---------------------------------------------------------------- the band
 
@@ -72,7 +77,6 @@ onConnect(async (theBand, thePretend) => {
   await band.setMotion({ accelRange: 16 });      // a knock on the board must not be cut off at the 2 g default
   await band.setEvents({ kinds: ['tap', 'double-tap'] });
   await band.configure({ motion: RATE, events: true });
-  if (camOn()) attempt(band.setLed('#00ff00'));   // the camera follows the band's green light
   say(`Connected to ${band.name}. Hold it still for a moment; then knock the board's left edge, and its far right edge.`);
   refresh(true);
   const kept = await loadFromBand(band).catch(() => null);
@@ -113,8 +117,9 @@ function note(kind, extra = {}) {
 // ---------------------------------------------------------------- the camera
 
 const camera = new CameraPanel(
-  { canvas: $('#cam'), status: $('#cam-status'), start: $('#cam-start'), corners: $('#cam-corners'), tip: $('#cam-tip'), colour: $('#cam-colour'), width: $('#cam-width'), height: $('#cam-height') },
+  { canvas: $('#cam'), status: $('#cam-status'), start: $('#cam-start'), corners: $('#cam-corners'), tip: $('#cam-tip'), hand: $('#cam-hand'), width: $('#cam-width'), height: $('#cam-height') },
   {
+    band: bandVelocity,
     onFix(fix) {
       if (fix.x === null || clock === null) return;
       const t = fix.time - clock;                   // the band's time of the picture
@@ -123,7 +128,6 @@ const camera = new CameraPanel(
     },
     onChange() {
       joinCamera();
-      if (band && camOn()) attempt(band.setLed('#00ff00'));
     },
   },
 );
@@ -403,7 +407,7 @@ function refresh(now = false) {
   $('#width').textContent = f ? cmText(f.width) : '–';
   const blind = fused && board.frame ? fused.blindFor(lastT) : 0;
   $('#hint').textContent = !band ? '' : blind > 500 && blind < Infinity
-    ? 'The camera cannot see the band\'s light: following the band\'s own motion until it can.'
+    ? 'The camera cannot see the band\'s wrist: following the band\'s own motion until it can.'
     : board.status().detail;
   showMarks();
 }

@@ -87,8 +87,13 @@ function seen(t, x, y) {
 }
 
 const camera = new CameraPanel(
-  { canvas: $('#cam'), status: $('#cam-status'), start: $('#cam-start'), corners: $('#cam-corners'), tip: $('#cam-tip'), colour: $('#cam-colour'), width: $('#cam-width'), height: $('#cam-height') },
+  { canvas: $('#cam'), status: $('#cam-status'), start: $('#cam-start'), corners: $('#cam-corners'), tip: $('#cam-tip'), hand: $('#cam-hand'), width: $('#cam-width'), height: $('#cam-height') },
   {
+    band() {
+      const tr = board.tracker;
+      if (!band || !tr.ready) return null;
+      return tr.still ? [0, 0] : [Math.hypot(tr.v[0], tr.v[2]), tr.v[1]];
+    },
     onFix(fix) {
       if (fix.x === null || clock === null || player) return;
       const t = fix.time - clock;
@@ -97,7 +102,6 @@ const camera = new CameraPanel(
     },
     onChange() {
       if (!player) joinCamera();
-      if (band && camera.running) band.setLed('#00ff00').catch(() => {});
     },
   },
 );
@@ -634,7 +638,8 @@ function showCamera() {
   };
   const sorted = gap.map(([, cm]) => cm).sort((a, b) => a - b), h = camera.health;
   cells($('#cam-stats'), [
-    ['Light seen', camera.running ? `${Math.round(h.seen * 100)}% of frames` : replayed ? 'from the recording' : '–'],
+    ['Band\'s wrist seen', camera.running ? `${Math.round(h.seen * 100)}% of frames, ${h.people} in view` : replayed ? 'from the recording' : '–'],
+    ['Which wrist', camera.running ? (h.sure > 0.2 ? 'sure' : h.sure > 0.05 ? 'fairly sure' : 'not sure yet: move the band hand') : '–'],
     ['Frames', camera.running ? `${h.fps.toFixed(0)} a second, ${Math.round(h.delay ?? 0)} ms behind` : '–'],
     ['Still jitter', still.length > 10 ? `${(1000 * Math.hypot(spread('x'), spread('y'))).toFixed(1)} mm` : 'hold still to measure'],
     ['Band alone vs camera', sorted.length ? `${fixed(sorted[Math.floor(sorted.length / 2)])} cm (95%: ${fixed(sorted[Math.floor(sorted.length * 0.95)])} cm), last 10 s` : 'needs the board set up and the light seen'],

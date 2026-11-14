@@ -17,7 +17,7 @@ export const NOISE = {
   push: 0.6,     // m/s^2: how far the band's acceleration along the board may be off (tilt, tremor, the lever of the wrist)
   blind: 3,      // m/s^2: the same while the board's direction in the band's axes is not known yet
   bias: 0.02,    // m/s^2 per root second: how fast the accelerometer's bias may wander
-  camera: 0.004, // m: how far one camera fix may be off
+  camera: 0.015, // m: how far one camera fix may be off (a pose model's wrist, at a few metres)
   rest: 0.01,    // m/s: the speed at a rest
 };
 

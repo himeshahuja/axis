@@ -18,7 +18,7 @@ import { BAND } from '../js/board/config.js';
 import { alongBoard, Fused } from '../js/board/fuse.js';
 import { decode, encode, Gestures, loadFromBand, saveToBand } from '../js/board/gestures.js';
 import { apply, homography, invert } from '../js/board/homography.js';
-import { findColour, findLight, sample, vivid, VIVID_ENOUGH } from '../js/board/light.js';
+import { WristTrack } from '../js/board/wrists.js';
 import { fromSession, readRecording, Recorder } from '../js/board/recording.js';
 import { examples, session } from '../js/board/simulate.js';
 import { bands, peaks, spectrum } from '../js/board/spectrum.js';
@@ -335,49 +335,30 @@ function cameraChecks() {
   }));
   check(worst < 1e-9, `the board's corners map exactly, and back again (${worst.toExponential(1)} m)`);
 
-  // A picture: a white board, the green light at (73.4, 41.7), its dimmer reflection beside it.
-  const width = 160, height = 100, data = new Uint8ClampedArray(width * height * 4);
-  const blob = (x, y, cx, cy, size, strength) => strength * Math.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * size * size));
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const a = Math.min(1, blob(x + 0.5, y + 0.5, 73.4, 41.7, 2.2, 1) + blob(x + 0.5, y + 0.5, 95, 60, 2.6, 0.55));
-      const p = (y * width + x) * 4, grey = 235 + ((x * 7 + y * 13) % 9);
-      data[p] = grey * (1 - a) + 40 * a; data[p + 1] = grey * (1 - a) + 255 * a; data[p + 2] = grey * (1 - a) + 60 * a; data[p + 3] = 255;
-    }
-  }
-  const lit = findLight({ data, width, height }, { near: [70, 45], within: 40 });
-  const far = findLight({ data, width, height }, { near: null });
-  check(lit && Math.hypot(lit.u - 73.4, lit.v - 41.7) < 0.3 && far && Math.hypot(far.u - 73.4, far.v - 41.7) < 0.3,
-    `the light is found at (${lit?.u.toFixed(2)}, ${lit?.v.toFixed(2)}) for (73.4, 41.7), its reflection passed over`);
-  // Green marker ink, and a big bright green thing (a poster, a wall), are not the light.
-  const paint = (x0, y0, w, h, rgb) => {
-    for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) { const p = (y * width + x) * 4; [data[p], data[p + 1], data[p + 2]] = rgb; }
+  // Which wrist wears the band: the one moving as the band says it moves. Here the band is on
+  // the left hand while the setting says right, beside the other hand and a second person waving.
+  const scene = session('reach', { rate: 208, camera: { side: 'left' } }), track = new WristTrack({ hand: 'right' });
+  const motion = (i) => {
+    const a = scene.truth[Math.max(0, i - 2)], b = scene.truth[Math.min(scene.truth.length - 1, i + 2)];
+    const dt = (scene.samples[Math.min(scene.samples.length - 1, i + 2)].t - scene.samples[Math.max(0, i - 2)].t) / 1000;
+    return [Math.hypot(b[0] - a[0], b[2] - a[2]) / dt, (b[1] - a[1]) / dt];
   };
-  paint(5, 5, 50, 4, [40, 140, 70]);
-  paint(100, 5, 55, 30, [60, 230, 50]);
-  const busy = findLight({ data, width, height }, { near: null });
-  check(busy && Math.hypot(busy.u - 73.4, busy.v - 41.7) < 0.3, `green ink and a big green patch in the picture do not pass for the light (found at ${busy?.u.toFixed(1)}, ${busy?.v.toFixed(1)})`);
-
-  // The band by its own colour: an orange strap on a white board, half of it in shadow, beside black ink and a hand.
-  const pic = new Uint8ClampedArray(width * height * 4);
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const p = (y * width + x) * 4, grey = 228 + ((x * 5 + y * 11) % 7);
-      let rgb = [grey, grey, grey];
-      if (x >= 60 && x < 84 && y >= 30 && y < 40) rgb = x < 72 ? [230, 120, 40] : [138, 72, 24];   // the strap, its right half shaded
-      else if (y >= 70 && y < 74 && x >= 10 && x < 140) rgb = [30, 30, 34];                       // a line of black ink
-      else if (x >= 110 && x < 140 && y >= 20 && y < 50) rgb = [215, 170, 140];                    // a hand
-      [pic[p], pic[p + 1], pic[p + 2]] = rgb;
-      pic[p + 3] = 255;
-    }
+  const index = new Map(scene.samples.map((m, i) => [m.t, i])), writing = scene.words[0][0] + 1000;
+  let right = 0, otherHand = 0, other = 0;
+  for (const f of scene.camera.frames) {
+    const picked = track.frame(f.t, f.wrists, motion(index.get(f.t)));
+    if (f.t < writing || !picked) continue;
+    const truth = f.wrists.find((w) => w.band);
+    if (picked.x === truth.x && picked.y === truth.y) right++;
+    else if (picked.x > scene.board.width) other++;
+    else otherHand++;
   }
-  const strap = { data: pic, width, height }, taught = sample(strap, 66, 35, 2), band = findColour(strap, taught, { near: null });
-  check(band && Math.hypot(band.u - 72, band.v - 35) < 1 && vivid(taught) > VIVID_ENOUGH && vivid([30, 30, 34]) < VIVID_ENOUGH,
-    `the band by its colour: taught by one click, found at (${band?.u.toFixed(1)}, ${band?.v.toFixed(1)}) for (72, 35), shade and all, not the hand or the ink; a black band is flagged as too grey`);
+  check(right / (right + otherHand + other) > 0.95 && other === 0,
+    `the band's wrist, picked by motion from 4 wrists (the setting naming the wrong hand): ${right} frames right, ${otherHand} the other hand, ${other} the other person`);
 
   const s = session('reach', { rate: 208, camera: {} }), on = fuseSession(s), late = fuseSession(s, { compensate: false }), alone = fuseSession(s, { imu: false });
-  check(on.median < 0.01 && on.p95 < 0.03, `camera and band: trail within ${cm(on.median).trim()} cm half the time, ${cm(on.p95).trim()} cm 95% (camera alone: ${cm(alone.median).trim()}, ${cm(alone.p95).trim()})`);
-  check(late.median > 2 * on.median, `pictures taken 80 ms before they arrive: ${cm(late.median).trim()} cm if that is ignored, ${cm(on.median).trim()} cm when each goes in at its own time`);
+  check(on.median < 0.02 && on.p95 < 0.04, `camera and band (a pose model's wrist, 1.5 cm off a frame): trail within ${cm(on.median).trim()} cm half the time, ${cm(on.p95).trim()} cm 95% (camera alone: ${cm(alone.median).trim()}, ${cm(alone.p95).trim()})`);
+  check(late.median > 1.2 * on.median, `pictures taken 80 ms before they arrive: ${cm(late.median).trim()} cm if that is ignored, ${cm(on.median).trim()} cm when each goes in at its own time`);
   const hide = [[16, 1.5], [24, 0.8]], hidden = session('reach', { rate: 208, camera: { hide } });
   const through = fuseSession({ ...hidden, hidden: hide }), blindCam = fuseSession({ ...hidden, hidden: hide }, { imu: false });
   check(through.hiddenWorst < 0.05, `the light hidden for 1.5 s: the band keeps the trail within ${cm(through.hiddenWorst).trim()} cm (camera alone: ${cm(blindCam.hiddenWorst).trim()} cm)`);

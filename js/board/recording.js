@@ -5,7 +5,7 @@
 //            number, acceleration (g), turning (degrees/second), and when the sample
 //            arrived on the computer (ms, the page's clock)
 //   events   { t, kind, ... }: taps, notices, steps of a guided capture, what was pressed
-//   fixes    [t, u, v, size, confidence]: where the camera saw the band's light (pixels) in a
+//   fixes    [t, u, v, visibility]: where the camera saw the band's wrist (pixels) in a
 //            picture taken at the band's time t; with `camera` in the header: the board's
 //            corners in the picture, its width and height (m) and the marker tip's offset
 //
@@ -24,7 +24,7 @@ export class Recorder {
   }
 
   fix(f) {
-    this.fixes.push([f.t, f.u, f.v, f.size ?? null, f.confidence ?? null]);
+    this.fixes.push([f.t, f.u, f.v, f.visibility ?? null]);
   }
 
   motion(m, arrived = null) {
@@ -51,7 +51,7 @@ export class Recorder {
 
 /**
  * A recording read back, version 1, 2 or 3: { rate, band, ..., samples: [{ t, n, ax..gz, arrived }],
- * events (by time), fixes: [{ t, u, v, size, confidence }], camera (or null) }. A file is whatever someone saved, so anything that is not a recording
+ * events (by time), fixes: [{ t, u, v, visibility }], camera (or null) }. A file is whatever someone saved, so anything that is not a recording
  * throws an Error that says so.
  */
 export function readRecording(data) {
@@ -72,7 +72,7 @@ export function readRecording(data) {
   const events = (Array.isArray(rec.events) ? rec.events : []).filter((e) => e && Number.isFinite(e.t) && typeof e.kind === 'string');
   const fixes = (Array.isArray(rec.fixes) ? rec.fixes : [])
     .filter((f) => Array.isArray(f) && [f[0], f[1], f[2]].every(Number.isFinite))
-    .map(([t, u, v, size, confidence]) => ({ t, u, v, size, confidence }));
+    .map(([t, u, v, visibility]) => ({ t, u, v, visibility: visibility ?? null }));
   const cam = rec.camera;
   const camera = cam && Array.isArray(cam.corners) && cam.corners.length === 4 && cam.width > 0 && cam.height > 0 ? cam : null;
   return { ...rec, rate: Number(rec.rate) || 208, version: v1 ? 1 : rec.version === 3 ? 3 : 2, samples, events: events.sort((a, b) => a.t - b.t), fixes, camera };

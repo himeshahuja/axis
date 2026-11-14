@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'">
 <title>Air Draw bench</title>
 <meta name="description" content="What the Vexo band sends, and what the board tracker makes of it.">
 <link rel="icon" href="favicon.svg">
@@ -89,8 +89,8 @@ submodule. In this repository's folder run <code>git submodule update --init</co
 
   <section class="card" aria-labelledby="camera-title">
     <h2 id="camera-title">Camera</h2>
-    <p class="soft">The webcam on the whiteboard, following the band's green light. Type the board's size, then
-    click its four corners in the picture. Its track is the truth the band's own tracking is measured against.</p>
+    <p class="soft">The webcam on the whiteboard, following the wrist that wears the band. Type the board's size,
+    then click its four corners in the picture. Its track is the truth the band's own tracking is measured against.</p>
     <canvas id="cam" class="cam" role="img" aria-label="The camera's picture of the board"></canvas>
     <div class="row">
       <label>Width, cm <input id="cam-width" inputmode="decimal" size="5"></label>
@@ -100,7 +100,7 @@ submodule. In this repository's folder run <code>git submodule update --init</co
       <button id="cam-start">Start camera</button>
       <button id="cam-corners">Set corners</button>
       <button id="cam-tip">Marker tip</button>
-      <button id="cam-colour" title="Click on the band in the picture: the camera then follows its colour instead of its light">Band colour</button>
+      <label>Band on <select id="cam-hand"><option value="right">right hand</option><option value="left">left hand</option></select></label>
     </div>
     <p id="cam-status" class="soft"></p>
     <dl id="cam-stats" class="cells"></dl>
