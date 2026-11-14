@@ -1,13 +1,15 @@
 """Air-writing trainer: live IMU view + guided data collection + online training.
 
-IMU input (one CSV line per sample, units: accel in g, gyro in deg/s):
-    ax,ay,az,gx,gy,gz[,btn]
-btn (optional 7th field) is a level; each 0->1 edge toggles start/stop.
-The UI also toggles with the Space bar, so a button is optional.
+IMU input:
+    CSV: ax,ay,az,gx,gy,gz[,btn]  (accel in g, gyro in deg/s, optional btn 0/1)
+    Firmware: I <ms> <ax> <ay> <az> <gx> <gy> <gz> (m/s^2, rad/s) / B <ms> <1|0>
+btn (or B event) toggles start/stop on each 0->1 transition.
+The UI also toggles with the Space bar, so a hardware button is optional.
 
 Sources:  --source sim | serial | udp
 """
 import argparse, asyncio, json, os, queue, random, socket, threading, time
+from contextlib import asynccontextmanager
 import numpy as np
 import torch, torch.nn as nn
 import uvicorn
@@ -24,8 +26,14 @@ SCALE = np.array([1, 1, 1, 100, 100, 100], dtype=np.float32)  # g, deg/s
 def preprocess(raw, gyro_bias):
     """raw (T,6) -> (N_STEPS,6) float32. Accel relative to start pose, gyro bias removed."""
     x = np.asarray(raw, dtype=np.float32).copy()
-    x[:, :3] -= x[:5, :3].mean(0)
-    x[:, 3:] -= gyro_bias
+    if len(x) >= 5:
+        x[:, :3] -= x[:5, :3].mean(0)
+    elif len(x) > 0:
+        x[:, :3] -= x[:, :3].mean(0)
+    if gyro_bias is not None:
+        x[:, 3:] -= np.asarray(gyro_bias, dtype=np.float32)
+    if len(x) < 2:
+        return np.zeros((N_STEPS, 6), dtype=np.float32)
     t_old = np.linspace(0, 1, len(x))
     t_new = np.linspace(0, 1, N_STEPS)
     x = np.stack([np.interp(t_new, t_old, x[:, c]) for c in range(6)], 1)
@@ -63,7 +71,7 @@ class Trainer:
 
     def fit(self, X, y, epochs=30):
         Xt = torch.from_numpy(np.stack(X).transpose(0, 2, 1).copy())
-        yt = torch.tensor(y)
+        yt = torch.tensor(y, dtype=torch.long)
         n, loss_val = len(yt), 0.0
         for _ in range(epochs):
             with self.lock:
@@ -75,10 +83,14 @@ class Trainer:
                     # augmentation: amplitude jitter, noise, small time shift
                     xb = xb * (0.85 + 0.3 * torch.rand(len(idx), 1, 1))
                     xb = xb + 0.01 * torch.randn_like(xb)
-                    xb = torch.roll(xb, shifts=int(np.random.randint(-3, 4)), dims=2)
+                    shift = int(np.random.randint(-3, 4))
+                    if shift != 0:
+                        xb = torch.roll(xb, shifts=shift, dims=2)
                     loss = nn.functional.cross_entropy(self.net(xb), yt[idx])
                     self.opt.zero_grad(); loss.backward(); self.opt.step()
-                    loss_val = float(loss)
+                    loss_val = float(loss.item())
+        with self.lock:
+            self.net.eval()
         self.trained_on = n
         return loss_val
 
@@ -94,10 +106,12 @@ class Session:
         self.last_btn = 0
         self.X, self.y, self.who, self.files = [], [], [], []
         self.preq = []                    # online (prequential) results: (target, pred)
+        self.preq_history = []            # boolean: did sample i append to preq?
         self.last_loss, self.training = None, False
         self.train_flag = threading.Event()
         self.batch, self.events = [], queue.Queue()
         self.target = None
+        self.sim_current_label = None
         self.trainer = Trainer(len(labels))
         self.load_existing()
         self.pick_target()
@@ -115,13 +129,19 @@ class Session:
             for f in sorted(os.listdir(d)):
                 if not f.endswith(".npz"):
                     continue
-                z = np.load(os.path.join(d, f))
-                lab = str(z["label"])
-                if lab not in self.labels:
-                    continue
-                self.X.append(preprocess(z["raw"], z["bias"]))
-                self.y.append(self.labels.index(lab))
-                self.who.append(p); self.files.append(os.path.join(d, f))
+                file_path = os.path.join(d, f)
+                try:
+                    with np.load(file_path) as z:
+                        lab = str(z["label"])
+                        if lab not in self.labels:
+                            continue
+                        self.X.append(preprocess(z["raw"], z["bias"]))
+                        self.y.append(self.labels.index(lab))
+                        self.who.append(p)
+                        self.files.append(file_path)
+                        self.preq_history.append(False)
+                except Exception as e:
+                    print(f"Warning: could not load {file_path}: {e}")
 
     def save_sample(self, raw, label):
         d = os.path.join(self.data_dir, self.person)
@@ -133,6 +153,15 @@ class Session:
 
     # -- helpers
     def counts(self):
+        """Counts for the currently active person."""
+        c = [0] * len(self.labels)
+        for k, who in zip(self.y, self.who):
+            if who == self.person:
+                c[k] += 1
+        return c
+
+    def total_counts(self):
+        """Total counts across all persons."""
         c = [0] * len(self.labels)
         for k in self.y:
             c[k] += 1
@@ -144,29 +173,39 @@ class Session:
         cands = [i for i, v in enumerate(c) if v == m and self.labels[i] != self.target]
         self.target = self.labels[random.choice(cands or [c.index(m)])]
 
+    def set_target(self, t):
+        with self.lock:
+            if t in self.labels and not self.recording:
+                self.target = t
+                self.emit_state()
+
     def snapshot(self):
         return {"type": "state", "labels": self.labels, "goal": self.goal,
-                "counts": self.counts(), "target": self.target, "mode": self.mode,
+                "counts": self.counts(), "total_counts": self.total_counts(),
+                "target": self.target, "mode": self.mode,
                 "person": self.person, "recording": self.recording,
+                "rec_duration": round(time.time() - self.rec_t0, 1) if self.recording else 0,
                 "preq": self.preq[-300:], "loss": self.last_loss,
                 "training": self.training, "trained_on": self.trainer.trained_on,
-                "n": len(self.y)}
+                "n": len(self.y),
+                "person_n": sum(1 for who in self.who if who == self.person)}
 
     def emit_state(self):
         self.events.put(self.snapshot())
 
     # -- sensor input (called from the sensor thread)
-    def on_imu(self, v, btn=None):
+    def on_imu(self, v=None, btn=None):
         with self.lock:
             if btn is not None:
                 if btn and not self.last_btn:
                     self.toggle()
                 self.last_btn = btn
-            if self.recording:
-                self.buf.append(v)
-            else:
-                self.bias = 0.98 * self.bias + 0.02 * np.asarray(v[3:], dtype=np.float32)
-            self.batch.append([round(float(a), 4) for a in v] + [1 if self.recording else 0])
+            if v is not None:
+                if self.recording:
+                    self.buf.append(v)
+                else:
+                    self.bias = 0.98 * self.bias + 0.02 * np.asarray(v[3:], dtype=np.float32)
+                self.batch.append([round(float(a), 4) for a in v] + [1 if self.recording else 0])
 
     def drain(self):
         with self.lock:
@@ -201,12 +240,17 @@ class Session:
         if self.trainer.trained_on > 0:
             p = self.trainer.predict(x)
             pred, conf = self.labels[int(p.argmax())], float(p.max())
+        sim_label = self.sim_current_label if self.mode == "test" else None
         msg = {"type": "sample", "x": x.tolist(), "pred": pred, "conf": conf,
-               "mode": self.mode, "target": self.target if self.mode == "collect" else None}
+               "mode": self.mode, "target": self.target if self.mode == "collect" else None,
+               "sim_label": sim_label}
         if self.mode == "collect":
             lab = self.target
             if pred is not None:
                 self.preq.append([lab, pred])
+                self.preq_history.append(True)
+            else:
+                self.preq_history.append(False)
             self.X.append(x); self.y.append(self.labels.index(lab))
             self.who.append(self.person)
             self.files.append(self.save_sample(raw, lab))
@@ -218,31 +262,45 @@ class Session:
     def skip(self):
         with self.lock:
             if not self.recording:
-                self.pick_target(); self.emit_state()
+                self.pick_target()
+                self.emit_state()
 
     def undo(self):
         with self.lock:
             if self.recording or not self.X:
                 return
+            undone_label = self.labels[self.y[-1]]
             self.X.pop(); self.y.pop(); self.who.pop()
             f = self.files.pop()
             try:
                 os.remove(f)
             except OSError:
                 pass
-            if self.preq:
-                self.preq.pop()
+            if self.preq_history:
+                had_pred = self.preq_history.pop()
+                if had_pred and self.preq:
+                    self.preq.pop()
+            if len(self.y) >= 10:
+                self.train_flag.set()
+            else:
+                self.trainer.trained_on = 0
+                self.last_loss = None
+            self.pick_target()
+            self.events.put({"type": "notice", "msg": f"Undid last sample ({undone_label})"})
             self.emit_state()
 
     def set_mode(self, m):
         with self.lock:
             if m in ("collect", "test") and not self.recording:
-                self.mode = m; self.emit_state()
+                self.mode = m
+                self.emit_state()
 
     def set_person(self, p):
         with self.lock:
             p = "".join(ch for ch in p if ch.isalnum() or ch in "-_")[:24] or "p1"
-            self.person = p; self.emit_state()
+            self.person = p
+            self.pick_target()
+            self.emit_state()
 
     # -- training thread (retrains after every new sample, coalescing requests)
     def train_loop(self):
@@ -260,24 +318,56 @@ class Session:
 
 # ---------------------------------------------------------------- sensor sources
 def parse_line(line):
-    parts = line.strip().split(",")
-    if len(parts) < 6:
+    line = line.strip()
+    if not line:
         return None
-    try:
-        v = [float(p) for p in parts[:6]]
-        btn = int(float(parts[6])) if len(parts) > 6 and parts[6] != "" else None
-    except ValueError:
+
+    # Support wrist firmware protocol: "I <ms> <ax> <ay> <az> <gx> <gy> <gz>" or "B <ms> <btn>"
+    if line.startswith("I ") or line.startswith("B "):
+        parts = line.split()
+        if parts[0] == "I" and len(parts) >= 8:
+            try:
+                # Firmware gives ax,ay,az in m/s^2 and gx,gy,gz in rad/s.
+                # Convert to g (1g = 9.80665 m/s^2) and deg/s (1 rad/s = 180/pi deg/s).
+                ax, ay, az = [float(p) / 9.80665 for p in parts[2:5]]
+                gx, gy, gz = [float(p) * 180.0 / np.pi for p in parts[5:8]]
+                return [ax, ay, az, gx, gy, gz], None
+            except ValueError:
+                return None
+        elif parts[0] == "B" and len(parts) >= 3:
+            try:
+                btn = int(float(parts[2]))
+                return None, btn
+            except ValueError:
+                return None
         return None
-    return v, btn
+
+    # Support CSV protocol: "ax,ay,az,gx,gy,gz[,btn]"
+    parts = line.split(",")
+    if len(parts) >= 6:
+        try:
+            v = [float(p) for p in parts[:6]]
+            btn = int(float(parts[6])) if len(parts) > 6 and parts[6].strip() != "" else None
+            return v, btn
+        except ValueError:
+            return None
+    return None
 
 
 def run_serial(sess, port, baud):
     import serial
-    with serial.Serial(port, baud, timeout=1) as s:
-        while True:
-            r = parse_line(s.readline().decode(errors="ignore"))
-            if r:
-                sess.on_imu(*r)
+    while True:
+        try:
+            with serial.Serial(port, baud, timeout=1) as s:
+                sess.events.put({"type": "notice", "msg": f"Serial connected on {port}"})
+                while True:
+                    line = s.readline().decode(errors="ignore")
+                    r = parse_line(line)
+                    if r:
+                        sess.on_imu(*r)
+        except Exception as e:
+            sess.events.put({"type": "notice", "msg": f"Serial reconnecting on {port}..."})
+            time.sleep(2)
 
 
 def run_udp(sess, port):
@@ -299,9 +389,11 @@ def run_sim(sess):
         while not sess.recording:
             g = gyro_off + np.random.randn(3) * 0.4
             a = np.array([0, 0, 1.0]) + np.random.randn(3) * 0.01
-            sess.on_imu(list(a) + list(g)); time.sleep(1 / HZ)
+            sess.on_imu(list(a) + list(g))
+            time.sleep(1 / HZ)
         lab = sess.target if sess.mode == "collect" else random.choice(sess.labels)
-        k = sess.labels.index(lab)
+        sess.sim_current_label = lab
+        k = sess.labels.index(lab) if lab in sess.labels else 0
         rng = np.random.RandomState(k * 7 + 1)
         freqs = rng.uniform(0.6, 3.0, (6, 2)); phase = rng.uniform(0, 6.28, (6, 2))
         amp = rng.uniform(0.5, 1.0, (6, 2)) * np.array([0.3] * 3 + [90] * 3)[:, None]
@@ -316,24 +408,14 @@ def run_sim(sess):
                 s = np.zeros(6)
             g = gyro_off + s[3:] + np.random.randn(3) * 0.4
             a = np.array([0, 0, 1.0]) + s[:3] + np.random.randn(3) * 0.01
-            sess.on_imu(list(a) + list(g)); time.sleep(1 / HZ)
+            sess.on_imu(list(a) + list(g))
+            time.sleep(1 / HZ)
 
 
 # ---------------------------------------------------------------- web app
-app = FastAPI()
-SESSION = None
 HERE = os.path.dirname(os.path.abspath(__file__))
+SESSION = Session(list("0123456789"), 30, os.path.join(HERE, "data"), "p1")
 clients = set()
-
-
-@app.get("/")
-def index():
-    return FileResponse(os.path.join(HERE, "static", "index.html"))
-
-
-@app.on_event("startup")
-async def _startup():
-    asyncio.create_task(broadcaster())
 
 
 async def broadcaster():
@@ -342,19 +424,39 @@ async def broadcaster():
         msgs = SESSION.drain()
         if not msgs or not clients:
             continue
-        for c in list(clients):
-            try:
-                for m in msgs:
-                    await c.send_text(json.dumps(m))
-            except Exception:
-                clients.discard(c)
+        for m in msgs:
+            txt = json.dumps(m)
+            for c in list(clients):
+                try:
+                    await c.send_text(txt)
+                except Exception:
+                    clients.discard(c)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    task = asyncio.create_task(broadcaster())
+    yield
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/")
+def index():
+    return FileResponse(os.path.join(HERE, "static", "index.html"))
 
 
 @app.websocket("/ws")
 async def ws(sock: WebSocket):
     await sock.accept()
-    clients.add(sock)
     await sock.send_text(json.dumps(SESSION.snapshot()))
+    clients.add(sock)
     try:
         while True:
             m = json.loads(await sock.receive_text())
@@ -364,10 +466,23 @@ async def ws(sock: WebSocket):
             elif cmd == "undo": SESSION.undo()
             elif cmd == "mode": SESSION.set_mode(m.get("value", ""))
             elif cmd == "person": SESSION.set_person(m.get("value", ""))
+            elif cmd == "target": SESSION.set_target(m.get("value", ""))
     except WebSocketDisconnect:
         pass
     finally:
         clients.discard(sock)
+
+
+def find_available_port(host, start_port, max_tries=10):
+    for p in range(start_port, start_port + max_tries):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                s.bind((host, p))
+                return p
+            except OSError:
+                continue
+    return start_port
 
 
 def main():
@@ -391,7 +506,14 @@ def main():
     else:
         port = int(a.port) if a.port.isdigit() else 9000
         threading.Thread(target=run_udp, args=(SESSION, port), daemon=True).start()
-    uvicorn.run(app, host=a.host, port=a.http_port, log_level="warning")
+
+    selected_port = find_available_port(a.host, a.http_port)
+    if selected_port != a.http_port:
+        print(f"Notice: Port {a.http_port} is in use; starting server on http://localhost:{selected_port}")
+    else:
+        print(f"Air-writing trainer ready at http://localhost:{selected_port}")
+
+    uvicorn.run(app, host=a.host, port=selected_port, log_level="warning")
 
 
 if __name__ == "__main__":

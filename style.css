@@ -338,3 +338,49 @@ body[data-mode='write'] [data-for='sensor'] {
   .stage.write { height: auto; }
   #pad { flex: none; height: 78vw; }
 }
+
+.controls-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.band-banner {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--raised);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--ink);
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.band-banner .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #5fe0a0;
+  box-shadow: 0 0 8px #5fe0a0;
+}
+
+.band-banner .hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+#shapes button[data-shape="live"] {
+  color: #5fe0a0;
+}
+
+#shapes button[data-shape="live"][aria-pressed="true"] {
+  background: #5fe0a0;
+  color: #0b0f12;
+  font-weight: 600;
+}

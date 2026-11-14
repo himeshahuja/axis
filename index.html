@@ -15,12 +15,22 @@
   <header class="bar">
     <div>
       <h1>Air Draw</h1>
-      <p class="sub" data-for="sensor">Accelerometer and gyroscope readings, turned back into what the hand drew. The data is simulated for now.</p>
+      <p class="sub" data-for="sensor">Accelerometer and gyroscope readings, turned back into what the hand drew. Connect your Vexo band or view simulated shapes.</p>
       <p class="sub" data-for="write">Draw a digit and pause. The network never sees the drawing, only what a sensor on your wrist would have felt.</p>
     </div>
-    <div class="pills" id="modes" role="group" aria-label="Mode">
-      <button type="button" data-mode="sensor">Sensor</button>
-      <button type="button" data-mode="write">Write</button>
+    <div class="controls-row">
+      <div class="pills" id="band-pills" role="group" aria-label="Band Connection">
+        <button type="button" id="btn-usb">Connect Band (USB)</button>
+        <button type="button" id="btn-ble">Connect Band (BLE)</button>
+        <button type="button" id="btn-pen" hidden aria-pressed="true">🖊️ Pen Down</button>
+        <button type="button" id="btn-clear" hidden>Clear</button>
+        <button type="button" id="btn-recal" hidden>Recalibrate</button>
+        <button type="button" id="btn-disconnect" hidden>Disconnect</button>
+      </div>
+      <div class="pills" id="modes" role="group" aria-label="Mode">
+        <button type="button" data-mode="sensor">Sensor</button>
+        <button type="button" data-mode="write">Write</button>
+      </div>
     </div>
   </header>
 
@@ -28,13 +38,18 @@
     <section class="stage" aria-label="Drawing">
       <canvas id="view" role="img" aria-label="The path recovered from the sensor readings"></canvas>
       <div class="pills over" id="shapes" role="group" aria-label="Shape to draw"></div>
-      <label class="toggle"><input type="checkbox" id="truth" checked> Show the path really drawn</label>
+      <div class="band-banner" id="band-banner" hidden>
+        <span id="band-dot" class="dot"></span>
+        <span id="band-status-text">Vexo-HACK-68 connected</span>
+        <span class="hint">• Tap band or Space to toggle pen • Double-tap to clear</span>
+      </div>
+      <label class="toggle" id="truth-toggle"><input type="checkbox" id="truth" checked> Show the path really drawn</label>
     </section>
 
     <aside class="panel" aria-label="Sensor readings">
       <dl class="stats">
         <div><dt>Sensor</dt><dd id="state">Settling</dd></div>
-        <div><dt>Off the true path</dt><dd id="error">–</dd></div>
+        <div><dt id="metric-label">Off the true path</dt><dd id="error">–</dd></div>
       </dl>
       <div class="chart">
         <p class="label">Accelerometer, m/s² <span class="keys"><i class="x">x</i><i class="y">y</i><i class="z">z</i></span></p>

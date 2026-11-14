@@ -87,6 +87,17 @@ export class Tracker {
     this.from = 0;              // first sample of the movement now under way
   }
 
+  clear() {
+    this.p = [0, 0, 0];
+    this.v = [0, 0, 0];
+    this.t = []; this.x = []; this.y = []; this.z = []; this.pen = [];
+    this.vel = [];
+    this.acc = [];
+    this.gyro = [];
+    this.rest = 0;
+    this.from = 0;
+  }
+
   get length() { return this.t.length; }
 
   feed(s) {

@@ -1,0 +1,13 @@
+[project]
+name = "airwrite-trainer"
+version = "0.1.0"
+description = "Guided air-writing trainer with live IMU view and online training"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "torch",
+    "fastapi",
+    "uvicorn",
+    "websockets",
+    "pyserial",
+]
