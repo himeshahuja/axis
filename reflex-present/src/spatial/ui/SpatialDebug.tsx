@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
-import { SpatialRuntime, useRuntime } from '../runtime'
+import { exposeForDev, SpatialRuntime, useRuntime } from '../runtime'
 import { CameraPreview } from './CameraPreview'
 import { Controls, fmtStat, StatusRows } from './Controls'
+import { RadialDebugPanel } from '../radial/ui/RadialDebugPanel'
+import { SpatialCanvas } from './SpatialCanvas'
 import { TEST_OBJECTS } from './testObjects'
+import '../radial/ui/radial.css'
 import './spatial.css'
 
 const n = (v: number | undefined | null, d = 3) => (v === undefined || v === null || !Number.isFinite(v) ? '—' : v.toFixed(d))
@@ -20,7 +23,18 @@ export function SpatialDebug() {
   useRuntime(rt)
   useEffect(() => {
     rt.start()
+    exposeForDev(rt)
     return () => rt.dispose()
+  }, [rt])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'SELECT' || tag === 'INPUT' || tag === 'BUTTON') return
+      if (rt.onKey(e)) e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [rt])
 
   const cam = rt.latestCamera
@@ -40,7 +54,14 @@ export function SpatialDebug() {
           test view →
         </a>
       </div>
+      <section style={{ marginBottom: 12 }}>
+        <h3>Canvas (same as /spatial-test) — pinch or mouse-hold an object 0.6 s for the actions menu</h3>
+        <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', background: '#07080c', borderRadius: 8, overflow: 'hidden', fontFamily: 'system-ui' }}>
+          <SpatialCanvas rt={rt} />
+        </div>
+      </section>
       <div className="grid">
+        <RadialDebugPanel rt={rt} />
         <section>
           <h3>Camera</h3>
           <CameraPreview rt={rt} width={320} />

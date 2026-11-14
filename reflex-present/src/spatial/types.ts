@@ -58,6 +58,8 @@ export interface CameraObservation {
 
 export interface WearableObservation {
   tMs: number
+  /** The sample's time on the device's own clock, when known. Use it for intervals between samples. */
+  deviceTMs?: number
   connected: boolean
   /** 0..1, as reported/derived by the wearable adapter. */
   sensorConfidence: number
@@ -127,6 +129,12 @@ export type InteractionEvent =
 
 export type InteractionStateName = 'IDLE' | 'HOVER' | 'GRABBED' | 'DRAGGING' | 'RELEASED' | 'CANCELLED' | 'TRACKING_LOST'
 
+/** Structured data an object carries, so actions work from real values rather than its picture. */
+export type SpatialObjectContent =
+  | { kind: 'chart'; unit?: string; series: { label: string; value: number }[] }
+  | { kind: 'metric'; value: number; format: 'percent' | 'number'; note?: string }
+  | { kind: 'note'; text: string }
+
 export interface SpatialObject {
   id: string
   label: string
@@ -137,4 +145,5 @@ export interface SpatialObject {
   y: number
   w: number
   h: number
+  content?: SpatialObjectContent
 }

@@ -75,6 +75,31 @@ What the numbers mean (nothing is precomputed):
 - **Accuracy test**: 9 on-screen targets; error = cursor − target in px and %
   of canvas height, as measured in that run.
 
+## Reflex Actions — radial menu (`src/spatial/radial/`)
+
+Point at an object → pinch (or hold the mouse) still for 0.6 s → a radial menu
+opens → rotate the wrist (Explain top, Remember clockwise, Voice
+counter-clockwise) → release to run. Open palm or Esc cancels; ← → / wheel /
+click work as fallbacks; **M** opens the menu on the hovered object.
+
+- **Band 68** (`wearable/band.ts`, the only place the number lives). Connect it
+  from the HUD or `/spatial-debug` (Bluetooth, USB or the kit's pretend band),
+  then **Calibrate twist**: 2 s still (gyro bias), 4 s doorknob twist starting
+  clockwise (finds the axis and sign). Saved per band in localStorage. Until
+  calibrated, the band is not used for rotation.
+- The band only exposes raw gyro (°/s), so the angle is integrated on the
+  calibrated axis, with real band timestamps, only while a menu is open; the
+  bias on that axis is refreshed from the still hold.
+- Fallbacks, in order: camera hand tilt (an approximation, labelled) → keys /
+  wheel / click. The debug simulator overrides everything and is labelled
+  SIMULATOR wherever it shows.
+- Explain is a deterministic local summary (no AI service exists here; the kit
+  keeps model keys out of web pages). Remember saves locally (Vexo has no memory
+  API; its key-value store is not private). Voice uses the band mic → Deepgram
+  (team key typed into the page, memory only), the browser's speech
+  recognition, or typed text, and shows a command preview bound to the object;
+  nothing is executed.
+
 ## Known gaps
 
 - Object resolver is deterministic only; ambiguous references return

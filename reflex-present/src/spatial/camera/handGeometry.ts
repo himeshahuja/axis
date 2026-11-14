@@ -21,6 +21,8 @@ export interface HandFeatures {
   thumbExtended: boolean
   pointing: boolean
   openPalm: boolean
+  /** Angle of the index-MCP → pinky-MCP line in the raw image, degrees (y down, so clockwise is positive). */
+  handRollDeg: number
   /** All landmarks gestures depend on are inside the image. */
   keyInFrame: boolean
   inFrameFraction: number
@@ -63,6 +65,7 @@ export function computeHandFeatures(lm: Landmark3[], imageWidth: number, imageHe
     pointing: index === 'extended' && middle === 'curled' && ring === 'curled' && pinky === 'curled',
     openPalm:
       index === 'extended' && middle === 'extended' && ring === 'extended' && pinky === 'extended' && thumbExtended && pinchRatio > 0.8,
+    handRollDeg: (Math.atan2((lm[PINKY.mcp].y - lm[INDEX.mcp].y) * imageHeight, (lm[PINKY.mcp].x - lm[INDEX.mcp].x) * imageWidth) * 180) / Math.PI,
     keyInFrame: KEY_LANDMARKS.every((i) => inFrame(lm[i])),
     inFrameFraction: lm.filter(inFrame).length / lm.length,
   }
