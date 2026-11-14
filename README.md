@@ -95,7 +95,7 @@ On an ESP32 the same lines can go over Bluetooth serial instead of USB (see the 
 1. The second of stillness before the start click gives the gyroscope's bias, which is subtracted.
 2. The jolt of each click and the stillness at both ends are cut off.
 3. Gravity says which way is up, so the readings are turned to make up the same axis every time, however the sensor sits. Gravity is then removed from the accelerometer.
-4. The six channels are resampled to 96 steps and given to a 1D convolutional network (about 89,000 weights, 180 KB).
+4. The six channels are resampled to 96 steps and given to a 1D convolutional network (about 83,000 weights, 165 KB).
 5. Below 50% sure, the character is not taken.
 
 On send, Claude (`claude-haiku-5-5`) gets the top three readings of each character with their probabilities, works out the intended message and answers in at most five words.
