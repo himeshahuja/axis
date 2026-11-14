@@ -1,5 +1,37 @@
 # Reflex Present — P0 vertical slice
 
+## VexoAI hackathon presenter
+
+The default route now opens a six-slide gesture presentation with the working
+name **Untitled demo**. Edit the name, slide copy, colors, movable objects and
+speaker notes in `src/data/presentationDeck.ts`.
+
+The webcam starts mirrored. Move your palm to steer, close all four fingers
+for a short steady grasp to grab, then open at least two fingers to release.
+Partial/uncertain poses keep the current state. Lost tracking freezes a grab.
+The spatial test routes retain their original pinch detector for comparison.
+
+Use **Calibrate** to set sensitivity through two steady palm positions. Smaller
+movement ranges increase cursor gain. The calibration view shows the full
+camera image and the raw palm position. No separate sensitivity slider is used.
+The single stage toolbar works with the hand cursor and mouse. Arrow keys change
+slides, Space grabs/releases, Esc cancels a grab, and Cmd/Ctrl+Z undoes a move.
+Slide layouts persist when navigating during the session.
+
+Hold a grasp still on a card to open the merged **Explain / Remember / Voice**
+menu. Move immediately to drag instead. Tilt the hand or use arrow keys to
+highlight an action, then open the hand to confirm. Esc cancels. M opens the
+menu on a hovered card for keyboard testing. Explain summarizes authored object
+content locally, Remember stores it locally, and Voice opens the provider panel
+(including a typed fallback). Camera/microphone providers retain their notices.
+
+Marketing handoff files are in `public/marketing/`: `creative-brief.md` has
+three art directions, production prompts and a rehearsal script;
+`concept-board.png` is AI-generated campaign reference artwork. Both can be
+downloaded from the presenter footer. No official event logo is included.
+
+The earlier command prototype remains available at `/command-demo`.
+
 Voice/typed command → semantic object resolution → highlight → deterministic
 transform → new visualization. No hardware or webcam required.
 
@@ -74,6 +106,31 @@ What the numbers mean (nothing is precomputed):
   after React commits — an upper bound, up to one frame high.
 - **Accuracy test**: 9 on-screen targets; error = cursor − target in px and %
   of canvas height, as measured in that run.
+
+## Reflex Actions — radial menu (`src/spatial/radial/`)
+
+Point at an object → pinch (or hold the mouse) still for 0.6 s → a radial menu
+opens → rotate the wrist (Explain top, Remember clockwise, Voice
+counter-clockwise) → release to run. Open palm or Esc cancels; ← → / wheel /
+click work as fallbacks; **M** opens the menu on the hovered object.
+
+- **Band 68** (`wearable/band.ts`, the only place the number lives). Connect it
+  from the HUD or `/spatial-debug` (Bluetooth, USB or the kit's pretend band),
+  then **Calibrate twist**: 2 s still (gyro bias), 4 s doorknob twist starting
+  clockwise (finds the axis and sign). Saved per band in localStorage. Until
+  calibrated, the band is not used for rotation.
+- The band only exposes raw gyro (°/s), so the angle is integrated on the
+  calibrated axis, with real band timestamps, only while a menu is open; the
+  bias on that axis is refreshed from the still hold.
+- Fallbacks, in order: camera hand tilt (an approximation, labelled) → keys /
+  wheel / click. The debug simulator overrides everything and is labelled
+  SIMULATOR wherever it shows.
+- Explain is a deterministic local summary (no AI service exists here; the kit
+  keeps model keys out of web pages). Remember saves locally (Vexo has no memory
+  API; its key-value store is not private). Voice uses the band mic → Deepgram
+  (team key typed into the page, memory only), the browser's speech
+  recognition, or typed text, and shows a command preview bound to the object;
+  nothing is executed.
 
 ## Known gaps
 

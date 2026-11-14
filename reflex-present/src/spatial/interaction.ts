@@ -223,6 +223,21 @@ export class InteractionEngine {
     this.updateHover(p, t)
   }
 
+  /**
+   * Hand the current grab to another controller (the radial menu): the object goes
+   * back to where it was grabbed, no undo entry, and the engine is left hovering it.
+   */
+  yieldGrab(tMs: number, reason: string) {
+    const o = this.obj(this.grabbedId)
+    if (!o) return
+    this.place(o, this.grabStart)
+    this.grabbedId = null
+    this.lostSince = null
+    this.hoverId = o.id
+    this.go('HOVER', tMs, reason)
+    this.changed()
+  }
+
   /** Time-based transitions; call once per frame. */
   tick(tMs: number) {
     if (this.state === 'TRACKING_LOST' && this.grabbedId && this.lostSince !== null && tMs - this.lostSince > this.config.lostCancelMs) {

@@ -1,5 +1,6 @@
 import type { SpatialRuntime } from '../runtime'
 import type { SensorFusionMode } from '../types'
+import { BAND_NUMBER } from '../wearable/band'
 import { MockWearableAdapter, type MockPattern } from '../wearable/mockWearable'
 
 const MODES: SensorFusionMode[] = ['WEARABLE_PRIMARY', 'FUSED', 'CAMERA_FALLBACK']
@@ -61,6 +62,44 @@ export function StatusRows({ rt }: { rt: SpatialRuntime }) {
         <span>{fmtStat(rt.latency.captureToPointer.stats())}</span>
       </div>
     </>
+  )
+}
+
+/** Band 68 for wrist rotation + mic, and its gyro calibration. */
+export function BandControls({ rt }: { rt: SpatialRuntime }) {
+  const r = rt.radial
+  const b = r.band
+  const cal = r.gyroCalibration
+  const now = performance.now()
+  return (
+    <div className="group">
+      <span style={{ opacity: 0.6, width: '100%' }}>
+        Vexo band {BAND_NUMBER} (wrist rotation):{' '}
+        <span className={cls(b?.status === 'connected', b?.status === 'connecting' || b?.status === 'reconnecting')}>
+          {b ? `${b.status}${b.link === 'sim' ? ' · PRETEND band' : ` · ${b.link}`}` : 'not connected'}
+        </span>
+        {b?.error ? <span className="sp-bad"> — {b.error}</span> : null}
+      </span>
+      {!b || b.status === 'error' || b.status === 'closed' ? (
+        <>
+          <button onClick={() => r.connectBand('ble')}>Bluetooth</button>
+          <button onClick={() => r.connectBand('serial')}>USB</button>
+          <button onClick={() => r.connectBand('sim')}>Pretend band</button>
+        </>
+      ) : (
+        <button onClick={() => r.disconnectBand()}>Disconnect</button>
+      )}
+      <button onClick={() => r.startGyroCalibration()} disabled={!r.vexo.streaming(now)}>
+        Calibrate twist
+      </button>
+      <span style={{ width: '100%' }} className={cal.phase === 'failed' ? 'sp-bad' : cal.phase === 'done' ? 'sp-ok' : ''}>
+        {cal.phase === 'still' && `Hold still… ${Math.max(0, (cal.untilMs - now) / 1000).toFixed(1)}s`}
+        {cal.phase === 'twist' && `Twist like a doorknob, clockwise first, back and forth… ${Math.max(0, (cal.untilMs - now) / 1000).toFixed(1)}s`}
+        {cal.phase === 'done' && `Twist axis ${cal.cal.sign > 0 ? '+' : '−'}${cal.cal.axis} (${Math.round(cal.cal.axisShare * 100)}% of motion)`}
+        {cal.phase === 'failed' && cal.message}
+        {cal.phase === 'idle' && (r.vexo.cal ? `Twist axis ${r.vexo.cal.sign > 0 ? '+' : '−'}${r.vexo.cal.axis} (saved)` : 'Twist axis not calibrated: band rotation unused until calibrated')}
+      </span>
+    </div>
   )
 }
 

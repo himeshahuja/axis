@@ -79,6 +79,16 @@ export function resolve(instruction: string, slide: Slide): ResolvedIntent {
         requiresClarification: false,
       }
     }
+    const period = text.match(/\b(?:last|previous|prior)\s+(year|quarter)\b/)?.[1]
+    if (matches.length === 1 && period === 'quarter') {
+      // "compare X with last quarter": X's latest point against its previous one.
+      return {
+        intent: 'compare',
+        objectIds: [matches[0].id],
+        parameters: { comparisonPeriod: 'previous_quarter' },
+        requiresClarification: false,
+      }
+    }
     if (matches.length === 1) {
       // "compare X to last year" — look for a sibling object as the comparison target.
       const sibling = slide.objects.find(

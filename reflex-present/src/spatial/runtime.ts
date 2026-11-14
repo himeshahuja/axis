@@ -27,6 +27,7 @@ import type {
   SpatialObject,
   WearableObservation,
 } from './types'
+import { RadialSystem } from './radial/RadialSystem'
 import type { WearableAdapter } from './wearable/adapter'
 import { MockWearableAdapter } from './wearable/mockWearable'
 import { SteadyPoint } from './steadyPoint'
@@ -107,6 +108,8 @@ export class SpatialRuntime {
   /** Gestures since the last tick; `at` pins a gesture to where the pointer was when it happened. */
   private pending: { g: GestureEvent; at?: Point2 }[] = []
   private mouse: { x: number; y: number; tMs: number } | null = null
+  /** A held button keeps the mouse in charge (a still, held mouse is not "lost"). */
+  private mouseDown = false
   private unsubWearable: (() => void) | null = null
   private lastConsumedFrame = 0
   private paintBase: number | null = null
@@ -114,8 +117,15 @@ export class SpatialRuntime {
   private version = 0
   private listeners = new Set<() => void>()
 
+  readonly radial: RadialSystem
+
   constructor(objects: SpatialObject[]) {
     this.interaction = new InteractionEngine(objects)
+    this.radial = new RadialSystem(
+      () => this.interaction.objects,
+      () => this.notify(),
+      (tMs) => this.interaction.yieldGrab(tMs, 'radial menu opened'),
+    )
     this.profile = loadProfile('default')
     this.tracker = new HandTracker(
       (f) => this.onCameraFrame(f),
@@ -137,6 +147,7 @@ export class SpatialRuntime {
     this.raf = null
     this.tracker.stop()
     this.setWearable(null)
+    this.radial.disconnectBand()
   }
 
   async startCamera() {
@@ -270,13 +281,36 @@ export class SpatialRuntime {
     // With the mock following the mouse, the cursor comes from the wearable, so don't pin to mouse coords.
     const at = this.mouseDrivesMock ? undefined : { x, y }
     if (at) this.mouse = { ...at, tMs }
+    this.mouseDown = down
     this.queue({ tMs, kind: down ? 'pinch_start' : 'pinch_end', source: 'mouse', classificationConfidence: 1, sensorConfidence: 1 }, at)
+  }
+
+  /** A button released outside the canvas still ends the press. */
+  onMouseReleasedElsewhere() {
+    if (this.mouseDown && this.mouse) this.onMouseButton(false, this.mouse.x, this.mouse.y)
   }
 
   /** Keyboard fallback. Returns true if the key was used. */
   onKey(e: KeyboardEvent): boolean {
     const tMs = performance.now()
     const kb = (kind: GestureEvent['kind']) => this.queue({ tMs, kind, source: 'keyboard', classificationConfidence: 1, sensorConfidence: 1 })
+    if (this.radial.capturesInput) {
+      if (e.key === 'ArrowLeft') this.radial.step(-1, 'keyboard')
+      else if (e.key === 'ArrowRight') this.radial.step(1, 'keyboard')
+      else if (e.key === 'Enter' || e.key === ' ') kb('select')
+      else if (e.key === 'Escape') kb('cancel')
+      else if (e.key.toLowerCase() === 'r') this.radial.recenter()
+      else return false
+      return true
+    }
+    if (e.key.toLowerCase() === 'm' && !e.metaKey && !e.ctrlKey) {
+      const id = this.interaction.grabbedId ?? this.interaction.hoverId
+      if (id) {
+        this.interaction.yieldGrab(tMs, 'radial menu opened (key M)')
+        this.radial.forceOpen(id)
+      }
+      return true
+    }
     if (e.key === ' ') kb('select')
     else if (e.key === 'Escape') kb('cancel')
     else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') this.interaction.handle({ type: 'undo', tMs })
@@ -305,7 +339,7 @@ export class SpatialRuntime {
   tick(now: number) {
     this.latestWearable = this.wearable?.latest() ?? null
     let est = this.fusion.update(now, this.cameraPointer(), this.latestWearable)
-    if (this.mouseFallback && !this.mouseDrivesMock && this.calibration.kind === 'none' && (!est.valid || this.interaction.pointer?.source === 'mouse' && !!this.interaction.grabbedId) && this.mouse && now - this.mouse.tMs < 1500) {
+    if (this.mouseFallback && !this.mouseDrivesMock && this.calibration.kind === 'none' && this.mouse && (this.mouseDown || !est.valid && now - this.mouse.tMs < 1500)) {
       est = { tMs: now, x: this.mouse.x, y: this.mouse.y, valid: true, source: 'mouse', confidence: 1, observationAgeMs: now - this.mouse.tMs }
     }
     this.pointer = est
@@ -325,10 +359,26 @@ export class SpatialRuntime {
     const gestures = this.pending
     this.pending = []
     for (const { g, at } of gestures) {
+      // While the radial menu is open it owns every gesture: no drags, no drops.
+      if (this.radial.capturesInput && !modal) {
+        this.radial.onGesture(g)
+        continue
+      }
       if (at && !modal) this.interaction.handle({ type: 'pointer', pointer: { ...est, ...at, valid: true, source: 'mouse', tMs: g.tMs } })
       this.dispatch(g, modal)
     }
-    if (!modal) this.interaction.handle({ type: 'pointer', pointer: est })
+    if (!modal && !this.radial.capturesInput) this.interaction.handle({ type: 'pointer', pointer: est })
+
+    if (!modal) {
+      this.radial.tick(now, {
+        pointer: est,
+        grabbedId: this.interaction.grabbedId,
+        aspect: this.interaction.aspect,
+        features: this.tracker.status === 'running' ? this.latestFeatures : null,
+        mirrored: this.profile.mirrorX,
+        graspMode: this.detector.mode === 'grasp',
+      })
+    }
 
     this.interaction.tick(now)
     this.notify()
@@ -381,6 +431,7 @@ export class SpatialRuntime {
   }
 
   startCalibration(kind: 'region' | 'points') {
+    this.radial.controller.cancel(performance.now(), 'hand range calibration')
     this.interaction.handle({ type: 'cancel', tMs: performance.now(), source: 'keyboard' })
     this.rangeHold.reset()
     this.rawHistory = []
@@ -471,6 +522,11 @@ export class SpatialRuntime {
     this.accuracy.index++
     if (this.accuracy.index >= ACCURACY_TARGETS.length) this.accuracy.active = false
   }
+}
+
+/** Dev builds only: `window.__reflexRuntime` for console debugging and scripted checks. */
+export function exposeForDev(rt: SpatialRuntime) {
+  if (import.meta.env.DEV) (window as unknown as { __reflexRuntime?: SpatialRuntime }).__reflexRuntime = rt
 }
 
 export function useRuntime(rt: SpatialRuntime) {

@@ -1,58 +1,34 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CALIBRATION_TARGETS } from '../calibration'
-import { ACCURACY_TARGETS, SpatialRuntime, useRuntime } from '../runtime'
-import type { PointerSource, SpatialObject } from '../types'
+import { ACCURACY_TARGETS, exposeForDev, SpatialRuntime, useRuntime } from '../runtime'
 import { CameraPreview } from './CameraPreview'
-import { Controls, StatusRows } from './Controls'
+import { BandControls, Controls, StatusRows } from './Controls'
+import { SpatialCanvas } from './SpatialCanvas'
 import { TEST_OBJECTS } from './testObjects'
+import '../radial/ui/radial.css'
 import './spatial.css'
 
-const SOURCE_COLOR: Record<PointerSource, string> = {
-  camera: '#5bf0a5',
-  wearable: '#c77dff',
-  fused: '#5b8dee',
-  mouse: '#ffd23f',
-  none: '#8a8f9c',
-}
-
 const pct = (v: number) => `${v * 100}%`
-
-function ObjectView({ o, hover, grabbed, frozen, dragging }: { o: SpatialObject; hover: boolean; grabbed: boolean; frozen: boolean; dragging: boolean }) {
-  const radius = o.shape === 'circle' ? '50%' : o.shape === 'pill' ? '999px' : '14px'
-  const classes = ['sp-obj', hover && 'hover', grabbed && 'grabbed', frozen && 'frozen', dragging && 'dragging'].filter(Boolean).join(' ')
-  return (
-    <div className={classes} style={{ left: pct(o.x), top: pct(o.y), width: pct(o.w), height: pct(o.h), background: o.color, borderRadius: radius }}>
-      {o.label}
-    </div>
-  )
-}
 
 export function SpatialTest() {
   const [rt] = useState(() => new SpatialRuntime(TEST_OBJECTS))
   useRuntime(rt)
-  const canvasRef = useRef<HTMLDivElement>(null)
   const [hudOpen, setHudOpen] = useState(true)
   const [previewOpen, setPreviewOpen] = useState(true)
 
   useEffect(() => {
     rt.start()
+    exposeForDev(rt)
     return () => rt.dispose()
   }, [rt])
 
   useEffect(() => {
-    const el = canvasRef.current
-    if (!el) return
-    const ro = new ResizeObserver(([e]) => rt.setCanvasSize(e.contentRect.width, e.contentRect.height))
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [rt])
-
-  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).tagName === 'SELECT' || (e.target as HTMLElement).tagName === 'INPUT') return
-      if (e.key.toLowerCase() === 'h') setHudOpen((v) => !v)
-      else if (e.key.toLowerCase() === 'd') setPreviewOpen((v) => !v)
-      else if (e.key.toLowerCase() === 'f') void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'SELECT' || tag === 'INPUT') return
+      if (!rt.radial.capturesInput && e.key.toLowerCase() === 'h') setHudOpen((v) => !v)
+      else if (!rt.radial.capturesInput && e.key.toLowerCase() === 'd') setPreviewOpen((v) => !v)
+      else if (!rt.radial.capturesInput && e.key.toLowerCase() === 'f') void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())
       else if (!rt.onKey(e)) return
       e.preventDefault()
     }
@@ -66,50 +42,12 @@ export function SpatialTest() {
     return () => cancelAnimationFrame(id)
   })
 
-  const toCanvas = (e: React.MouseEvent) => {
-    const r = canvasRef.current!.getBoundingClientRect()
-    return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height }
-  }
-
-  const { interaction: ix, pointer: p, calibration: cal, accuracy: acc } = rt
+  const { calibration: cal, accuracy: acc } = rt
   const showNotice = rt.notice && performance.now() - rt.notice.tMs < 4000
-  const pointerHidden = cal.kind === 'points'
 
   return (
     <div className="sp-root">
-      <div
-        ref={canvasRef}
-        className="sp-canvas"
-        onMouseMove={(e) => {
-          const c = toCanvas(e)
-          rt.onMouseMove(c.x, c.y)
-        }}
-        onMouseDown={(e) => {
-          const c = toCanvas(e)
-          rt.onMouseButton(true, c.x, c.y)
-        }}
-        onMouseUp={(e) => {
-          const c = toCanvas(e)
-          rt.onMouseButton(false, c.x, c.y)
-        }}
-      >
-        {ix.objects.map((o) => (
-          <ObjectView
-            key={o.id}
-            o={o}
-            hover={ix.hoverId === o.id && !ix.grabbedId}
-            grabbed={ix.grabbedId === o.id}
-            frozen={ix.grabbedId === o.id && ix.state === 'TRACKING_LOST'}
-            dragging={ix.grabbedId === o.id}
-          />
-        ))}
-        {!pointerHidden && (
-          <div
-            className={`sp-pointer ${rt.detector.pinched || ix.grabbedId ? 'pinched' : ''} ${p.valid ? '' : 'invalid'}`}
-            style={{ left: pct(p.x), top: pct(p.y), color: SOURCE_COLOR[p.source] }}
-          />
-        )}
-      </div>
+      <SpatialCanvas rt={rt} pointerHidden={cal.kind === 'points'} />
 
       {cal.kind !== 'none' && (
         <div className="sp-overlay">
@@ -146,8 +84,9 @@ export function SpatialTest() {
           <h2>Reflex Spatial — test</h2>
           <StatusRows rt={rt} />
           <Controls rt={rt} />
+          <BandControls rt={rt} />
           <div className="group" style={{ opacity: 0.6, display: 'block', lineHeight: 1.6 }}>
-            Pinch / Space grab·release · open palm / Esc cancel · ⌘Z undo · R recenter · H HUD · D camera · F fullscreen ·{' '}
+            Pinch-hold 0.6s = actions menu (M) · rotate wrist / ← → / wheel · release to run · Pinch / Space grab·release · open palm / Esc cancel · ⌘Z undo · R recenter · H HUD · D camera · F fullscreen ·{' '}
             <a href="/spatial-debug" style={{ color: '#5b8dee' }}>
               debug view
             </a>
