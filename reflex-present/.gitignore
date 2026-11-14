@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# vendored by scripts/vendor-mediapipe.mjs
+public/mediapipe
