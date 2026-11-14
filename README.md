@@ -77,10 +77,9 @@ workflow and options.
 
 ## Board tracking with the Vexo band
 
-`board.html` shows where the band hand is on a whiteboard. Tap the board's left edge, then its far right
-edge, and from then on the page draws a cursor and the trail of your hand on the board. Across, 0 is the
-left edge and 1 the right; height uses the same scale and has no limit. Teach it two gestures: **Take**
-lifts the writing around your hand, and **Put** drops it on the screen.
+`board.html` shows where the band hand is on a whiteboard, and `bench.html` shows what the band and the
+camera send. Across, 0 is the board's left edge and 1 its right; height uses the same scale and has no
+limit. Teach two gestures: **Take** lifts the writing around your hand, and **Put** drops it on the screen.
 
     git submodule update --init                 # the Vexo kit, once after cloning
     python3 -m http.server 8000 --bind 127.0.0.1
@@ -89,52 +88,66 @@ Open <http://localhost:8000/board.html> in Chrome or Edge, double-tap the band, 
 (68, set in `js/board/config.js`) and press Connect. No band? Choose "Pretend band" and press "Play a
 pretend session".
 
-1. After connecting, hold the band still for a second. That is when it learns which way is up and its
-   gyroscope's bias, and it waits until you are still.
-2. Press **Set up board**. Knock the board's left edge with your band hand and hold still, then knock
-   its far right edge and hold still.
-3. Write, and pause for a moment now and then (between words). Each pause lets the tracker take the
-   drift out. The page reminds you after 4 seconds without one.
-4. Drifted? Press **Re-anchor** (or double-tap the band) and knock the left or right edge.
-5. Record Take, Put and "Not a gesture" (a few ordinary letters) three to five times each.
+1. **Camera (for accuracy).** Point the laptop's camera, or a USB webcam, at the whiteboard. Press
+   **Start camera**, type the board's width and height in cm, press **Set corners** and click its four
+   corners in the picture (top left, top right, bottom right, bottom left). While the camera runs, the
+   band's light stays green and the camera follows it.
+2. After connecting, hold the band still for a second. That is when it learns which way is up and its
+   gyroscope's bias; it waits until you are still.
+3. Setup starts by itself: knock the board's **left** edge with your band hand and hold still, then its
+   far **right** edge and hold still. With the camera, a knock on the wrong edge is refused.
+4. Write. Without a camera, pause for a moment now and then (between words): each pause lets the
+   tracker take the drift out. With the camera, the band's motion only fills the gaps between frames
+   and while the light is hidden.
+5. Drifted (no camera)? Press **Re-anchor**, or double-tap the band, and knock the left or right edge.
+6. Record Take, Put and "Not a gesture" (a few ordinary letters) three to five times each.
    **Keep on band** stores them in the band's storage (slots 900 to 929), and they load whenever the
    band connects. Anyone who connects to the band can read or wipe them.
 
-**How it works.** Position comes from adding up the band's motion with `Tracker` (`js/fusion.js`). It
-sets the speed to zero at every pause and takes each movement's drift out once the hand rests.
-`js/board/tracker.js` adds the following, without changing `js/fusion.js`:
-- the board frame from the two taps: across from the taps, up from gravity; motion toward or away from
-  the board is ignored
-- rest detection timed for the short pauses of writing
-- a check that a "rest" is not just the hand slowing down at the end of a long move
+**How it works.**
+- **The band alone:** `Tracker` (`js/fusion.js`) adds up the band's motion, sets the speed to zero at
+  every pause and takes each movement's drift out at the rest. `js/board/tracker.js` adds the board
+  frame from the two knocks, rests timed for the short pauses of writing, and a check that a "rest" is
+  not just the hand slowing down. Before any of that, `js/board/intake.js` fills in short gaps in the
+  stream and learns what the band reads for 1 g (real accelerometers are a few percent off).
+- **With the camera:** `js/board/light.js` finds the green light in each frame, `js/board/homography.js`
+  turns its pixel into board metres from the four corners, and `js/board/fuse.js` (a Kalman filter for
+  each axis) moves on with the band's motion 208 times a second and is pulled to every camera fix. A
+  picture arrives a little after it was taken, so the filter goes back to the moment of the picture and
+  replays the band's samples since.
+- **Gestures** use the kit's gesture-trainer recogniser, copied unchanged into `js/board/recogniser.js`.
 
-Gestures use the kit's gesture-trainer recogniser, copied unchanged into `js/board/recogniser.js`.
+**How accurate.** Simulated sessions at 208 samples a second (`node tests/board.mjs`). Nothing has been
+measured on a real board yet.
 
-**How accurate.** These numbers come from simulated sessions at 208 samples a second
-(`node tests/board.mjs`). Nothing has been measured on a real board yet.
+| Simulated session | Hand position (median / 95%) | Shape of each word |
+| --- | --- | --- |
+| Band alone, 1.2 m board, short pauses between letters | 3.0 / 9.2 cm | 0.9 cm |
+| Band alone, 2.4 m board, side-stepping | 3.2 / 10.0 cm | 1.2 cm |
+| Band alone, written without a single pause | 62 / 83 cm | 41 cm |
+| Camera and band (1.5 px camera noise, pictures 80 ms late) | 0.1 / 0.3 cm | |
+| Camera alone | 0.5 / 1.8 cm | |
+| Camera and band, light hidden for 1.5 s | worst 0.6 cm while hidden | |
 
-| Simulated session | Board width | Hand position (median / 95%) | Shape of each word |
-| --- | --- | --- | --- |
-| 1.2 m board, short pauses between letters | 0.1 cm off | 3.4 / 6.6 cm | 0.7 cm |
-| 2.4 m board, side-stepping along it | 4.4 cm off | 1.8 / 8.1 cm | 0.8 cm |
-| Written without a single pause | 0.1 cm off | 24 / 58 cm | 25 cm |
+The simulated camera is kinder than a real one (no lens distortion, exact corners), so expect more on a
+real board; the bench measures it.
 
-Motion sensors alone drift while the hand keeps moving, so the pauses are what keep it accurate. A
-tracker that started with its gyroscope's bias badly off recovers at pauses of about a second, but not
-without them. 208 samples a second beat 416: the extra noise in each sample breaks up the short rests.
-
-To measure a real board, put a few dots on it and enter their positions under **Measure**. Turn on
-"Measure taps", tap each dot, and use **Record session**. `node tests/board.mjs --replay <file>` plays a
-recording back through the tracker.
+**The bench** (`bench.html`) takes in the band (live), a recording, or a simulated session, and shows the
+stream's health (rate, timing, lost samples, what 1 g reads as), the six signals, their spectrum (writing
+below 5 Hz, tremor at 6 to 12 Hz), every part of the tracker's rest decision, the camera's health, and how
+far the band alone strays from the camera. A low-pass filter can be tried live. **Guided capture**
+records a marked session; `node tests/board.mjs --bench <file>` reports on it (add `--lowpass 8` to replay
+it filtered). Recordings from `board.html`'s **Record session** read the same way.
 
 **Not done yet:**
 - Telling a marker on the board from a lifted one: every movement draws.
 - Turning the writing into text. Each Put fires a `board:put` event carrying the strokes, ready for that.
-- Recognising gestures on the band itself. The kit's firmware only detects its own seven built-in
+- Recognising gestures on the band itself: the kit's firmware only detects its own seven built-in
   gestures, so the examples are kept on the band but matched on the computer.
+- A phone as the camera: `getUserMedia` needs HTTPS away from `localhost`.
 
-Files: `board.html`, `css/board.css`, `js/board/` (tracker, gestures, the kit's recogniser, the
-simulator, the page, and the band number in `config.js`), `tests/board.mjs`.
+Files: `board.html`, `bench.html`, `css/`, `js/board/` (the band number is in `config.js`),
+`tests/board.mjs`.
 
 ## If time runs short
 

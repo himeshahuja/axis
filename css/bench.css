@@ -1,0 +1,45 @@
+/* The bench. The kit's shared style sheet gives the colours, cards and buttons. */
+:root { --x: #ff5c5c; --y: #3ccf6e; --z: #4c8dff; --size: #9aa3b2; --rest: rgba(60, 207, 110, 0.12); --tap: #f5a524; --lost: #ff3b30; --bad: #e5484d; --good: #2fa968; }
+@media (prefers-color-scheme: dark) {
+  :root { --rest: rgba(60, 207, 110, 0.16); }
+}
+
+body { max-width: 1240px; }
+h2 { margin: 0 0 8px; font-size: 1.05rem; }
+.bench { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.bench > .card { margin: 0; }
+.bench > .wide { grid-column: 1 / -1; }
+@media (max-width: 900px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+
+.step { margin: 0; font-weight: 700; font-size: 1.15rem; }
+.cells { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin: 8px 0; }
+.cells div { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 5px 9px; min-width: 0; }
+.cells dt { color: var(--soft); font-size: 0.78rem; }
+.cells dd { margin: 0; font-weight: 600; font-size: 0.92rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+.log { margin: 8px 0 0; padding-left: 1.4em; max-height: 190px; overflow: auto; font: 0.82rem/1.45 ui-monospace, monospace; color: var(--soft); }
+.log li:last-child { color: var(--ink); }
+
+.why { width: 100%; font-size: 0.88rem; font-variant-numeric: tabular-nums; margin: 6px 0; }
+.why th { color: var(--soft); font-weight: 600; }
+.why td.bad { color: var(--bad); font-weight: 600; }
+.why td.good { color: var(--good); font-weight: 600; }
+
+canvas { margin-top: 6px; }
+canvas.mini { max-width: 520px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; font-size: 0.82rem; color: var(--soft); }
+.key::before { content: ''; display: inline-block; width: 14px; height: 3px; margin-right: 6px; vertical-align: middle; border-radius: 2px; }
+.key.x::before { background: var(--x); }
+.key.y::before { background: var(--y); }
+.key.z::before { background: var(--z); }
+.key.size::before { background: var(--size); }
+.key.rest::before { background: var(--rest); height: 10px; }
+.key.tap::before { background: var(--tap); width: 3px; height: 12px; }
+.key.lost::before { background: var(--lost); width: 3px; height: 8px; }
+
+.steps { margin: 6px 0; padding-left: 1.4em; }
+.steps li { margin: 3px 0; color: var(--soft); }
+.steps li.now { color: var(--ink); font-weight: 700; }
+.steps li.done { text-decoration: line-through; }
+
+canvas.cam { background: #000; cursor: crosshair; }

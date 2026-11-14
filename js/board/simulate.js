@@ -11,6 +11,7 @@
 // toward the writer. Metres and seconds.
 
 import { G, qaxis, qconj, qmul, qnorm, qrot } from '../fusion.js';
+import { apply, homography } from './homography.js';
 
 const DEG = 180 / Math.PI;
 const OFF = 0.03;             // metres off the board while the marker is lifted
@@ -33,15 +34,19 @@ function mulberry(seed) {
   };
 }
 
-// A smooth curve through the points (Catmull-Rom), as a dense list with the
-// distance along the curve at each entry.
+// A smooth curve along the points, as a dense list with the distance along the
+// curve at each entry. A cubic B-spline: it starts and ends on the first and last
+// points and passes close to the others, and its bends change smoothly, as a
+// hand's do (a curve through every point would bend in sudden jumps there, and the
+// hand would jolt sideways at each).
 function curve(points) {
-  const n = points.length, at = (i) => points[Math.max(0, Math.min(n - 1, i))], pts = [];
-  for (let s = 0; s < n - 1; s++) {
-    const p0 = at(s - 1), p1 = at(s), p2 = at(s + 1), p3 = at(s + 2);
+  const n = points.length, ctrl = [points[0], points[0], ...points, points[n - 1], points[n - 1]], pts = [];
+  for (let s = 0; s + 3 < ctrl.length; s++) {
+    const [p0, p1, p2, p3] = ctrl.slice(s, s + 4);
     for (let j = 0; j < 48; j++) {
       const u = j / 48, u2 = u * u, u3 = u2 * u;
-      pts.push([0, 1, 2].map((k) => 0.5 * (2 * p1[k] + (p2[k] - p0[k]) * u + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * u2 + (3 * p1[k] - p0[k] - 3 * p2[k] + p3[k]) * u3)));
+      const w = [(1 - u) ** 3 / 6, (3 * u3 - 6 * u2 + 4) / 6, (-3 * u3 + 3 * u2 + 3 * u + 1) / 6, u3 / 6];
+      pts.push([0, 1, 2].map((k) => w[0] * p0[k] + w[1] * p1[k] + w[2] * p2[k] + w[3] * p3[k]));
     }
   }
   pts.push([...points[n - 1]]);
@@ -57,6 +62,39 @@ function along(c, s) {
     if (c.d[mid] <= s) lo = mid; else hi = mid;
   }
   return mix(c.pts[lo], c.pts[hi], (s - c.d[lo]) / (c.d[hi] - c.d[lo] || 1));
+}
+
+/**
+ * How a hand times a curve: at `speed` m/s where it runs straight, slower through
+ * bends, as real hands do (speed falls with curvature to the power -1/3: the
+ * "two-thirds power law" of handwriting; airwrite/synth.py paces its strokes the same
+ * way). Without it, a hand would turn a 5 mm hairpin at full speed, about 5 g sideways.
+ * Returns the time it takes, and where along the curve the hand is a fraction of the way
+ * through that time.
+ */
+function pace(c, speed) {
+  const n = c.pts.length, k = 4, time = [0];
+  for (let i = 1; i < n; i++) {
+    const a = c.pts[Math.max(0, i - k)], b = c.pts[i], e = c.pts[Math.min(n - 1, i + k)];
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [e[0] - b[0], e[1] - b[1], e[2] - b[2]];
+    const lu = Math.hypot(...u), lv = Math.hypot(...v);
+    const turn = lu > 1e-9 && lv > 1e-9 ? Math.acos(Math.max(-1, Math.min(1, (u[0] * v[0] + u[1] * v[1] + u[2] * v[2]) / (lu * lv)))) : 0;
+    const bend = turn / Math.max(1e-6, (lu + lv) / 2);                 // 1/m: one over the radius of the bend
+    time.push(time[i - 1] + (c.d[i] - c.d[i - 1]) / (speed * (1 + 0.07 * bend) ** (-1 / 3)));
+  }
+  const total = time[n - 1];
+  return {
+    total,
+    at(fraction) {
+      const target = fraction * total;
+      let lo = 0, hi = n - 1;
+      while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        if (time[mid] <= target) lo = mid; else hi = mid;
+      }
+      return c.d[lo] + (c.d[hi] - c.d[lo]) * ((target - time[lo]) / (time[hi] - time[lo] || 1));
+    },
+  };
 }
 
 // Joined-up letters in a box one letter wide and one tall (ascenders reach 1.7),
@@ -139,9 +177,9 @@ class Script {
 
   /** The marker along a smooth curve through `points`, the wrist working as it goes. */
   stroke(points, speed = 0.3, wiggle = 0.06) {
-    const c = curve([this.here, ...points]), dur = Math.max(0.3, c.length / speed);
+    const c = curve([this.here, ...points]), clock = pace(c, speed), dur = Math.max(0.3, clock.total);
     const sign = this.parts.length % 2 ? 1 : -1;
-    return this.part(dur, (u) => along(c, glide(u) * c.length), (u) => [sign * wiggle * bump(u), 0.6 * wiggle * bump(u), 0]);
+    return this.part(dur, (u) => along(c, clock.at(glide(u))), (u) => [sign * wiggle * bump(u), 0.6 * wiggle * bump(u), 0]);
   }
 
   /** The points of a word written from (x, y), letters `size` metres tall. */
@@ -212,7 +250,21 @@ class Script {
   }
 
   /** The two taps that set up the board: its left edge, then its far right edge (a little higher: nobody taps level). */
-  edges(width, y, { walk = false } = {}) {
+  edges(width, y, { walk = false, reversed = false } = {}) {
+    if (reversed) {
+      // The wrong way round: the right edge first, then the left.
+      this.move([width, y, OFF]);
+      this.rest(0.3);
+      this.knock();
+      this.rest(0.6);
+      this.lift();
+      this.move([0, y + 0.03, OFF], 0.9);
+      this.rest(0.3);
+      this.knock();
+      this.rest(0.6);
+      this.lift();
+      return;
+    }
     this.move([0, y, OFF]);
     this.rest(0.3);
     this.knock();
@@ -249,10 +301,15 @@ class Script {
    * What the band reads, a sample every 1/rate seconds, as the kit reports it,
    * with the true place of the hand at each sample.
    */
-  readings({ rate = 208, seed = 1, noise = 1, accelRange = 16, gyroRange = 2000, quietUntil = 0 } = {}) {
+  readings({ rate = 208, seed = 1, noise = 1, accelRange = 16, gyroRange = 2000, quietUntil = 0, chip = null, tremor = 0 } = {}) {
     const dt = 1 / rate, n = Math.floor(this.t * rate);
     const rand = mulberry(seed), gauss = () => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());
     const loud = noise * Math.sqrt(rate / 100);          // the same noise per root hertz at every rate
+    // A real accelerometer: each axis a little off zero and a little off scale (m/s^2, ratio).
+    const offset = chip?.offset ?? [0, 0, 0], scale = chip?.scale ?? [1, 1, 1];
+    // A hand is never quite still: it trembles at 8 to 12 Hz (`tremor` m/s^2, and turning with it).
+    const phase = [0, 1, 2, 3, 4, 5].map(() => 2 * Math.PI * rand());
+    const shake = (time, k) => Math.sin(2 * Math.PI * (8.6 + 0.7 * k) * time + phase[k]);
     const accelBias = [0.03, -0.02, 0.025].map((b) => b * noise), gyroBias = [0.012, -0.008, 0.01].map((b) => b * noise);
     const creep = [0.5, -0.3, 0.4].map((b) => (b * 1e-3 * noise) / 60);   // rad/s a second: the gyro's bias wanders
     const cut = (v, range, step) => Math.round(Math.max(-range, Math.min(range, v)) * step) / step;
@@ -260,19 +317,20 @@ class Script {
     let prev = this.pose(-dt);
     for (let i = 0; i < n; i++) {
       const time = i * dt, now = this.pose(time), next = this.pose(time + dt);
-      const a = [0, 1, 2].map((k) => (next.p[k] - 2 * now.p[k] + prev.p[k]) / (dt * dt));
+      const a = [0, 1, 2].map((k) => (next.p[k] - 2 * now.p[k] + prev.p[k]) / (dt * dt) + tremor * shake(time, k));
       a[1] += G;
-      const f = qrot(qconj(now.q), a);
+      const f = qrot(qconj(now.q), a).map((v, k) => v * scale[k] + offset[k]);
       let dq = qmul(qconj(prev.q), now.q);
       if (dq[0] < 0) dq = dq.map((v) => -v);
       const s = Math.hypot(dq[1], dq[2], dq[3]), angle = 2 * Math.atan2(s, dq[0]);
-      const w = s < 1e-12 ? [0, 0, 0] : [dq[1], dq[2], dq[3]].map((c) => ((c / s) * angle) / dt);
+      const w = (s < 1e-12 ? [0, 0, 0] : [dq[1], dq[2], dq[3]].map((c) => ((c / s) * angle) / dt))
+        .map((v, k) => v + 0.15 * tremor * shake(time, k + 3));
       // Before `quietUntil` the readings are perfect, as the kit's pretend band's are while it lies at rest.
       const on = time >= quietUntil ? 1 : 0;
       const accel = f.map((v, k) => (v + on * (accelBias[k] + gauss() * 0.04 * loud)) / G);
       const gyro = w.map((v, k) => (v + on * (gyroBias[k] + creep[k] * time + gauss() * 0.003 * loud)) * DEG);
       samples.push({
-        t: START_MS + time * 1000,
+        t: START_MS + time * 1000, n: i,
         ax: cut(accel[0], accelRange, 1000), ay: cut(accel[1], accelRange, 1000), az: cut(accel[2], accelRange, 1000),
         gx: cut(gyro[0], gyroRange, 10), gy: cut(gyro[1], gyroRange, 10), gz: cut(gyro[2], gyroRange, 10),
       });
@@ -288,9 +346,9 @@ class Script {
 // and where the left tap was.
 export const SCENARIOS = {
   // A 1.2 m board, all within reach: five words with the usual short pauses.
-  reach(s, { gestures = false } = {}) {
+  reach(s, { gestures = false, reversed = false } = {}) {
     const width = 1.2, y = 1.4;
-    s.edges(width, y);
+    s.edges(width, y, { reversed });
     s.word(0.08, y + 0.06, 'lean');
     s.word(0.62, y + 0.06, 'one');
     if (gestures) {
@@ -339,13 +397,20 @@ export const SCENARIOS = {
  * samples, the times of its taps, and the truth: where the hand really was at each
  * sample, the board's width, and when words and gestures were written.
  */
-export function session(name = 'reach', { rate = 208, seed = 1, noise = 1, gestures = false, accelRange = 16, gyroRange = 2000, cleanStart = false, pause = 0 } = {}) {
+export function session(name = 'reach', {
+  rate = 208, seed = 1, noise = 1, gestures = false, accelRange = 16, gyroRange = 2000, cleanStart = false, pause = 0,
+  chip = null,    // { offset: [m/s^2 x3], scale: [x3] }: an accelerometer a little off, as real ones are
+  tremor = 0,     // m/s^2 of hand tremor (8 to 12 Hz), always there, as with a real hand
+  drop = [],      // [seconds into the session, ms] stretches of samples lost on the way, as Bluetooth loses frames
+  reversed = false, // knock the right edge first, then the left
+  camera = null,  // { fps, noise (px), delay (ms), hide: [[s, s]] }: what a webcam sees of the band's light
+} = {}) {
   const s = new Script(TABLE);
   s.pause = pause;
   s.part(1.0, () => TABLE, null, () => 0);
   s.part(1.0, (u) => mix(TABLE, START, glide(u)), null, (u) => glide(u));
   s.rest(0.8);
-  const board = SCENARIOS[name](s, { gestures });
+  const board = SCENARIOS[name](s, { gestures, reversed });
   s.lift();
   s.rest(1.0);
   // Put the band back down flat, as the pretend band lies once a played motion is over.
@@ -354,14 +419,44 @@ export function session(name = 'reach', { rate = 208, seed = 1, noise = 1, gestu
   s.part(0.5, () => TABLE, null, () => 0);
   // cleanStart: the second lying flat has perfect readings, so a tracker started then
   // learns a gyro bias of zero, and is wrong about it (by about 1 degree/second) from then on.
-  const { samples, truth, turns } = s.readings({ rate, seed, noise, accelRange, gyroRange, quietUntil: cleanStart ? 0.9 : 0 });
+  const read = s.readings({ rate, seed, noise, accelRange, gyroRange, quietUntil: cleanStart ? 0.9 : 0, chip, tremor });
   const ms = (t) => START_MS + t * 1000;
+  // Lost samples never arrive, but the band counted them: their sample numbers are skipped.
+  const lost = (m) => drop.some(([at, len]) => m.t >= ms(at) && m.t < ms(at) + len);
+  const keep = read.samples.map((m) => !lost(m));
+  const samples = read.samples.filter((_, i) => keep[i]);
+  const truth = read.truth.filter((_, i) => keep[i]), turns = read.turns.filter((_, i) => keep[i]);
   return {
     name, rate, samples, truth, turns, board,
     taps: s.taps.map(ms),
     words: s.words.map(([a, b]) => [ms(a), ms(b)]),
     gestures: s.gestures.map(({ label, t0, t1 }) => ({ label, t0: ms(t0), t1: ms(t1) })),
+    camera: camera ? see(samples, truth, board, { seed, ...camera }) : null,
   };
+}
+
+/**
+ * What a webcam off to one side of the board sees of the band's light: a fix every
+ * 1/fps seconds, at the pixel where the light really was (plus a little noise), and
+ * none while the light is hidden. Each fix has the band's time of the picture (`t`) and
+ * of its arrival (`arrives`, `delay` ms later). Returns the corners as the camera sees
+ * them (top left, top right, bottom right, bottom left), the board's size in metres, and
+ * the fixes. The board runs from 0.8 m to 2.0 m above the floor.
+ */
+function see(samples, truth, board, { fps = 30, noise = 1.5, delay = 80, hide = [], seed = 1 } = {}) {
+  const W = board.width, bottom = 0.8, H = 1.2;
+  const corners = [[170, 80], [1130, 120], [1150, 640], [150, 690]];
+  const toPixels = homography([[0, H], [W, H], [W, 0], [0, 0]], corners);
+  const rand = mulberry(seed * 31 + 7), gauss = () => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());
+  const fixes = [], t0 = samples[0].t, t1 = samples.at(-1).t;
+  let i = 0;
+  for (let t = t0; t <= t1; t += 1000 / fps) {
+    while (i < samples.length - 1 && samples[i + 1].t <= t) i++;
+    if (hide.some(([at, len]) => t >= t0 + at * 1000 && t < t0 + (at + len) * 1000)) continue;
+    const [u, v] = apply(toPixels, [truth[i][0], truth[i][1] - bottom]);
+    fixes.push({ t: samples[i].t, arrives: samples[i].t + delay, u: u + noise * gauss(), v: v + noise * gauss(), size: 20, confidence: 1 });
+  }
+  return { corners, board: { width: W, height: H, bottom }, fixes };
 }
 
 /**

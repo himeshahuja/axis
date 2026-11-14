@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'">
+<title>Air Draw bench</title>
+<meta name="description" content="What the Vexo band sends, and what the board tracker makes of it.">
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="vexo-open-kit/projects/shared/style.css">
+<link rel="stylesheet" href="css/bench.css">
+<script src="js/board/boot.js" defer></script>
+</head>
+<body>
+<h1>Bench</h1>
+<p class="soft">What the band sends, and what the board tracker makes of it: the stream's health, the six signals,
+their spectrum, and why the tracker does or does not find rests and set up the board. Connect the band, load a
+recording, or play a simulated session.</p>
+
+<div class="card row">
+  <label>Band number <input id="number" inputmode="numeric" maxlength="13" placeholder="XX"></label>
+  <select id="link" aria-label="How to connect">
+    <option value="ble">Bluetooth</option>
+    <option value="serial">USB cable</option>
+    <option value="pretend">Pretend band (no hardware)</option>
+  </select>
+  <button id="connect">Connect</button>
+  <button id="disconnect" disabled>Disconnect</button>
+</div>
+<p id="needs-server"><b>Connect does nothing?</b> This page was opened as a file (by double-click), so the browser
+blocks its program. In a terminal, in this repository's folder, run
+<code>python3 -m http.server 8000 --bind 127.0.0.1</code>, then open <code>http://localhost:8000/bench.html</code>
+in Chrome or Edge.</p>
+<p id="no-kit" hidden><b>The page's program did not start.</b> The Vexo kit is probably missing: it comes as a git
+submodule. In this repository's folder run <code>git submodule update --init</code>, then reload.</p>
+<p id="message" role="status">Double-tap your band, check its number and press Connect.</p>
+<div class="card row pretend-only" hidden>
+  <span><span id="light"></span> The pretend band's light is <span id="light-text">off</span>. It lies still.</span>
+  <button id="pretend-drop" disabled>Lose the link</button>
+</div>
+<div class="card row">
+  <label>Or a recording <input type="file" id="file" accept=".json,application/json"></label>
+  <label>Or a simulated session
+    <select id="sim">
+      <option value="">choose</option>
+      <option value="reach">1.2 m board</option>
+      <option value="walk">2.4 m board, side-steps</option>
+      <option value="steady">writing without a pause</option>
+      <option value="chip">1.2 m board, accelerometer off like a real chip</option>
+      <option value="tremor">1.2 m board, trembling hand</option>
+      <option value="lost">1.2 m board, lost Bluetooth frames</option>
+      <option value="camera">1.2 m board, with a camera (light hidden 1.5 s)</option>
+    </select>
+  </label>
+  <button id="play" disabled>Pause</button>
+  <label>Speed
+    <select id="speed">
+      <option value="1">real time</option>
+      <option value="4">4 times</option>
+      <option value="0">all at once</option>
+    </select>
+  </label>
+  <label title="Applied to the board tracker here; restarts it">Low-pass
+    <select id="lowpass">
+      <option value="">off</option>
+      <option value="12">12 Hz</option>
+      <option value="8">8 Hz</option>
+      <option value="6">6 Hz</option>
+    </select>
+  </label>
+</div>
+
+<main class="bench">
+  <section class="card" aria-labelledby="stream-title">
+    <h2 id="stream-title">Stream</h2>
+    <dl id="health" class="cells"></dl>
+    <ol id="log" class="log" aria-label="What happened"></ol>
+  </section>
+
+  <section class="card" aria-labelledby="tracker-title">
+    <h2 id="tracker-title">Tracker</h2>
+    <p id="t-status" class="step">Waiting for the band</p>
+    <p id="t-detail" class="soft"></p>
+    <table id="why" class="why"></table>
+    <dl id="t-stats" class="cells"></dl>
+    <canvas id="mini" class="mini" role="img" aria-label="The board as the tracker sees it"></canvas>
+    <div class="row"><button id="t-setup" disabled>Set up again</button></div>
+  </section>
+
+  <section class="card" aria-labelledby="camera-title">
+    <h2 id="camera-title">Camera</h2>
+    <p class="soft">The webcam on the whiteboard, following the band's green light. Type the board's size, then
+    click its four corners in the picture. Its track is the truth the band's own tracking is measured against.</p>
+    <canvas id="cam" class="cam" role="img" aria-label="The camera's picture of the board"></canvas>
+    <div class="row">
+      <label>Width, cm <input id="cam-width" inputmode="decimal" size="5"></label>
+      <label>Height, cm <input id="cam-height" inputmode="decimal" size="5"></label>
+    </div>
+    <div class="row">
+      <button id="cam-start">Start camera</button>
+      <button id="cam-corners">Set corners</button>
+      <button id="cam-tip">Marker tip</button>
+    </div>
+    <p id="cam-status" class="soft"></p>
+    <dl id="cam-stats" class="cells"></dl>
+  </section>
+
+  <section class="card wide" aria-labelledby="signals-title">
+    <h2 id="signals-title">Signals, last 5 s</h2>
+    <p class="legend"><span class="key x">x</span><span class="key y">y</span><span class="key z">z</span>
+      <span class="key size">size of the reading</span><span class="key rest">at rest</span>
+      <span class="key tap">tap</span><span class="key lost">samples lost</span></p>
+    <canvas id="accel" role="img" aria-label="Acceleration, g"></canvas>
+    <canvas id="gyro" role="img" aria-label="Turning, degrees a second"></canvas>
+  </section>
+
+  <section class="card wide" aria-labelledby="spectrum-title">
+    <h2 id="spectrum-title">Spectrum</h2>
+    <div class="row"><button id="freeze">Freeze</button><span id="peaks" class="soft"></span></div>
+    <canvas id="spectrum" role="img" aria-label="Power of each channel by frequency"></canvas>
+    <p class="soft">Writing moves below about 5 Hz; a hand's tremor shows at 6 to 12 Hz; above that is mostly
+    the sensor's own noise. Top: acceleration, bottom: turning.</p>
+  </section>
+
+  <section class="card" aria-labelledby="still-title">
+    <h2 id="still-title">Stillness check</h2>
+    <p class="soft">Hold the band still, as you would against the board between words, and press Measure.
+    It shows whether the tracker would find a rest there, and what it would take.</p>
+    <div class="row"><button id="still" disabled>Measure 5 s</button><span id="still-note" class="soft"></span></div>
+    <table id="still-result" class="why"></table>
+  </section>
+
+  <section class="card" aria-labelledby="capture-title">
+    <h2 id="capture-title">Guided capture</h2>
+    <p class="soft">Records a session with each step marked, for
+    <code>node tests/board.mjs --bench file.json</code>. Stand at the board with the band on.</p>
+    <ol id="steps" class="steps"></ol>
+    <div class="row">
+      <button id="capture" disabled>Start capture</button>
+      <button id="record" disabled>Record freely</button>
+    </div>
+    <p id="rec-note" class="soft"></p>
+  </section>
+</main>
+<script type="module" src="js/board/bench.js"></script>
+</body>
+</html>

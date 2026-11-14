@@ -7,7 +7,10 @@
 
 import { $, attempt, onConnect, say } from '../../vexo-open-kit/projects/shared/page.js';
 import { BAND } from './config.js';
+import { CameraPanel } from './camera.js';
+import { alongBoard, Fused } from './fuse.js';
 import { Gestures, LABELS, loadFromBand, saveToBand } from './gestures.js';
+import { Recorder } from './recording.js';
 import { examples, session } from './simulate.js';
 import { BoardTracker } from './tracker.js';
 
@@ -16,30 +19,43 @@ if (!$('#number').value) $('#number').value = String(BAND);
 
 const query = new URLSearchParams(location.search);
 const RATE = [100, 208, 416].includes(Number(query.get('rate'))) ? Number(query.get('rate')) : 208;
+const LOWPASS = Number(query.get('lowpass')) || null;   // ?lowpass=8: filter the band's readings (see bench.html)
 const BOX = { w: 0.3, h: 0.12 };             // metres: the writing Take lifts, around the hand
 const NAMES = { take: 'Take', put: 'Put', none: 'Not a gesture' };
 const LIGHT = { take: '#f5a524', put: '#2f6fed', learn: '#ffffff', board: '#00c853' };
 const ENOUGH = 5;                            // examples of each gesture before recording stops by itself
-const PAUSE_MS = 4000;                       // moving this long without a rest: the cursor drifts
 const SAVED = 'air-draw.board.gestures';     // the browser's copy of the examples
 const style = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const cmText = (m) => `${(m * 100).toFixed(1)} cm`;
 
+// The board tracker asks for the board's two edges by itself whenever there is no board.
+const fresh = () => new BoardTracker({ rate: RATE, auto: true, lowpass: LOWPASS });
 let band = null, pretend = null;
-let board = new BoardTracker({ rate: RATE });
+let board = fresh();
 const book = new Gestures(RATE);
 let held = null;            // the writing Take lifted: { strokes, at }
 let lastT = 0;              // the band's time of the latest sample, ms
 let measuring = false;
 let marks = [];             // the band's times of the taps on measured dots
-let recording = null;       // { samples, events } while a session is being recorded
+let recording = null;       // a Recorder while a session is being recorded
+let fused = null;           // the camera and the band together, once the camera knows the board
+let clock = null;           // the band's real time minus its own counter, ms: turns camera times into band times
+
+// What the board shows: the camera and band together when there is a camera, else the band alone.
+const track = () => (fused && fused.length && board.frame ? fused : board);
+
+// The band's light is what the camera follows: while it does, the light stays green.
+const camOn = () => Boolean(camera.running);
+const led = (colour, options) => { if (band && !camOn()) attempt(band.setLed(colour, options)); };
+const dark = () => { if (band && !camOn()) attempt(band.ledOff()); };
 
 // ---------------------------------------------------------------- the band
 
 onConnect(async (theBand, thePretend) => {
   band = theBand;
   pretend = thePretend;
-  board = new BoardTracker({ rate: RATE });
+  board = fresh();
+  joinCamera();
   book.reset();
   held = null;
   band.on('motion', onMotion);
@@ -56,7 +72,8 @@ onConnect(async (theBand, thePretend) => {
   await band.setMotion({ accelRange: 16 });      // a knock on the board must not be cut off at the 2 g default
   await band.setEvents({ kinds: ['tap', 'double-tap'] });
   await band.configure({ motion: RATE, events: true });
-  say(`Connected to ${band.name}. Hold it still for a moment, then press "Set up board".`);
+  if (camOn()) attempt(band.setLed('#00ff00'));   // the camera follows the band's green light
+  say(`Connected to ${band.name}. Hold it still for a moment; then knock the board's left edge, and its far right edge.`);
   refresh(true);
   const kept = await loadFromBand(band).catch(() => null);
   if (kept && kept.take.length + kept.put.length > 0) {
@@ -67,11 +84,13 @@ onConnect(async (theBand, thePretend) => {
 });
 
 function onMotion(m) {
+  const arrived = performance.now();
   lastT = m.t;
-  board.feed(m);
+  if (Number.isFinite(m.time)) clock = m.time - m.t;
+  board.feed(m, arrived);
   const piece = book.feed(m);
   if (piece) onPiece(piece);
-  if (recording) recording.samples.push([m.t, m.ax, m.ay, m.az, m.gx, m.gy, m.gz]);
+  if (recording) recording.motion(m, arrived);
 }
 
 function onTap(t, kind) {
@@ -86,9 +105,36 @@ function onTap(t, kind) {
   if (board.tap(t) === null && measuring && board.frame) marks.push(t);
 }
 
-/** Something that happened, into the session being recorded: replayed by tests/board.mjs --replay. */
+/** Something that happened, into the session being recorded: replayed by tests/board.mjs --bench. */
 function note(kind, extra = {}) {
-  if (recording) recording.events.push({ t: lastT, kind, ...extra });
+  if (recording) recording.event(lastT, kind, extra);
+}
+
+// ---------------------------------------------------------------- the camera
+
+const camera = new CameraPanel(
+  { canvas: $('#cam'), status: $('#cam-status'), start: $('#cam-start'), corners: $('#cam-corners'), tip: $('#cam-tip'), width: $('#cam-width'), height: $('#cam-height') },
+  {
+    onFix(fix) {
+      if (fix.x === null || clock === null) return;
+      const t = fix.time - clock;                   // the band's time of the picture
+      fused?.fix(t, fix.x, fix.y);
+      recording?.fix({ ...fix, t });
+    },
+    onChange() {
+      joinCamera();
+      if (band && camOn()) attempt(band.setLed('#00ff00'));
+    },
+  },
+);
+
+const cameraSetup = () => (camera.toBoard ? { corners: camera.corners, ...camera.size, tip: camera.tip } : null);
+
+/** Put the camera and the band together, now that one of them changed. */
+function joinCamera() {
+  const s = camera.size;
+  fused = camera.ready && s ? new Fused({ width: s.width, height: s.height, tip: camera.tip }) : null;
+  board.onSample = fused ? (t, acc, still) => fused?.step(t, board.frame ? alongBoard(acc, board.frame.ux) : null, still) : null;
 }
 
 // ---------------------------------------------------------------- the board
@@ -97,7 +143,7 @@ $('#set-up').onclick = () => {
   board.setUp();
   note('set-up');
   held = null;
-  say('Tap the board\'s left edge with your band hand, then hold still.');
+  say('Knock the board\'s left edge with your band hand, then hold still.');
 };
 $('#reanchor').onclick = () => {
   board.reanchor();
@@ -105,40 +151,49 @@ $('#reanchor').onclick = () => {
 };
 $('#clear').onclick = () => {
   board.clearTrail();
+  fused?.clearTrail();
   Object.assign(view, VIEW);
   held = null;
 };
 
 function news() {
   for (const n of board.news.splice(0)) {
+    if ((n.type === 'left' || n.type === 'board') && fused) {
+      // The camera saw where the knock was: it must be the edge asked for.
+      const edge = n.type === 'left' ? 'left' : 'right', k = fused.knockAt(n.t, edge);
+      if (!k.ok) {
+        say(`That knock was ${Math.round(k.across * 100)}% of the way across, not on the ${edge} edge. Knock the left edge first, then the far right edge.`);
+        board.setUp();
+        continue;
+      }
+      if (n.type === 'left') {
+        const i = fused.indexAt(n.t);
+        if (i >= 0) fused.y0 = fused.y[i] + fused.tip[1];
+      }
+    }
     if (n.type === 'left') {
-      say('Left edge set. Now tap the far right edge, then hold still.');
+      say('Left edge set. Now knock the far right edge, then hold still.');
     } else if (n.type === 'board') {
       say(`Board set up: ${cmText(n.width)} wide. Write on it; pause a moment now and then.`);
       if (band) {
-        attempt(band.setLed(LIGHT.board));
-        setTimeout(() => band && attempt(band.ledOff()), 800);
+        led(LIGHT.board);
+        setTimeout(dark, 800);
       }
     } else if (n.type === 'too-close') {
-      say(`Those two taps were only ${cmText(n.width)} apart. Tap the left edge again, then the far right edge.`);
+      say(`Those two knocks were only ${cmText(n.width)} apart. Knock the left edge again, then the far right edge.`);
     } else if (n.type === 'anchor') {
       say(`Re-anchored on the ${n.edge ? 'right' : 'left'} edge: the cursor moved ${cmText(n.moved)}.`);
     } else if (n.type === 'lost') {
-      say(`Lost track: ${Math.round(n.gap)} ms of samples went missing. Hold still, then press "Set up board" again.`);
+      say(`Lost track: ${Math.round(n.gap)} ms of samples went missing. Hold still; then knock the left edge, and the far right edge.`);
     }
   }
 }
 
 function stepText() {
   if (!band) return 'Not connected';
-  if (!board.ready) return 'Hold the band still';
-  if (board.want === 'left') return 'Tap the board\'s left edge';
-  if (board.want === 'right') return 'Tap the board\'s far right edge';
-  if (board.want === 'anchor') return 'Tap the left or right edge to re-anchor';
-  if (board.pending.length) return 'Hold still';
-  if (!board.frame) return 'Press "Set up board"';
-  if (book.recording) return `Show me "${NAMES[book.recording]}"`;
-  return held ? 'Holding writing: Put drops it' : 'Tracking';
+  if (book.recording && board.frame) return `Show me "${NAMES[book.recording]}"`;
+  const { text } = board.status();
+  return text === 'Tracking' && held ? 'Holding writing: Put drops it' : text;
 }
 
 // ---------------------------------------------------------------- drawing
@@ -167,12 +222,12 @@ function grow(y) {
 
 // Samples [from, to) of the trail as one path, leaving out points less than a
 // pixel from the last one drawn. Returns where it ended, for the next call.
-function trace(ctx, L, from, to, last) {
+function trace(ctx, L, from, to, last, src) {
   ctx.beginPath();
   if (last) ctx.moveTo(last[0], last[1]);
   for (let i = from; i < to; i++) {
-    if (!board.shown(i)) { last = null; continue; }
-    const b = board.boardAt(i), x = L.X(b.x), y = L.Y(b.y);
+    if (!src.shown(i)) { last = null; continue; }
+    const b = src.boardAt(i), x = L.X(b.x), y = L.Y(b.y);
     grow(b.y);
     if (last && Math.abs(x - last[0]) + Math.abs(y - last[1]) < 0.8) continue;
     if (last) ctx.lineTo(x, y); else ctx.moveTo(x, y);
@@ -212,8 +267,22 @@ function draw() {
   pen.fillStyle = style('--soft');
   pen.font = '13px system-ui, sans-serif';
   if (!f) {
+    // No board yet: light up the edge it is waiting for, and say what it needs.
+    const edge = board.want === 'left' ? 0 : board.want === 'right' || board.pending.length ? 1 : null;
+    if (edge !== null) {
+      pen.strokeStyle = style('--held');
+      pen.lineWidth = 6 + 2 * Math.sin(performance.now() / 180);
+      pen.beginPath();
+      pen.moveTo(L.X(edge), 0);
+      pen.lineTo(L.X(edge), L.height);
+      pen.stroke();
+    }
+    const { text, detail } = band ? board.status() : { text: 'Connect the band', detail: '' };
     pen.textAlign = 'center';
-    pen.fillText('Tap the board\'s left edge, then its far right edge.', L.width / 2, L.height / 2);
+    pen.font = '600 15px system-ui, sans-serif';
+    pen.fillText(text, L.width / 2, L.height / 2 - 8);
+    pen.font = '13px system-ui, sans-serif';
+    if (detail) pen.fillText(detail, L.width / 2, L.height / 2 + 14);
     pen.textAlign = 'start';
     cache = null;
     return;
@@ -233,24 +302,25 @@ function draw() {
   pen.fillText('10 cm', x0, y0 - 7);
 
   // The trail: what will not change any more is drawn once and kept.
-  const key = [L.width, L.height, dpr, f.origin.join(), f.width, board.hidden, board.skips.length, view.lo, view.hi].join('|');
-  if (!cache || cache.key !== key || cache.tracker !== board.tracker) {
+  const src = track();
+  const key = [L.width, L.height, dpr, f.origin.join(), f.width, src.hidden, src.skips.length, view.lo, view.hi, src === fused].join('|');
+  if (!cache || cache.key !== key || cache.tracker !== board.tracker || cache.src !== src) {
     const image = document.createElement('canvas');
     image.width = w;
     image.height = h;
     const ctx = image.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     inkStyle(ctx, style('--ink-pen'));
-    cache = { key, tracker: board.tracker, image, ctx, upTo: board.hidden, last: null };
+    cache = { key, tracker: board.tracker, src, image, ctx, upTo: src.hidden, last: null };
   }
-  const settled = board.settled;
+  const settled = src.settled;
   if (settled > cache.upTo) {
-    cache.last = trace(cache.ctx, L, cache.upTo, settled, cache.last);
+    cache.last = trace(cache.ctx, L, cache.upTo, settled, cache.last, src);
     cache.upTo = settled;
   }
   pen.drawImage(cache.image, 0, 0, L.width, L.height);
   inkStyle(pen, style('--ink-pen'));
-  trace(pen, L, cache.upTo, board.length, cache.last);
+  trace(pen, L, cache.upTo, src.length, cache.last, src);
 
   // What Take is holding.
   if (held) {
@@ -271,7 +341,7 @@ function draw() {
   pen.fillStyle = pen.strokeStyle = style('--put');
   pen.lineWidth = 2;
   marks.forEach((t, i) => {
-    const b = board.at(t);
+    const b = src.at(t);
     if (!b) return;
     const x = L.X(b.x), y = L.Y(b.y);
     pen.beginPath();
@@ -281,7 +351,7 @@ function draw() {
   });
 
   // The hand: a filled dot on the board, a ring when it is away from it.
-  const c = board.cursor;
+  const c = src.cursor;
   if (c) {
     const on = Math.abs(c.d) < 0.03;
     pen.beginPath();
@@ -305,7 +375,7 @@ const count = (ex) => LABELS.reduce((n, label) => n + ex[label].length, 0);
 let refreshedAt = 0;
 function refresh(now = false) {
   const time = performance.now();
-  if (!now && time - refreshedAt < 150) return;
+  if (!now && time - refreshedAt < 250) return;          // four times a second: numbers that can be read
   refreshedAt = time;
   const on = Boolean(band);
   $('#step').textContent = stepText();
@@ -326,14 +396,15 @@ function refresh(now = false) {
   $('#forget').disabled = count(book.examples) === 0;
   $('#demo-examples').disabled = !pretend;
 
-  const f = board.frame, c = f && board.cursor;
+  const f = board.frame, c = f && track().cursor;
   $('#at-x').textContent = c ? `${cmOn(c.x)} (${Math.round(c.x * 100)}%)` : '–';
   $('#at-y').textContent = c ? cmOn(c.y) : '–';
-  $('#at-d').textContent = c ? `${Math.round(c.d * 100)} cm` : '–';
+  $('#hand').textContent = !band ? '–' : !board.ready ? 'starting' : board.still ? 'still' : 'moving';
   $('#width').textContent = f ? cmText(f.width) : '–';
-  $('#hint').textContent = f && board.restAt !== null && lastT - board.restAt > PAUSE_MS
-    ? 'Pause for a moment now and then: while the hand never stops, the cursor drifts.'
-    : '';
+  const blind = fused && board.frame ? fused.blindFor(lastT) : 0;
+  $('#hint').textContent = !band ? '' : blind > 500 && blind < Infinity
+    ? 'The camera cannot see the band\'s light: following the band\'s own motion until it can.'
+    : board.status().detail;
   showMarks();
 }
 
@@ -347,7 +418,7 @@ function showMarks() {
     .filter((d) => d.length === 2 && d.every(Number.isFinite));
   const scale = tape() ?? board.frame.width * 100;
   const rows = [['Tap', 'x cm', 'y cm', 'dot', 'off']].concat(marks.map((t, i) => {
-    const b = board.at(t), x = b.x * scale, y = b.y * scale, dot = dots[i];
+    const b = track().at(t), x = b.x * scale, y = b.y * scale, dot = dots[i];
     return [String(i + 1), x.toFixed(1), y.toFixed(1), dot ? `${dot[0]}, ${dot[1]}` : '', dot ? `${Math.hypot(x - dot[0], y - dot[1]).toFixed(1)} cm` : ''];
   }));
   table.replaceChildren(...rows.map((cells, r) => {
@@ -371,27 +442,27 @@ function onPiece(piece) {
     keep();
     if (n >= ENOUGH) {
       book.recording = null;
-      if (band) attempt(band.ledOff());
+      dark();
       status.textContent += ' That is enough.';
     }
     return;
   }
   if (piece.label !== 'take' && piece.label !== 'put') return;
-  const t0 = piece.samples[0].t, at = board.at(t0);
-  board.skip(t0, piece.samples.at(-1).t);
+  const src = track(), t0 = piece.samples[0].t, at = src.at(t0);
+  src.skip(t0, piece.samples.at(-1).t);
   status.textContent = `${NAMES[piece.label]}, ${piece.distance.toFixed(2)} from its nearest example.`;
   if (piece.label === 'take') {
     if (!at) return;
-    const strokes = board.near(at.x, at.y, BOX.w, BOX.h);
+    const strokes = src.near(at.x, at.y, BOX.w, BOX.h);
     held = strokes.length ? { strokes, at } : null;
     say(held ? 'Took the writing around your hand. Put drops it on the screen.' : 'Take: there is no writing there.');
-    if (band && held) attempt(band.setLed(LIGHT.take));
+    if (held) led(LIGHT.take);
   } else if (held) {
     putOut(held);
     held = null;
     if (band) {
-      attempt(band.setLed(LIGHT.put));
-      setTimeout(() => band && attempt(band.ledOff()), 600);
+      led(LIGHT.put);
+      setTimeout(dark, 600);
     }
   } else {
     say('Put: take some writing off the board first.');
@@ -403,12 +474,12 @@ for (const row of document.querySelectorAll('#gestures tr[data-label]')) {
     const label = row.dataset.label;
     if (book.recording === label) {
       book.recording = null;
-      if (band) attempt(band.ledOff());
+      dark();
     } else {
       book.recording = label;
       book.examples[label] = [];               // recording again replaces the examples
       book.reset();
-      if (band) attempt(band.setLed(LIGHT.learn, { pattern: 'breathe', period: 1500 }));
+      led(LIGHT.learn, { pattern: 'breathe', period: 1500 });
       $('#gesture-status').textContent = label === 'none'
         ? 'Write a few ordinary letters, pausing between them.'
         : `Hold still, make "${NAMES[label]}", hold still again. ${ENOUGH} times.`;
@@ -513,30 +584,28 @@ $('#measure').onchange = (e) => {
 $('#record-session').onclick = () => {
   if (!recording) {
     // A recording starts from scratch, so that it plays back exactly: the board is set up again.
-    board = new BoardTracker({ rate: RATE });
+    board = fresh();
+    joinCamera();
     book.reset();
     held = null;
     marks = [];
-    recording = { samples: [], events: [] };
+    recording = new Recorder({ rate: RATE, band: band ? band.name : null, link: band ? band.transportKind : null, lowpass: LOWPASS, camera: cameraSetup() });
     if (measuring) note('measure', { on: true });
     $('#record-session').textContent = 'Stop and save';
-    $('#record-note').textContent = 'Recording. Hold still, then set up the board.';
+    $('#record-note').textContent = 'Recording. Hold still, then knock the left edge and the far right edge.';
     refresh(true);
     return;
   }
-  const record = {
-    kind: 'air-draw board session', version: 1, rate: RATE, band: band ? band.name : null,
-    recorded: new Date().toISOString(), samples: recording.samples, events: recording.events,
-    measure: { width: tape(), dots: $('#dots').value.split('\n').map((l) => l.split(/[,\s]+/).filter(Boolean).map(Number)).filter((d) => d.length === 2) },
-  };
+  const record = recording;
+  record.about.measure = { width: tape(), dots: $('#dots').value.split('\n').map((l) => l.split(/[,\s]+/).filter(Boolean).map(Number)).filter((d) => d.length === 2) };
   recording = null;
   const link = document.createElement('a');
   link.href = URL.createObjectURL(new Blob([JSON.stringify(record)], { type: 'application/json' }));
-  link.download = `board-session-${record.recorded.replace(/[:.]/g, '-')}.json`;
+  link.download = record.name;
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 10000);
   $('#record-session').textContent = 'Record session';
-  $('#record-note').textContent = `Saved ${record.samples.length} samples. Check it with: node tests/board.mjs --replay ${link.download}`;
+  $('#record-note').textContent = `Saved ${record.samples.length} samples. Check it with: node tests/board.mjs --bench ${link.download}`;
 };
 
 // ---------------------------------------------------------------- the pretend band
@@ -561,10 +630,9 @@ $('#demo').onclick = () => {
   const s = session('reach', { rate: RATE > 100 ? RATE / 1.008 : RATE, gestures: true, seed: 1 + Math.floor(Math.random() * 1000) });
   // The pretend band's readings at rest are perfect, the session's have a gyro bias as a real band's do:
   // start the tracker afresh, so it learns the session's bias from the session's own first still second.
-  board = new BoardTracker({ rate: RATE });
+  board = fresh();
+  joinCamera();
   note('restart');
-  board.setUp();
-  note('set-up');
   held = null;
   pretend.playMotion(s.samples.map(({ ax, ay, az, gx, gy, gz }) => ({ ax, ay, az, gx, gy, gz })));
   for (const t of s.taps) pretend.after((t - s.samples[0].t) / 1000, () => pretend.tap('tap'));

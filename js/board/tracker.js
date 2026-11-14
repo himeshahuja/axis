@@ -15,13 +15,14 @@
 // moves the cursor. No DOM here, so the tests run it under Node.
 
 import { G, Tracker, qrot } from '../fusion.js';
+import { Intake } from './intake.js';
 
 const RAD = Math.PI / 180;
-export const GAP_MS = 50;       // a longer jump in the band's time: samples were lost, and with them the position
 export const MIN_WIDTH = 0.2;   // metres: two taps closer than this are not the two edges of a board
 const SETTLE_S = 0.15;          // a tap's place is read at least this long after it, with the hand at rest
 const FAST_S = 0.015;           // the hand's acceleration is averaged over about this long before it is judged
 const SLOW_S = 0.25;            // ... and over about this long, to see whether it holds steady
+const NO_REST_S = 3;            // waiting this long for a rest is worth saying so
 
 /** A motion event from the kit's Band (t in ms, ax ay az in g, gx gy gz in degrees/second) as a Tracker sample. */
 export function fromBand(m) {
@@ -55,19 +56,30 @@ export function trackerOptions(rate, extra = {}) {
     kp: 10,             // rests between letters are short, so the tilt is pulled back to gravity faster than Tracker's 2
     // A hand held still trembles more than a band on a desk; js/app.js uses these for the live band too.
     stillGyro: 0.06, stillAccel: 0.25,
-    stillWorld: 0.25,   // m/s^2: the hand's own acceleration (gravity taken out) must be this small too; see feed()
+    stillWorld: 0.25,   // m/s^2: the hand's own acceleration (gravity taken out) must be this small too; see step()
     stillSteady: 0.08,  // m/s^2: ... or hold this steady, which is gravity leaking through a tilt that is off
+    calmSmooth: 0,      // s: turning and the size of the reading are averaged over this long before they are judged
+    pushSmooth: FAST_S, // s: and the hand's own acceleration over this long
     startStill: [0.1, 0.4],   // rad/s, m/s^2: moving more than this while Tracker reads its start-up stillness starts it again
     ...options,
   };
 }
 
 export class BoardTracker {
-  /** `rate`: samples a second the band sends. Any other option goes to Tracker. */
-  constructor({ rate = 208, ...options } = {}) {
+  /**
+   * `rate`: samples a second the band sends. `accelRange`, `gyroRange`: the sensor's
+   * ranges (g, degrees/second), to count readings cut off at them. `auto`: ask for the
+   * board's two edges by itself whenever there is no board. Any other option goes to Tracker.
+   */
+  constructor({ rate = 208, accelRange = 16, gyroRange = 2000, auto = false, lowpass = null, ...options } = {}) {
     this.rate = rate;
+    this.auto = auto;
     this.options = trackerOptions(rate, options);
+    this.intake = new Intake({ accelRange, gyroRange, lowpass, rate });
     this.news = [];             // what happened, oldest first, for the page to show: { type, ... }
+    this.heard = 0;             // taps heard, used or not
+    this.starts = 0;            // times the start-up began again because the hand moved
+    this.lost = 0;              // times the position was lost to missing samples
     this.restart();
   }
 
@@ -82,6 +94,9 @@ export class BoardTracker {
     this.restAt = null;         // the band's time the hand was last at rest, ms: drift builds up from then
     this.push = [0, 0, 0];      // the hand's own acceleration in the world, averaged over about FAST_S, m/s^2
     this.held = [0, 0, 0];      // the same averaged over about SLOW_S
+    this.turning = 0;           // rad/s, gyro bias taken out, averaged over calmSmooth
+    this.size = G;              // m/s^2: the size of the accelerometer's reading, averaged over calmSmooth
+    this.why = null;            // why the last sample was or was not calm, for the bench
     this.hidden = 0;            // samples before this one are cleared from the trail
     this.skips = [];            // [first, last] sample numbers that were gestures, not writing
   }
@@ -92,51 +107,91 @@ export class BoardTracker {
   /** Samples before this one keep their place from now on: Tracker only redoes the latest movement. */
   get settled() { return Math.min(this.tracker.rest, this.tracker.length); }
 
-  /** One motion event from the band. */
-  feed(m) {
-    if (this.lastT !== null && (m.t <= this.lastT || m.t - this.lastT > GAP_MS)) {
-      // Samples were lost, or the link was down: the hand moved in ways nobody saw.
-      const gap = m.t - this.lastT;
+  /**
+   * One motion event from the band, and when it arrived on the computer (ms), if known.
+   * It goes through the intake first: short gaps are filled in, and the accelerometer
+   * is scaled so that the band at rest reads 1 g.
+   */
+  feed(m, arrival = null) {
+    const { samples, gap } = this.intake.feed(m, arrival);
+    if (gap !== null) {
+      // Too many samples lost, or the link was down: the hand moved in ways nobody saw.
       this.restart();
+      this.lost++;
       this.news.push({ type: 'lost', gap });
     }
-    const s = fromBand(m), tr = this.tracker, f = [s.ax, s.ay, s.az];
+    for (const s of samples) this.step(s);
+    if (this.auto && this.tracker.ready && !this.frame && !this.want && !this.pending.length) this.setUp();
+    if (this.pending.length) this.place();
+  }
+
+  step(m) {
+    const s = fromBand(m), tr = this.tracker, f = [s.ax, s.ay, s.az], o = this.options;
     if (!tr.ready) {
       // Tracker learns which way is up, and the gyro's bias, from its first moments,
       // taking them to be still. If the hand moves then, it would learn them wrong
       // for good: start again until it really is still.
-      const [turning, pushing] = this.options.startStill;
-      if (Math.hypot(s.gx, s.gy, s.gz) > turning + 0.05 || Math.abs(Math.hypot(...f) - G) > pushing) {
-        if (tr.count > 0) this.tracker = new Tracker(this.options);
+      const turning = Math.hypot(s.gx, s.gy, s.gz), off = Math.hypot(...f) - G;
+      const ok = turning <= o.startStill[0] + 0.05 && Math.abs(off) <= o.startStill[1];
+      this.why = { startUp: true, turning, size: off, calm: ok };
+      if (!ok && tr.count > 0) {
+        this.tracker = new Tracker(o);
+        this.starts++;
       }
     } else {
-      // Tracker calls the hand calm when it barely turns and the accelerometer reads
-      // about 1 g. But slowing down sideways hardly changes that reading (1 g and
-      // 0.2 g at right angles make 1.02 g), so with rests as short as the pauses
-      // between letters, the end of every long move would pass for a rest, and the
-      // slowing down would be taken out as drift. So a sample is calm only if the
-      // hand's own acceleration in the world, gravity taken out, is small as well:
-      // Tracker is told otherwise through its turning limit, which it reads every sample.
-      // That needs the tilt, and a tilt a degree or two off leaks enough gravity to
-      // look like a push, while the tilt is only put right at rests. But gravity leaks
-      // steadily, and a hand slowing down does not: so a push that has held steady
-      // for a while (a pause of half a second or so) counts as calm too, and at that
-      // rest the tilt is put right.
-      const dt = (m.t - this.lastT) / 1000, kf = 1 - Math.exp(-dt / FAST_S), ks = 1 - Math.exp(-dt / SLOW_S);
+      // Whether the hand is calm is decided here, and Tracker is told through the two
+      // limits it reads every sample. Tracker alone calls the hand calm when it barely
+      // turns and the accelerometer reads about 1 g. But slowing down sideways hardly
+      // changes that reading (1 g and 0.2 g at right angles make 1.02 g), so with rests
+      // as short as the pauses between letters, the end of every long move would pass
+      // for a rest, and the slowing down would be taken out as drift. So a sample is
+      // calm only if the hand's own acceleration in the world, gravity taken out, is
+      // small as well. That needs the tilt, and a tilt a degree or two off leaks enough
+      // gravity to look like a push, while the tilt is only put right at rests. But
+      // gravity leaks steadily, and a hand slowing down does not: so a push that has
+      // held steady for a while (a pause of half a second or so) counts as calm too,
+      // and at that rest the tilt is put right.
+      const dt = (m.t - this.lastT) / 1000, kf = 1 - Math.exp(-dt / o.pushSmooth), ks = 1 - Math.exp(-dt / SLOW_S);
+      const kc = o.calmSmooth > 0 ? 1 - Math.exp(-dt / o.calmSmooth) : 1;
       const a = qrot(tr.q, f);
       a[1] -= G;
       for (let i = 0; i < 3; i++) {
         this.push[i] += (a[i] - this.push[i]) * kf;
         this.held[i] += (a[i] - this.held[i]) * ks;
       }
-      const small = Math.hypot(...this.push) < this.options.stillWorld;
-      const steady = Math.hypot(this.push[0] - this.held[0], this.push[1] - this.held[1], this.push[2] - this.held[2]) < this.options.stillSteady;
-      tr.o.stillGyro = small || steady ? this.options.stillGyro : -1;
+      this.turning += (Math.hypot(s.gx - tr.bias[0], s.gy - tr.bias[1], s.gz - tr.bias[2]) - this.turning) * kc;
+      this.size += (Math.hypot(...f) - this.size) * kc;
+      const why = {
+        turning: this.turning, size: this.size - G, push: Math.hypot(...this.push),
+        steady: Math.hypot(this.push[0] - this.held[0], this.push[1] - this.held[1], this.push[2] - this.held[2]),
+      };
+      why.calm = why.turning < o.stillGyro && Math.abs(why.size) < o.stillAccel && (why.push < o.stillWorld || why.steady < o.stillSteady);
+      this.why = why;
+      tr.o.stillGyro = why.calm ? Infinity : -1;
+      tr.o.stillAccel = why.calm ? Infinity : -1;
     }
     this.lastT = m.t;
     tr.feed(s);
     if (tr.still) this.restAt = m.t;
-    if (this.pending.length) this.place();
+    // For the camera's fusion: this sample's acceleration in the world (gravity out), and whether at rest.
+    if (this.onSample && tr.ready && tr.length) this.onSample(m.t, tr.acc[tr.length - 1], tr.still);
+  }
+
+  /** What the tracker is waiting for, in words, for the page and the bench: { text, detail }. */
+  status() {
+    const quiet = this.restAt === null || this.lastT === null ? null : (this.lastT - this.restAt) / 1000;
+    const lost = this.lost ? `Lost track ${this.lost} time${this.lost > 1 ? 's' : ''}: samples went missing.` : '';
+    if (this.lastT === null) return { text: 'Waiting for the band', detail: '' };
+    if (!this.ready) {
+      return { text: 'Hold the band still', detail: this.starts ? 'It moved while starting up; it starts again once still.' : lost };
+    }
+    const noRest = quiet !== null && quiet > NO_REST_S ? `No rest for ${Math.floor(quiet)} s: is the hand still?` : '';
+    if (this.pending.length) return { text: 'Heard the knock: hold still', detail: noRest || lost };
+    if (this.want === 'left') return { text: 'Knock the board\'s left edge', detail: this.heard ? lost : `No taps heard yet. ${lost}`.trim() };
+    if (this.want === 'right') return { text: 'Now knock its far right edge', detail: lost };
+    if (this.want === 'anchor') return { text: 'Knock the left or right edge to re-anchor', detail: '' };
+    if (!this.frame) return { text: 'Set up the board', detail: lost };
+    return { text: 'Tracking', detail: noRest ? 'Pause for a moment now and then: while the hand never stops, the cursor drifts.' : lost };
   }
 
   /** The next two taps set up the board: first its left edge, then its far right edge. */
@@ -159,6 +214,7 @@ export class BoardTracker {
 
   /** A tap from the band, at its time `tMs`. Returns what it was taken as, or null if it was ignored. */
   tap(tMs) {
+    this.heard++;
     if (!this.want || !this.ready) return null;
     const use = this.want;
     this.pending.push({ t: tMs / 1000, use });
@@ -178,27 +234,27 @@ export class BoardTracker {
       const p = this.worldAt(t);
       if (use === 'left') {
         this.left = p;
-        this.news.push({ type: 'left' });
+        this.news.push({ type: 'left', t: t * 1000 });
       } else if (use === 'right') {
-        this.makeBoard(this.left, p);
+        this.makeBoard(this.left, p, t * 1000);
       } else {
         this.anchor(p);
       }
     }
   }
 
-  makeBoard(left, right) {
+  makeBoard(left, right, tMs = null) {
     // The board is upright, so only the level part of left-to-right says which way it runs.
     const dx = right[0] - left[0], dz = right[2] - left[2], width = Math.hypot(dx, dz);
     if (width < MIN_WIDTH) {
-      this.news.push({ type: 'too-close', width });
+      this.news.push({ type: 'too-close', width, t: tMs });
       this.want = 'left';                 // the two taps again
       return;
     }
     const ux = [dx / width, 0, dz / width];
     this.frame = { origin: left, ux, n: [-ux[2], 0, ux[0]], width };
     this.hidden = this.length;            // the trail starts here: the way between the two taps is not writing
-    this.news.push({ type: 'board', width, rise: right[1] - left[1] });
+    this.news.push({ type: 'board', width, rise: right[1] - left[1], t: tMs });
   }
 
   // Move the nearer edge to where the hand tapped, and the board's surface to it too.
