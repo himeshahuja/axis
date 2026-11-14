@@ -1,162 +1,112 @@
-"""Train the character reader and write it out for the page.
+"""Train the character reader on simulated wrist readings.
 
     python3 train/get_data.py
-    uv run --with torch --with numpy train/train.py
+    uv run --with torch --with numpy train/train.py [--labels 0123456789]
 
-Reads digits and capital letters (36 classes) from EMNIST "balanced", trains a
-small convolutional network, and writes:
+This is the starting point before any real recordings exist. Readings are
+simulated (airwrite/synth.py) from real pen strokes: UJI Pen Characters, 40
+writers to learn from and 20 others to test on. Once there are recordings
+from the wrist, train/real.py carries on from the network this leaves.
 
-    model/weights.bin   every weight, float32, in the order listed in model.json
-    model/model.json    the layers, the labels, and the accuracy reached
-    tests/vectors.json  a few test images with the scores the network gives them,
-                        so the JavaScript copy of the network can be checked
+Writes model/ (weights.bin, model.json, net.pt) and tests/vectors.json, which
+lets the JavaScript copies of the simulation, features and network be checked.
 """
 
-import gzip
+import argparse
 import json
 import pathlib
+import sys
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 ROOT = pathlib.Path(__file__).parent.parent
-DATA = ROOT / "train" / "data"
-LABELS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"  # the first 36 classes of the balanced split
-EPOCHS = 14
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "train"))
+from airwrite import synth  # noqa: E402
+from net import Net, confusion, export, vary  # noqa: E402
+
+BATCH = 256
 
 
-def load(part):
-    with gzip.open(DATA / f"emnist-balanced-{part}-images-idx3-ubyte.gz") as f:
-        images = np.frombuffer(f.read(), np.uint8, offset=16).reshape(-1, 28, 28)
-    with gzip.open(DATA / f"emnist-balanced-{part}-labels-idx1-ubyte.gz") as f:
-        labels = np.frombuffer(f.read(), np.uint8, offset=8)
-    keep = labels < len(LABELS)
-    # EMNIST stores each image on its side: swap rows and columns to stand it up.
-    return torch.from_numpy(images[keep].transpose(0, 2, 1).copy()), torch.from_numpy(labels[keep].astype(np.int64))
-
-
-class Net(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(1, 24, 3, padding=1)
-        self.conv2 = nn.Conv2d(24, 48, 3, padding=1)
-        self.conv3 = nn.Conv2d(48, 64, 3, padding=1)
-        self.fc1 = nn.Linear(64 * 3 * 3, 128)
-        self.fc2 = nn.Linear(128, len(LABELS))
-        self.drop = nn.Dropout(0.3)
-
-    def forward(self, x):
-        x = F.max_pool2d(F.relu(self.conv1(x)), 2)  # 28 -> 14
-        x = F.max_pool2d(F.relu(self.conv2(x)), 2)  # 14 -> 7
-        x = F.max_pool2d(F.relu(self.conv3(x)), 2)  # 7 -> 3
-        x = self.drop(F.relu(self.fc1(x.flatten(1))))
-        return self.fc2(x)
-
-
-def vary(x):
-    """Make each training image a little different every time it is seen, in
-    the ways a character drawn with a cursor differs from a scanned one: a
-    different pen width, size, slant and place in the frame."""
-    n = x.shape[0]
-    dev = x.device
-    # Thicker or thinner strokes.
-    pick = torch.rand(n, 1, 1, 1, device=dev)
-    thick = F.max_pool2d(x, 3, 1, 1)
-    thin = -F.max_pool2d(-x, 3, 1, 1)
-    x = torch.where(pick < 0.25, thick, torch.where(pick > 0.8, thin, x))
-    # Turn, resize, slant and shift.
-    angle = (torch.rand(n, device=dev) - 0.5) * 0.5
-    scale = 0.85 + torch.rand(n, device=dev) * 0.4
-    shear = (torch.rand(n, device=dev) - 0.5) * 0.5
-    cos, sin = torch.cos(angle) * scale, torch.sin(angle) * scale
-    theta = torch.zeros(n, 2, 3, device=dev)
-    theta[:, 0, 0] = cos
-    theta[:, 0, 1] = -sin + shear
-    theta[:, 1, 0] = sin
-    theta[:, 1, 1] = cos
-    theta[:, :, 2] = (torch.rand(n, 2, device=dev) - 0.5) * 0.2
-    grid = F.affine_grid(theta, x.shape, align_corners=False)
-    return F.grid_sample(x, grid, align_corners=False)
+def simulate(chars, copies, seed):
+    rng = np.random.default_rng(seed)
+    x = np.stack([synth.features(synth.reading(strokes, rng)) for _, _, strokes, _ in chars for _ in range(copies)])
+    y = np.repeat([c[0] for c in chars], copies)
+    return torch.from_numpy(x), torch.from_numpy(y.astype(np.int64))
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--labels", default="0123456789", help="the characters to read")
+    ap.add_argument("--epochs", type=int, default=30)
+    ap.add_argument("--readings", type=int, default=120_000, help="simulated readings to learn from")
+    ap.add_argument("--onnx", action="store_true", help="also write model/model.onnx (needs the onnx package)")
+    args = ap.parse_args()
+    labels = args.labels
+
     torch.manual_seed(0)
     dev = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-    train_x, train_y = load("train")
-    test_x, test_y = load("test")
-    print(f"{len(train_x)} training images, {len(test_x)} test images, on {dev}")
-    train_x = (train_x.float() / 255).unsqueeze(1).to(dev)
-    train_y = train_y.to(dev)
-    test_xf = (test_x.float() / 255).unsqueeze(1).to(dev)
+    chars = synth.load_uji(ROOT / "train" / "data" / "ujipenchars2.txt", labels)
+    learn, held = [c for c in chars if not c[3]], [c for c in chars if c[3]]
+    train_x, train_y = simulate(learn, max(1, args.readings // len(learn)), 1)
+    test_x, test_y = simulate(held, 8, 2)
+    print(f"{len(learn)} written characters from {len({c[1] for c in learn})} writers -> {len(train_x)} simulated readings to learn from")
+    print(f"{len(held)} from {len({c[1] for c in held})} other writers -> {len(test_x)} to test on, on {dev}", flush=True)
+    train_x, train_y = train_x.to(dev), train_y.to(dev)
 
-    net = Net().to(dev)
-    steps = EPOCHS * (len(train_x) // 256 + 1)
-    opt = torch.optim.AdamW(net.parameters(), lr=2e-3, weight_decay=1e-4)
-    sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=4e-3, total_steps=steps)
-
-    def score():
-        net.eval()
-        with torch.no_grad():
-            out = torch.cat([net(test_xf[i : i + 2000]) for i in range(0, len(test_xf), 2000)]).cpu()
-        net.train()
-        return out
-
-    for epoch in range(EPOCHS):
+    net = Net(len(labels)).to(dev)
+    per_epoch = len(train_x) // BATCH
+    opt = torch.optim.AdamW(net.parameters(), lr=2e-3, weight_decay=1e-3)
+    sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=4e-3, total_steps=args.epochs * per_epoch)
+    for epoch in range(args.epochs):
         order = torch.randperm(len(train_x), device=dev)
         total = 0.0
-        for i in range(0, len(order), 256):
-            idx = order[i : i + 256]
+        for i in range(per_epoch):
+            idx = order[i * BATCH : (i + 1) * BATCH]
             loss = F.cross_entropy(net(vary(train_x[idx])), train_y[idx], label_smoothing=0.05)
             opt.zero_grad()
             loss.backward()
             opt.step()
             sched.step()
-            total += loss.item() * len(idx)
-        acc = (score().argmax(1) == test_y).float().mean().item()
-        print(f"epoch {epoch + 1:2d}  loss {total / len(order):.3f}  test accuracy {acc:.4f}")
+            total += loss.item()
+        if epoch % 5 == 4 or epoch == args.epochs - 1:
+            net.eval()
+            with torch.no_grad():
+                acc = (net(test_x.to(dev)).argmax(1).cpu() == test_y).float().mean().item()
+            net.train()
+            print(f"epoch {epoch + 1:2d}  loss {total / per_epoch:.3f}  test accuracy {acc:.4f}", flush=True)
 
-    out = score()
+    run = export(net, labels, {}, onnx=args.onnx)  # written once to get the float16 copy to score
+    out = run(test_x)
     guess = out.argmax(1)
     acc = (guess == test_y).float().mean().item()
-    # The pairs it mixes up most.
-    pairs = {}
-    for t, g in zip(test_y.tolist(), guess.tolist()):
-        if t != g:
-            key = "/".join(sorted((LABELS[t], LABELS[g])))
-            pairs[key] = pairs.get(key, 0) + 1
-    worst = sorted(pairs.items(), key=lambda kv: -kv[1])[:8]
-    print("accuracy", round(acc, 4), "most confused:", worst)
-
-    net.cpu().eval()
-    names = ["conv1", "conv2", "conv3", "fc1", "fc2"]
-    layers, blobs = [], []
-    for name in names:
-        layer = getattr(net, name)
-        for kind in ("weight", "bias"):
-            w = getattr(layer, kind).detach().numpy().astype("<f4")
-            layers.append({"name": f"{name}.{kind}", "shape": list(w.shape)})
-            blobs.append(w.tobytes())
-    (ROOT / "model").mkdir(exist_ok=True)
-    (ROOT / "model" / "weights.bin").write_bytes(b"".join(blobs))
-    (ROOT / "model" / "model.json").write_text(json.dumps({
-        "labels": LABELS,
-        "input": [28, 28],
-        "layers": layers,
+    top3 = (out.topk(3, 1).indices == test_y[:, None]).any(1).float().mean().item()
+    print(f"accuracy {acc:.4f}, in the top three {top3:.4f} (simulated readings, writers not learned from)")
+    print(confusion(labels, test_y.tolist(), guess.tolist()))
+    export(net, labels, {
+        "trained_on": "simulated wrist readings of UJI Pen Characters v2 (40 writers); no real recordings yet",
         "accuracy": round(acc, 4),
-        "tested_on": len(test_y),
-        "most_confused": [{"pair": k, "count": v} for k, v in worst],
-    }, indent=2) + "\n")
+        "accuracy_top3": round(top3, 4),
+        "tested_on": f"{len(test_y)} simulated readings of characters by 20 other writers",
+    }, onnx=args.onnx)
 
-    with torch.no_grad():
-        pick = list(range(0, len(test_x), len(test_x) // 12))[:12]
-        scores = net((test_x[pick].float() / 255).unsqueeze(1))
-    (ROOT / "tests" / "vectors.json").write_text(json.dumps([
-        {"label": LABELS[test_y[i]], "pixels": test_x[i].flatten().tolist(), "scores": [round(v, 4) for v in s.tolist()]}
-        for i, s in zip(pick, scores)
-    ]) + "\n")
-    print("wrote model/weights.bin, model/model.json, tests/vectors.json")
+    # Checks for the JavaScript copies: the simulation, the features, the network.
+    rng = np.random.default_rng(3)
+    vectors = {"readings": []}
+    path = synth.write(held[40][2], rng)
+    pose, arm, twist = (0.3, -0.2, 0.25), 0.55, 0.2
+    vectors["wrist"] = {"path": np.round(path, 6).tolist(), "pose": pose, "arm": arm, "twist": twist, "imu": np.round(synth.wrist(path, pose, arm, twist), 5).tolist()}
+    for k in range(0, len(held), len(held) // 8):
+        imu = np.round(synth.reading(held[k][2], rng), 4)
+        feat = synth.features(imu)
+        s = run(torch.from_numpy(feat)[None])[0]
+        vectors["readings"].append({"label": labels[held[k][0]], "imu": imu.tolist(), "features": np.round(feat, 5).tolist(), "scores": [round(v, 4) for v in s.tolist()]})
+    # A few characters as plain strokes, for drawing in tests.
+    vectors["strokes"] = [{"label": labels[held[k][0]], "strokes": [np.round(s - np.concatenate(held[k][2]).min(0), 0).tolist() for s in held[k][2]]} for k in range(7, len(held), len(held) // 24)]
+    (ROOT / "tests" / "vectors.json").write_text(json.dumps(vectors) + "\n")
+    print("wrote model/ and tests/vectors.json")
 
 
 if __name__ == "__main__":

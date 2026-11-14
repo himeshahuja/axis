@@ -2,3 +2,5 @@
 train/data/
 __pycache__/
 .venv/
+recordings/
+model/model.onnx

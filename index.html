@@ -16,7 +16,7 @@
     <div>
       <h1>Air Draw</h1>
       <p class="sub" data-for="sensor">Accelerometer and gyroscope readings, turned back into what the hand drew. The data is simulated for now.</p>
-      <p class="sub" data-for="write">Draw a character and pause. A small neural network reads it: digits and capital letters.</p>
+      <p class="sub" data-for="write">Draw a digit and pause. The network never sees the drawing, only what a sensor on your wrist would have felt.</p>
     </div>
     <div class="pills" id="modes" role="group" aria-label="Mode">
       <button type="button" data-mode="sensor">Sensor</button>
@@ -63,9 +63,13 @@
         <p class="label" id="guess-title">Reads as</p>
         <ol class="guesses" id="guesses"></ol>
       </div>
-      <div class="card seen">
-        <p class="label">What the network sees, 28 × 28</p>
-        <canvas id="seen" width="28" height="28" role="img" aria-label="The drawing as the 28 by 28 picture given to the network"></canvas>
+      <div class="chart">
+        <p class="label">Accelerometer, m/s² <span class="keys"><i class="x">x</i><i class="y">y</i><i class="z">z</i></span></p>
+        <canvas id="w-accel" role="img" aria-label="Simulated accelerometer readings for the character just drawn"></canvas>
+      </div>
+      <div class="chart">
+        <p class="label">Gyroscope, rad/s <span class="keys"><i class="x">x</i><i class="y">y</i><i class="z">z</i></span></p>
+        <canvas id="w-gyro" role="img" aria-label="Simulated gyroscope readings for the character just drawn"></canvas>
       </div>
     </aside>
   </main>

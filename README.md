@@ -1,57 +1,114 @@
 # Air Draw
 
-Draw in the air with a motion sensor. Accelerometer and gyroscope readings go in; the path the hand took comes out.
+Write a character in the air with a sensor on your wrist; a Raspberry Pi reads which character it was, buzzes the wrist to confirm, and can send the message to Claude and buzz the reply back in Morse code.
 
-The sensor data is simulated for now: `js/fake.js` moves a hand along a shape and works out what the two sensors would have read, with noise and bias, and keeps the true path to compare against.
+The wrist unit has an accelerometer and gyroscope (MPU6050), one button and one vibration motor. The reader is a small neural network that takes the six sensor channels and gives the character. It does not try to rebuild the pen's path.
 
-## Run it
+**Where this stands.** Everything below runs today against a *pretend* wrist that produces simulated readings. Nothing has been run on the hardware yet, and the network has only ever seen simulated data. Expect to collect real recordings and retrain before it reads real writing.
 
-Any static server from this folder, for example:
+## Using it
 
-    python3 -m http.server 8000
+    click            start; hold still for a second first
+    (write one digit in the air)
+    click            stop: one buzz = taken, two buzzes = not sure, write it again
+    double click     send the message; a long buzz, then the reply in Morse
+    long press       clear the message (three quick buzzes)
 
-then open http://localhost:8000. Drag the drawing to turn it.
+## Wiring
 
-The page has two modes:
+| Part | Connect |
+| --- | --- |
+| MPU6050 | VCC → 3.3 V, GND → GND, SDA → SDA, SCL → SCL (ESP32: pins 21 and 22; Uno/Nano: A4 and A5) |
+| Button | one leg → pin 4, the other → GND (the internal pull-up is used) |
+| Motor | pin 5 → 1 kΩ → base of an NPN transistor (2N2222); emitter → GND; collector → motor −; motor + → 3.3 V; a diode (1N4148) across the motor, stripe toward 3.3 V |
 
-- **Sensor** plays the simulated readings and draws the path recovered from them.
-- **Write** is a pad: draw a character with the cursor or a finger, pause, and a small neural network reads it into text. It knows digits and capital letters.
+Do not drive the motor straight from a pin. Pins are set at the top of `firmware/wrist/wrist.ino`.
 
-## How the sensor path is recovered
+Mount the sensor the same way round on the same wrist every time.
 
+## Steps
 
-`js/fusion.js` holds a `Tracker`. Feed it samples and read back positions:
+**1. Flash the wrist unit.** Open `firmware/wrist/wrist.ino` in the Arduino IDE, pick the board, upload. It needs no libraries. In the serial monitor at 115200 baud you should see `I ...` lines streaming and `B ...` lines when you press the button.
 
-    { t, ax, ay, az, gx, gy, gz, pen }
+**2. Set up the Pi** (or a laptop):
 
-`t` in seconds, acceleration in m/s² with gravity included, turn rate in rad/s, both in the sensor's own axes. `pen` is optional: 0 while the pen is lifted.
+    pip install numpy pyserial anthropic
+    export ANTHROPIC_API_KEY=...
 
-1. **Start-up.** Held still, the accelerometer reads only gravity, which gives the tilt; whatever the gyroscope reads is its bias.
-2. **Orientation.** The gyroscope turns the estimate. At rest the accelerometer pulls the tilt back toward gravity.
-3. **Position.** Acceleration is turned into world axes, gravity is taken out, and what is left is summed twice.
-4. **Stops.** Summing twice drifts fast. Each time the sensor comes to rest its true velocity is zero, so the velocity the sums had reached is drift; it is taken back out of the movement just made, along with the tilt the gyroscope lost on the way.
+**3. Try it with no hardware:**
 
-So a drawing has to be made of movements with a short rest (about a third of a second) between them. A long movement with no rest drifts, and so does heading over many strokes: nothing here measures which way is north.
+    python3 train/get_data.py                      # pen strokes the pretend wrist writes from (2 MB)
+    python3 -m airwrite.run --fake 31415 --no-llm
 
-## How a character is read
+**4. Collect recordings.** Each person, 30 of each digit:
 
-1. **Picture.** `js/raster.js` scales the strokes to fit a 20 × 20 box in the middle of a 28 × 28 picture and draws them with a soft pen. Stroke order and direction are thrown away on purpose: they vary between people, and will be rough from a sensor.
-2. **Network.** `js/net.js` runs a small convolutional network (three 3 × 3 convolutions, two dense layers, about 117,000 weights, 470 KB) in plain JavaScript. It scores all 36 characters.
-3. **Text.** After three quarters of a second without drawing, the best guess joins the text. The other guesses stay on show; picking one corrects it.
+    python3 -m airwrite.log --person ana --port /dev/ttyUSB0
 
-The network is trained by `train/train.py` on EMNIST "balanced" (86,400 handwritten digits and capitals), with each image thickened, thinned, turned, resized and slanted at random so cursor drawings look familiar. It reads **91.5%** of 14,400 held-out test images. Most of what it misses nobody could tell apart alone: 1/L/I and 0/O are two thirds of the errors. EMNIST also files some lower-case letters under their capitals (l with L, for one), which is where 1/L comes from.
+It asks for digits in a shuffled order. Click, write, click; a long press throws away the last one. Files go to `recordings/<person>/<digit>/`. Aim for at least four people.
 
-To train it again:
+**5. Train and test** (on a laptop; needs [uv](https://docs.astral.sh/uv/) or PyTorch installed):
 
-    python3 train/get_data.py
-    uv run --with torch --with numpy train/train.py
+    uv run --with torch --with numpy train/real.py --adapt 10
 
-## Checked
+This holds each person out in turn, learns from the others and tests on them, and prints the accuracy per person and a table of what was read as what. Then it trains on everyone and writes `model/`. `--adapt 10` also shows what a new person gains by giving 10 recordings of each digit first.
 
-`node tests/check.mjs` draws every shape with five different noise seeds and compares the recovered path with the true one. Drawings are 20 to 40 cm across; the recovered path stays within about 3 cm on average.
+**6. Run it:**
 
-`node tests/read.mjs` checks that the JavaScript network gives the same scores as the trained one on saved test images, and that 15 characters drawn as plain strokes are read correctly.
+    python3 -m airwrite.run --port /dev/ttyUSB0
 
-## Using a real sensor
+Copy the `model/` folder to the Pi if you trained elsewhere. The Pi runs the network with numpy alone: no PyTorch and no ONNX runtime to install. (`--onnx` on either training script also writes `model/model.onnx` if you want it.)
 
-Replace the fake samples in `js/app.js` with real ones in the same format and call `tracker.feed(sample)` as they arrive. The thresholds for "at rest" at the top of `js/fusion.js` were set for the simulated noise and will need tuning.
+## If time runs short
+
+- No real recordings yet: the network in `model/` was trained on simulated readings and is there to start from. It may or may not read real writing; try it, but plan on step 4.
+- Accuracy is poor with all ten digits: record fewer (`--labels 01234`) and retrain. The label set comes from the recordings.
+- No internet: `--no-llm` buzzes the message itself back. The same happens automatically if Claude cannot be reached.
+
+## What is in here
+
+| | |
+| --- | --- |
+| `firmware/wrist/wrist.ino` | The wrist unit: streams readings and button presses, plays motor patterns |
+| `airwrite/link.py` | The line to the wrist (serial), the pretend wrist, and click / double click / long press |
+| `airwrite/log.py` | Collects labelled recordings |
+| `airwrite/features.py` | Readings → what the network takes |
+| `airwrite/model.py` | Runs the network with numpy |
+| `airwrite/run.py` | The live demo |
+| `airwrite/llm.py`, `morse.py` | The call to Claude, and text as Morse buzzes |
+| `airwrite/synth.py` | Simulated wrist readings from real pen strokes |
+| `train/train.py` | Trains on simulated readings (what `model/` holds now) |
+| `train/real.py` | Trains and tests on real recordings |
+| `index.html`, `js/` | A web page: draw with the cursor and watch the same network read it from simulated readings; also the original path-recovery view |
+
+### The line to the wrist
+
+Text lines at 115200 baud:
+
+    wrist → Pi   I <ms> <ax> <ay> <az> <gx> <gy> <gz>    100 a second, m/s² and rad/s
+                 B <ms> <1|0>                             button down (1) or up (0)
+    Pi → wrist   V <on ms> <off ms> <on ms> ...           run the motor in this pattern
+
+On an ESP32 the same lines can go over Bluetooth serial instead of USB (see the note at the top of the firmware).
+
+### How a character is read
+
+1. The second of stillness before the start click gives the gyroscope's bias, which is subtracted.
+2. The jolt of each click and the stillness at both ends are cut off.
+3. Gravity says which way is up, so the readings are turned to make up the same axis every time, however the sensor sits. Gravity is then removed from the accelerometer.
+4. The six channels are resampled to 96 steps and given to a 1D convolutional network (about 89,000 weights, 180 KB).
+5. Below 50% sure, the character is not taken.
+
+On send, Claude (`claude-haiku-5-5`) gets the top three readings of each character with their probabilities, works out the intended message and answers in at most five words.
+
+## What has been checked
+
+All of this is with simulated data.
+
+- The network trained on simulated readings reads 98% of simulated digits by 20 writers it did not learn from. Its misses are mostly 0, 7 and 9 read as 8.
+- The full loop with the pretend wrist: clicks, recording, reading, confidence gate, send, Morse pattern.
+- `train/real.py` end to end on 240 pretend recordings from four pretend people.
+- `node tests/read.mjs`: the web page's copies of the simulation, features and network agree with the Python ones.
+
+Not checked: the firmware (never compiled or run), the serial link, the motor, and the call to Claude (no API key was used).
+
+The simulated readings come from [UJI Pen Characters v2](https://archive.ics.uci.edu/dataset/177/uji+pen+characters+version+2), real pen strokes from 60 writers, passed through a model of a forearm swinging about the elbow. A real wrist will differ, which is why step 4 matters.

@@ -315,20 +315,13 @@ body[data-mode='write'] [data-for='sensor'] {
 
 .guesses li:not(:first-child) .bar-fill { background: var(--muted); }
 
+/* The guess that went into the text. */
+.guesses button[aria-current='true'] { background: var(--raised); }
+.guesses button[aria-current='true'] .bar-fill { background: var(--path); }
+
 .guesses .none {
   padding: 10px 12px;
   color: var(--muted);
-}
-
-.seen canvas {
-  display: block;
-  width: 100%;
-  max-width: 224px;
-  aspect-ratio: 1;
-  margin-top: 10px;
-  border-radius: 6px;
-  background: #000;
-  image-rendering: pixelated;
 }
 
 @media (prefers-reduced-motion: reduce) {
