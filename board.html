@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'">
+<title>Air Draw board</title>
+<meta name="description" content="Where the band hand is on a whiteboard, set up with two taps, with Take and Put gestures.">
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="vexo-open-kit/projects/shared/style.css">
+<link rel="stylesheet" href="css/board.css">
+<script src="js/board/boot.js" defer></script>
+</head>
+<body>
+<h1>Board</h1>
+<p class="soft">Wear the band on your writing hand. Tap the whiteboard's left edge, then its far right edge: from then on
+the page shows where your hand is on the board. Teach it Take and Put, and you can lift writing off the board and drop
+it on this screen.</p>
+
+<div class="card row">
+  <label>Band number <input id="number" inputmode="numeric" maxlength="13" placeholder="XX"></label>
+  <select id="link" aria-label="How to connect">
+    <option value="ble">Bluetooth</option>
+    <option value="serial">USB cable</option>
+    <option value="pretend">Pretend band (no hardware)</option>
+  </select>
+  <button id="connect">Connect</button>
+  <button id="disconnect" disabled>Disconnect</button>
+</div>
+<p id="needs-server"><b>Connect does nothing?</b> This page was opened as a file (by double-click), so the browser
+blocks its program. In a terminal, in this repository's folder, run
+<code>python3 -m http.server 8000 --bind 127.0.0.1</code>, then open <code>http://localhost:8000/board.html</code>
+in Chrome or Edge.</p>
+<p id="no-kit" hidden><b>The page's program did not start.</b> The Vexo kit is probably missing: it comes as a git
+submodule. In this repository's folder run <code>git submodule update --init</code>, then reload.</p>
+<p id="message" role="status">Double-tap your band, check its number and press Connect. No band? Choose "Pretend band".</p>
+<div class="card row pretend-only" hidden>
+  <span><span id="light"></span> The pretend band's light is <span id="light-text">off</span>.</span>
+  <button id="demo" disabled>Play a pretend session</button>
+  <button id="pretend-drop" disabled>Lose the link</button>
+</div>
+
+<main class="layout">
+  <section class="card board-card" aria-label="The board">
+    <div class="row">
+      <p id="step" class="step">Not connected</p>
+      <span class="grow"></span>
+      <button id="set-up" disabled>Set up board</button>
+      <button id="reanchor" disabled title="Then tap the left or right edge (or double-tap the band)">Re-anchor</button>
+      <button id="clear" disabled>Clear trail</button>
+    </div>
+    <canvas id="board" role="img" aria-label="The whiteboard, with the trail of your hand and where it is now"></canvas>
+    <p id="hint" class="soft"></p>
+    <dl class="stats">
+      <div><dt>Across</dt><dd id="at-x">–</dd></div>
+      <div><dt>Up</dt><dd id="at-y">–</dd></div>
+      <div><dt>Off the board</dt><dd id="at-d">–</dd></div>
+      <div><dt>Board width</dt><dd id="width">–</dd></div>
+    </dl>
+  </section>
+
+  <aside class="side">
+    <section class="card" aria-labelledby="gestures-title">
+      <h2 id="gestures-title">Gestures</h2>
+      <table id="gestures">
+        <tr><th>Gesture</th><th>Examples</th><th></th></tr>
+        <tr data-label="take"><td><span class="swatch take"></span>Take</td><td class="count">0</td><td><button class="record" disabled>Record</button></td></tr>
+        <tr data-label="put"><td><span class="swatch put"></span>Put</td><td class="count">0</td><td><button class="record" disabled>Record</button></td></tr>
+        <tr data-label="none"><td><span class="swatch none"></span>Not a gesture</td><td class="count">0</td><td><button class="record" disabled>Record</button></td></tr>
+      </table>
+      <p class="soft">Record each three to five times: hold still, make the gesture, hold still again. For "Not a
+      gesture", write a few ordinary letters, so writing is never taken for Take or Put. Take lifts the writing around
+      your hand; Put drops it below.</p>
+      <div class="row">
+        <button id="save-band" disabled>Keep on band</button>
+        <button id="load-band" disabled>Load from band</button>
+        <button id="forget" disabled>Forget</button>
+        <button id="demo-examples" class="pretend-only" hidden disabled>Use pretend examples</button>
+      </div>
+      <p id="gesture-status" class="soft"></p>
+    </section>
+
+    <section class="card" aria-labelledby="output-title">
+      <h2 id="output-title">Put on the screen</h2>
+      <div id="output"><p class="soft">Nothing yet. Take some writing off the board, then Put it.</p></div>
+    </section>
+
+    <section class="card" aria-labelledby="measure-title">
+      <h2 id="measure-title">Measure</h2>
+      <p class="soft">How far off is the cursor on a real board? Put a few dots on it and measure each from the spot
+      where you tapped the left edge: x along the board, y up, in cm. Turn on "Measure taps" and tap the dots in order.</p>
+      <div class="fields">
+        <label>Board width by tape, cm <input id="tape" inputmode="decimal" size="6"></label>
+        <label>Dots, one "x, y" a line, cm <textarea id="dots" rows="3" spellcheck="false"></textarea></label>
+        <label class="check"><input type="checkbox" id="measure"> Measure taps</label>
+      </div>
+      <table id="marks"></table>
+      <div class="row">
+        <button id="record-session" disabled>Record session</button>
+        <span id="record-note" class="soft"></span>
+      </div>
+    </section>
+  </aside>
+</main>
+<script type="module" src="js/board/page.js"></script>
+</body>
+</html>

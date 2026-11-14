@@ -1,0 +1,45 @@
+/* The board page. The kit's shared style sheet (vexo-open-kit/projects/shared/style.css)
+   gives the colours, cards and buttons; this adds the layout and the board itself. */
+:root { --board: #fbfbf7; --board-edge: #c4cad4; --ink-pen: #1d2433; --held: #f5a524; --put: #2f6fed; --none: #8a94a6; }
+@media (prefers-color-scheme: dark) {
+  :root { --board: #eceee8; --board-edge: #9aa3b2; }
+}
+
+body { max-width: 1240px; }
+h2 { margin: 0 0 8px; font-size: 1.05rem; }
+.grow { flex: 1; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 12px; align-items: start; }
+@media (max-width: 920px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.layout > .card, .side > .card { margin: 0; }
+.side { display: grid; gap: 12px; }
+
+.step { margin: 0; font-weight: 700; font-size: 1.15rem; }
+#board { margin-top: 10px; background: transparent; touch-action: none; }
+#hint { min-height: 1.4em; }
+
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 4px 0 0; }
+@media (max-width: 560px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stats div { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.stats dt { color: var(--soft); font-size: 0.8rem; }
+.stats dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+#gestures { width: 100%; }
+#gestures .count { font-variant-numeric: tabular-nums; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: 0; }
+.swatch.take { background: var(--held); }
+.swatch.put { background: var(--put); }
+.swatch.none { background: var(--none); }
+.record.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+#output { display: grid; gap: 10px; }
+#output figure { margin: 0; }
+#output canvas { background: var(--board); border: 1px solid var(--line); }
+#output figcaption { display: flex; gap: 8px; align-items: center; justify-content: space-between; color: var(--soft); font-size: 0.85rem; margin-top: 4px; }
+
+.fields { display: grid; gap: 8px; margin: 8px 0; }
+.fields label { display: grid; gap: 4px; font-size: 0.9rem; }
+.fields label.check { display: flex; align-items: center; gap: 8px; }
+.fields textarea { font: 0.9rem/1.4 ui-monospace, monospace; resize: vertical; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: inherit; }
+#marks { width: 100%; font-variant-numeric: tabular-nums; font-size: 0.9rem; margin-bottom: 8px; }
+#marks:empty { display: none; }

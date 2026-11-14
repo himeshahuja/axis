@@ -75,6 +75,67 @@ input. The trainer saves recordings under `airwrite-trainer/data/<person>/`
 sample. See [`airwrite-trainer/README.md`](airwrite-trainer/README.md) for the
 workflow and options.
 
+## Board tracking with the Vexo band
+
+`board.html` shows where the band hand is on a whiteboard. Tap the board's left edge, then its far right
+edge, and from then on the page draws a cursor and the trail of your hand on the board. Across, 0 is the
+left edge and 1 the right; height uses the same scale and has no limit. Teach it two gestures: **Take**
+lifts the writing around your hand, and **Put** drops it on the screen.
+
+    git submodule update --init                 # the Vexo kit, once after cloning
+    python3 -m http.server 8000 --bind 127.0.0.1
+
+Open <http://localhost:8000/board.html> in Chrome or Edge, double-tap the band, check the band number
+(68, set in `js/board/config.js`) and press Connect. No band? Choose "Pretend band" and press "Play a
+pretend session".
+
+1. After connecting, hold the band still for a second. That is when it learns which way is up and its
+   gyroscope's bias, and it waits until you are still.
+2. Press **Set up board**. Knock the board's left edge with your band hand and hold still, then knock
+   its far right edge and hold still.
+3. Write, and pause for a moment now and then (between words). Each pause lets the tracker take the
+   drift out. The page reminds you after 4 seconds without one.
+4. Drifted? Press **Re-anchor** (or double-tap the band) and knock the left or right edge.
+5. Record Take, Put and "Not a gesture" (a few ordinary letters) three to five times each.
+   **Keep on band** stores them in the band's storage (slots 900 to 929), and they load whenever the
+   band connects. Anyone who connects to the band can read or wipe them.
+
+**How it works.** Position comes from adding up the band's motion with `Tracker` (`js/fusion.js`). It
+sets the speed to zero at every pause and takes each movement's drift out once the hand rests.
+`js/board/tracker.js` adds the following, without changing `js/fusion.js`:
+- the board frame from the two taps: across from the taps, up from gravity; motion toward or away from
+  the board is ignored
+- rest detection timed for the short pauses of writing
+- a check that a "rest" is not just the hand slowing down at the end of a long move
+
+Gestures use the kit's gesture-trainer recogniser, copied unchanged into `js/board/recogniser.js`.
+
+**How accurate.** These numbers come from simulated sessions at 208 samples a second
+(`node tests/board.mjs`). Nothing has been measured on a real board yet.
+
+| Simulated session | Board width | Hand position (median / 95%) | Shape of each word |
+| --- | --- | --- | --- |
+| 1.2 m board, short pauses between letters | 0.1 cm off | 3.4 / 6.6 cm | 0.7 cm |
+| 2.4 m board, side-stepping along it | 4.4 cm off | 1.8 / 8.1 cm | 0.8 cm |
+| Written without a single pause | 0.1 cm off | 24 / 58 cm | 25 cm |
+
+Motion sensors alone drift while the hand keeps moving, so the pauses are what keep it accurate. A
+tracker that started with its gyroscope's bias badly off recovers at pauses of about a second, but not
+without them. 208 samples a second beat 416: the extra noise in each sample breaks up the short rests.
+
+To measure a real board, put a few dots on it and enter their positions under **Measure**. Turn on
+"Measure taps", tap each dot, and use **Record session**. `node tests/board.mjs --replay <file>` plays a
+recording back through the tracker.
+
+**Not done yet:**
+- Telling a marker on the board from a lifted one: every movement draws.
+- Turning the writing into text. Each Put fires a `board:put` event carrying the strokes, ready for that.
+- Recognising gestures on the band itself. The kit's firmware only detects its own seven built-in
+  gestures, so the examples are kept on the band but matched on the computer.
+
+Files: `board.html`, `css/board.css`, `js/board/` (tracker, gestures, the kit's recogniser, the
+simulator, the page, and the band number in `config.js`), `tests/board.mjs`.
+
 ## If time runs short
 
 - No real recordings yet: the network in `model/` was trained on simulated readings and is there to start from. It may or may not read real writing; try it, but plan on step 4.
