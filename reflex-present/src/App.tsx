@@ -18,7 +18,10 @@ interface LogEntry {
 function App() {
   // The command prototype remains available at /command-demo; the default is
   // the presenter surface used for the hackathon demo.
-  if (window.location.pathname !== '/command-demo') return <PresentationBoard />
+  return window.location.pathname === '/command-demo' ? <CommandDemo /> : <PresentationBoard />
+}
+
+function CommandDemo() {
   const [slide, setSlide] = useState<Slide>(sampleSlide)
   const [highlighted, setHighlighted] = useState<string[]>([])
   const [log, setLog] = useState<LogEntry[]>([])

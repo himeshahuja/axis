@@ -83,6 +83,9 @@ function DesmosGraph({ a }: { a: Of<'graph'> }) {
 // ---- charts -----------------------------------------------------------------------------------
 function AgentChart({ a }: { a: Of<'chart'> }) {
   const data = a.points.map((p) => ({ name: p.label, value: p.value }))
+  // No draw-in animation: hosts like the pitch re-render every frame, which restarts it forever
+  // (the line stayed at length 0). The figure appears at once instead.
+  const still = { isAnimationActive: false }
   const fmt = (v: unknown) => {
     const n = typeof v === 'number' ? v.toLocaleString('en-US', { maximumFractionDigits: 2 }) : String(v)
     return a.unit === '$' ? `$${n}` : a.unit === '%' ? `${n}%` : a.unit ? `${n} ${a.unit}` : n
@@ -91,7 +94,8 @@ function AgentChart({ a }: { a: Of<'chart'> }) {
   const tip = <Tooltip formatter={(v) => fmt(v)} contentStyle={{ background: '#1c1d1f', border: '1px solid #ffffff22', borderRadius: 8, color: '#eee' }} />
   const grid = <CartesianGrid stroke="#ffffff12" vertical={false} />
   const x = <XAxis dataKey="name" {...axis} />
-  const y = <YAxis {...axis} width={44} tickFormatter={(v) => fmt(v)} />
+  // Wide enough for a value and its unit on one line ("210 $k").
+  const y = <YAxis {...axis} width={a.unit && a.unit.length > 1 ? 58 : 44} tickFormatter={(v) => fmt(v)} />
   return (
     <figure className="ag-figure">
       {a.title && <figcaption className="ag-title">{a.title}</figcaption>}
@@ -99,7 +103,7 @@ function AgentChart({ a }: { a: Of<'chart'> }) {
         <ResponsiveContainer width="100%" height="100%">
           {a.kind === 'pie' ? (
             <PieChart>
-              <Pie data={data} dataKey="value" nameKey="name" outerRadius="75%" label={({ name }) => String(name)} stroke="none">
+              <Pie data={data} dataKey="value" nameKey="name" outerRadius="75%" label={({ name }) => String(name)} stroke="none" {...still}>
                 {data.map((_, i) => (
                   <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
                 ))}
@@ -112,7 +116,7 @@ function AgentChart({ a }: { a: Of<'chart'> }) {
               {x}
               {y}
               {tip}
-              <Line dataKey="value" stroke={PALETTE[0]} strokeWidth={2.5} dot={{ r: 3 }} />
+              <Line dataKey="value" stroke={PALETTE[0]} strokeWidth={2.5} dot={{ r: 3 }} {...still} />
             </LineChart>
           ) : a.kind === 'area' ? (
             <AreaChart data={data}>
@@ -120,7 +124,7 @@ function AgentChart({ a }: { a: Of<'chart'> }) {
               {x}
               {y}
               {tip}
-              <Area dataKey="value" stroke={PALETTE[0]} fill={PALETTE[0]} fillOpacity={0.25} strokeWidth={2} />
+              <Area dataKey="value" stroke={PALETTE[0]} fill={PALETTE[0]} fillOpacity={0.25} strokeWidth={2} {...still} />
             </AreaChart>
           ) : (
             <BarChart data={data}>
@@ -128,7 +132,7 @@ function AgentChart({ a }: { a: Of<'chart'> }) {
               {x}
               {y}
               {tip}
-              <Bar dataKey="value" fill={PALETTE[0]} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="value" fill={PALETTE[0]} radius={[4, 4, 0, 0]} {...still} />
             </BarChart>
           )}
         </ResponsiveContainer>

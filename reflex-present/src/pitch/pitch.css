@@ -2080,6 +2080,17 @@
   color: var(--hot);
   background: transparent;
 }
+/* only the newest answer shows (earlier ones stay in the thread), so a card with a chart
+   still ends above the bottom chrome */
+.pitch-stage .ap-explain .ap-qa:has(+ .ap-qa) {
+  display: none;
+}
+.pitch-stage .ap-explain .ap-q {
+  color: var(--hot);
+}
+.pitch-stage .ap-explain .ap-muted {
+  color: var(--mute);
+}
 
 /* annotation arrows: above the cards, under the panels and the cursor */
 .pitch-arrows {
