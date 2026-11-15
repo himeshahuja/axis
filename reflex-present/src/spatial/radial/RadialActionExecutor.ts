@@ -66,11 +66,15 @@ export class RadialActionExecutor {
     this.last = record
 
     if (ev.action === 'explain') {
+      // One overlay at a time: Explain replaces an open Voice capture.
+      this.voice = null
       this.explainCards.set(obj.id, { objectId: obj.id, status: 'loading' })
+      // A card closed while loading (by Voice, or by hand) stays closed.
+      const stillOpen = () => this.explainCards.has(obj.id)
       this.provider
         .explain(obj)
-        .then((explanation) => this.explainCards.set(obj.id, { objectId: obj.id, status: 'done', explanation }))
-        .catch((err: unknown) => this.explainCards.set(obj.id, { objectId: obj.id, status: 'error', message: err instanceof Error ? err.message : String(err) }))
+        .then((explanation) => stillOpen() && this.explainCards.set(obj.id, { objectId: obj.id, status: 'done', explanation }))
+        .catch((err: unknown) => stillOpen() && this.explainCards.set(obj.id, { objectId: obj.id, status: 'error', message: err instanceof Error ? err.message : String(err) }))
         .finally(() => {
           record.resultAtMs = this.now()
           this.onChange()
@@ -81,6 +85,8 @@ export class RadialActionExecutor {
       this.lastSaved = entry
       record.resultAtMs = this.now()
     } else {
+      // Voice makes way: any Explain card (and its questions) closes first.
+      for (const id of [...this.explainCards.keys()]) this.dropExplain(id)
       this.voice = { id: ev.id, objectId: obj.id, objectTitle: obj.label, startedAtMs: this.now() }
       record.resultAtMs = this.now()
     }
@@ -124,11 +130,15 @@ export class RadialActionExecutor {
   }
 
   closeExplain(objectId: string) {
+    this.dropExplain(objectId)
+    this.onChange()
+  }
+
+  private dropExplain(objectId: string) {
     this.explainCards.delete(objectId)
     this.qaAbort.get(objectId)?.abort()
     this.qaAbort.delete(objectId)
     this.explainThreads.delete(objectId)
-    this.onChange()
   }
 
   closeVoice() {

@@ -196,6 +196,26 @@
 .copy-problem.is-enter h1 span:nth-child(3) {
   animation-delay: 220ms;
 }
+/* "hands." waits, invisible, as a button in its own place; clicking or grabbing it brings it in */
+.copy-problem h1 .hands-word {
+  width: max-content;
+  pointer-events: auto;
+  cursor: default;
+  opacity: 0;
+  filter: blur(1.2cqw);
+  transform: translateY(0.8cqw) scale(0.96);
+  transform-origin: 0 60%;
+}
+.copy-problem.is-enter h1 .hands-word {
+  animation: none;
+}
+.copy-problem h1 .hands-word.is-shown {
+  pointer-events: none;
+  opacity: 1;
+  filter: none;
+  transform: none;
+  transition: opacity 900ms var(--ease-out), filter 1100ms var(--ease-out), transform 1100ms var(--ease-out);
+}
 .copy-problem h2 {
   position: relative;
   display: inline-block;
@@ -1396,62 +1416,19 @@
 .pitch-stage .presenter-actions > * {
   pointer-events: auto;
 }
-.pitch-stage .rm-root {
-  transform: scale(1.4);
-  transform-origin: 50% 160px;
+.pitch-stage .rm-root.rm-p {
+  --rm-accent: var(--hot);
+  --rm-on-accent: #0b0b0b;
+  --rm-ink: var(--ink);
+  --rm-mute: var(--mute);
+  --rm-bg: #0b0b0b;
+  --rm-seg: #262626;
+  --rm-font: var(--sans);
+  --rm-tag-font: var(--mono);
 }
-.pitch-stage .rm-svg {
-  filter: drop-shadow(0 2cqw 4cqw rgba(0, 0, 0, 0.75));
-}
-.pitch-stage .rm-svg > circle:first-of-type {
-  fill: #0c0c0c;
-  stroke: rgba(242, 240, 235, 0.16);
-}
-.pitch-stage .rm-svg > circle:not(:first-of-type) {
-  fill: #0b0b0b;
-  stroke: rgba(242, 240, 235, 0.14);
-}
-.pitch-stage .rm-sector {
-  color: var(--mute);
-}
-.pitch-stage .rm-sector path {
-  fill: rgba(242, 240, 235, 0.045);
-  stroke: rgba(242, 240, 235, 0.14);
-}
-.pitch-stage .rm-sector.rm-active {
-  color: #0b0b0b;
-}
-.pitch-stage .rm-sector.rm-active path {
-  fill: var(--hot);
-  stroke: var(--hot);
-}
-.pitch-stage .rm-sector.rm-confirm path {
-  fill: #ff7a45;
-}
-.pitch-stage .rm-label {
-  font-family: var(--sans);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-.pitch-stage .rm-svg > line {
-  stroke: rgba(255, 90, 31, 0.55);
-}
-.pitch-stage .rm-needle line {
-  stroke: var(--hot);
-  stroke-width: 3;
-}
-.pitch-stage .rm-center-label {
-  fill: var(--mute);
-  font-family: var(--mono);
-  letter-spacing: 0.18em;
+.pitch-stage .rm-p .rm-tag {
   text-transform: uppercase;
-}
-.pitch-stage .rm-hint {
-  font-family: var(--mono);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink);
-  text-shadow: 0 1px 10px #000;
+  letter-spacing: 0.14em;
 }
 .pitch-stage .ap-card {
   background: rgba(12, 12, 12, 0.97);
@@ -1908,6 +1885,32 @@
 }
 .pitch-swipe.is-armed span {
   color: var(--hot);
+}
+/* the left edge: pull right to go back */
+.pitch-swipe.is-left {
+  right: auto;
+  left: 0;
+  border-left: none;
+  border-right: 0.16cqw solid rgba(255, 90, 31, 0.55);
+  background: linear-gradient(270deg, rgba(255, 90, 31, 0.1), rgba(255, 90, 31, 0.02));
+  justify-content: flex-end;
+}
+.pitch-swipe.is-left span {
+  margin-left: 0;
+  margin-right: -9.5cqw;
+  text-align: left;
+}
+.pitch-swipe.is-left.is-pulling {
+  background: linear-gradient(270deg, rgba(255, 90, 31, 0.22), rgba(255, 90, 31, 0.06));
+}
+.pitch-swipe.is-left.is-pulling span {
+  margin-left: 0;
+  margin-right: 2cqw;
+  text-align: right;
+}
+.pitch-swipe.is-left.is-armed {
+  border-right-color: var(--hot);
+  background: linear-gradient(270deg, rgba(255, 90, 31, 0.4), rgba(255, 90, 31, 0.12));
 }
 
 /* ---- memory: tab, drawer, toast (replaces the stock panel inside the pitch) ---------------------- */

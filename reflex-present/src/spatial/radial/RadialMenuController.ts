@@ -29,6 +29,11 @@ export interface RadialConfig {
   lostCancelMs: number
   /** How long CONFIRMED / CANCELLED stay before IDLE. */
   transientMs: number
+  /**
+   * Move the hand this far from where the menu opened (canvas-height units, aspect-corrected)
+   * and letting go cancels: "drag it off to cancel". Moving back disarms it.
+   */
+  cancelMove: number
 }
 
 export const DEFAULT_RADIAL_CONFIG: RadialConfig = {
@@ -39,6 +44,7 @@ export const DEFAULT_RADIAL_CONFIG: RadialConfig = {
   openPalmWindowMs: 180,
   lostCancelMs: 2000,
   transientMs: 350,
+  cancelMove: 0.2,
 }
 
 export interface RotationInput {
@@ -97,6 +103,8 @@ export class RadialMenuController {
   private transientSince: number | null = null
   private nextId = 1
   private pendingSource: SelectionSource = 'none'
+  /** Where the pointer was when the menu opened (pointer-bound opens only). */
+  private openAt: { x: number; y: number } | null = null
 
   constructor(config: Partial<RadialConfig> = {}, mapper: Partial<MapperConfig> = {}) {
     this.config = { ...DEFAULT_RADIAL_CONFIG, ...config }
@@ -137,6 +145,8 @@ export class RadialMenuController {
     this.pendingConfirmSince = null
     this.lostSince = null
     this.beforeLost = null
+    this.openAt = null
+    this.state.cancelArmed = false
     this.go('IDLE', tMs, reason)
   }
 
@@ -145,6 +155,8 @@ export class RadialMenuController {
 
   private open(objectId: string, ctx: RadialContext, pointerBound = true): RadialOutput {
     this.pointerBound = pointerBound
+    this.openAt = pointerBound && ctx.pointer.valid ? { x: ctx.pointer.x, y: ctx.pointer.y } : null
+    this.state.cancelArmed = false
     this.holdStart = null
     this.state.objectId = objectId
     this.state.openedAtMs = ctx.tMs
@@ -263,6 +275,15 @@ export class RadialMenuController {
     }
     if (s.status === 'MENU_OPEN') this.go('ACTION_HIGHLIGHTED', t, `highlight ${s.activeAction}`)
 
+    // Moved off the menu: arm the cancel (not while a release is already being confirmed).
+    if (this.openAt && ctx.pointer.valid && this.pendingConfirmSince === null) {
+      const away = Math.hypot((ctx.pointer.x - this.openAt.x) * ctx.aspect, ctx.pointer.y - this.openAt.y) > this.config.cancelMove
+      if (away !== !!s.cancelArmed) {
+        s.cancelArmed = away
+        this.transitions.push({ tMs: t, from: s.status, to: s.status, reason: away ? 'moved off the menu: release cancels' : 'back on the menu' })
+      }
+    }
+
     if (this.pendingConfirmSince !== null) {
       if (ctx.openPalm) {
         this.pendingConfirmSince = null
@@ -301,6 +322,10 @@ export class RadialMenuController {
     }
     if (!(s === 'MENU_OPEN' || s === 'ACTION_HIGHLIGHTED' || s === 'DEVICE_DISCONNECTED')) return null
     if (this.pendingConfirmSince !== null) return null
+    if (this.state.cancelArmed) {
+      this.go('CANCELLED', tMs, 'released off the menu')
+      return { kind: 'cancelled', reason: 'released off the menu', tMs }
+    }
     if (byCamera) {
       if (this.trackedSince === null || tMs - this.trackedSince < this.config.confirmGuardMs) {
         this.go('CANCELLED', tMs, 'release right after tracking resumed: not confirmed')
@@ -320,6 +345,7 @@ export class RadialMenuController {
     this.pendingConfirmSince = null
     this.holdStart = null
     this.dragged = true // the pinch that was cancelled must not reopen the menu
+    this.state.cancelArmed = false
     this.go('CANCELLED', tMs, reason)
     return wasOpen ? { kind: 'cancelled', reason, tMs } : null
   }

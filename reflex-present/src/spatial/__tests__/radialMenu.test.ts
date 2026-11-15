@@ -74,10 +74,35 @@ describe('menu selection and confirmation', () => {
     expect(again).toBeNull()
   })
 
-  it('binds to the object frozen at open, whatever the pointer does after', () => {
+  it('binds to the object frozen at open, whatever the pointer passes over after', () => {
     const c = openMenu()
-    for (let t = 632; t < 900; t += 16) c.update(ctx(t, { grabbedId: 'other', pointer: { x: 0.9, y: 0.9, valid: true } }))
+    for (let t = 632; t < 900; t += 16) c.update(ctx(t, { grabbedId: 'other', pointer: { x: 0.36, y: 0.34, valid: true } }))
     expect(confirmed([c.release(900, false)])[0].event.objectId).toBe('chart')
+  })
+
+  it('moving the hand off the menu and letting go cancels; moving back disarms it', () => {
+    const c = openMenu()
+    c.update(ctx(632, { pointer: { x: 0.3, y: 0.58, valid: true } }))
+    expect(c.state.cancelArmed).toBe(true)
+    c.update(ctx(648, { pointer: { x: 0.31, y: 0.33, valid: true } }))
+    expect(c.state.cancelArmed).toBe(false)
+    c.update(ctx(664, { pointer: { x: 0.3, y: 0.58, valid: true } }))
+    expect(c.release(700, false)).toMatchObject({ kind: 'cancelled', reason: 'released off the menu' })
+    expect(confirmed(c.update(ctx(800)))).toHaveLength(0)
+  })
+
+  it('a camera release off the menu cancels too, without waiting for the open-palm window', () => {
+    const c = openMenu()
+    for (let t = 632; t < 900; t += 16) c.update(ctx(t, { pointer: { x: 0.62, y: 0.3, valid: true } }))
+    expect(c.release(900, true)?.kind).toBe('cancelled')
+    expect(confirmed(c.update(ctx(1200)))).toHaveLength(0)
+  })
+
+  it('a force-opened menu (key) has no "off the menu" to move to', () => {
+    const c = new RadialMenuController({}, { smoothingMs: 0 })
+    c.forceOpen('chart', ctx(0))
+    c.update(ctx(16, { pointer: { x: 0.9, y: 0.9, valid: true } }))
+    expect(c.state.cancelArmed).toBeFalsy()
   })
 
   it('a camera release waits out the open-palm window, then confirms', () => {
@@ -207,6 +232,21 @@ describe('actions', () => {
     expect(ex.execute({ id: 3, action: 'voice', objectId: 'revenue', tMs: 0, selectionSource: 'vexo' }, objects)).toBe('voice')
     expect(ex.voice?.objectId).toBe('revenue')
     expect(ex.execute({ id: 4, action: 'voice', objectId: 'missing', tMs: 0, selectionSource: 'vexo' }, objects)).toBeNull()
+  })
+
+  it('Voice closes an open Explain card, and Explain closes an open Voice', async () => {
+    const ex = new RadialActionExecutor(new LocalMemoryStore('', false), () => {})
+    ex.execute({ id: 1, action: 'explain', objectId: 'revenue', tMs: 0, selectionSource: 'click' }, objects)
+    ex.execute({ id: 2, action: 'voice', objectId: 'revenue', tMs: 0, selectionSource: 'click' }, objects)
+    expect(ex.explainCards.size).toBe(0)
+    expect(ex.voice?.objectId).toBe('revenue')
+    // the explanation that was still loading does not bring the card back
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(ex.explainCards.size).toBe(0)
+    ex.execute({ id: 3, action: 'explain', objectId: 'revenue', tMs: 0, selectionSource: 'click' }, objects)
+    expect(ex.voice).toBeNull()
+    expect(ex.explainCards.size).toBe(1)
   })
 
   it('answers questions from the data when no AI is connected', () => {

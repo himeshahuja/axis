@@ -232,6 +232,11 @@ export class RadialSystem {
     this.handle([this.controller.choose(action, performance.now(), 'click')])
   }
 
+  /** Close the open menu without running anything (the menu's centre, Esc). */
+  cancel(reason = 'cancelled from the menu') {
+    this.handle([this.controller.cancel(performance.now(), reason)])
+  }
+
   recenter() {
     if (this.active?.source === 'vexo') this.vexo.begin()
     if (this.lastCtx) this.controller.recenter({ ...this.lastCtx, rotation: this.active ? { angle: this.active.source === 'vexo' ? this.vexo.angle() : this.active.angle, source: this.active.source } : null })

@@ -20,18 +20,22 @@ import { MemoryGhost, ObjectVisual } from './visuals'
 
 const pct = (v: number) => `${v * 100}%`
 const pick = (o: { x: number; y: number; w: number; h: number }) => ({ x: o.x, y: o.y, w: o.w, h: o.h })
-/** How far (stage widths) a swipe from the right quarter must travel to advance. */
+/** How far (stage widths) a swipe must travel: from the right quarter leftward = next, from the left quarter rightward = back. */
 const SWIPE_MIN = 0.2
-/** A swipe may start anywhere empty in the right quarter, or anywhere in this edge strip (no object reaches it). */
+/** A swipe may start anywhere empty in either outer quarter, or anywhere in these edge strips (no object reaches them). */
 const EDGE_X = 0.955
-const swipeStart = (p: { x: number; y: number }, hit: unknown) => p.x >= EDGE_X || (p.x >= 0.75 && !hit)
+type SwipeDir = 'next' | 'previous'
+const swipePull = (sw: { startX: number; x: number; dir: SwipeDir }) => Math.max(0, sw.dir === 'next' ? sw.startX - sw.x : sw.x - sw.startX)
+const atEdge = (p: { x: number }) => p.x >= EDGE_X || p.x <= 1 - EDGE_X
+const swipeStart = (p: { x: number; y: number }, hit: unknown): SwipeDir | null =>
+  p.x >= EDGE_X || (p.x >= 0.75 && !hit) ? 'next' : p.x <= 1 - EDGE_X || (p.x <= 0.25 && !hit) ? 'previous' : null
 const mmss = (ms: number) => {
   const s = Math.max(0, Math.floor(ms / 1000))
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
 // ---- scene copy (the typography layer) ------------------------------------------------------
-function SceneCopy({ scene, done, state }: { scene: PitchScene; done: ReadonlySet<string>; state: 'enter' | 'exit' }) {
+function SceneCopy({ scene, done, state, hands = true }: { scene: PitchScene; done: ReadonlySet<string>; state: 'enter' | 'exit'; hands?: boolean }) {
   const cls = `pitch-copy copy-${scene.id} is-${state}`
   switch (scene.id) {
     case 'problem':
@@ -40,7 +44,10 @@ function SceneCopy({ scene, done, state }: { scene: PitchScene; done: ReadonlySe
           <h1>
             <span>We think</span>
             <span>with our</span>
-            <span className="hot">hands.</span>
+            {/* An invisible button holds the last word's place: click or grab it and "hands." arrives. */}
+            <span className={`hot hands-word ${hands ? 'is-shown' : ''}`} data-air-action={hands ? undefined : 'reveal-hands'} aria-label={hands ? undefined : 'Reveal'}>
+              hands.
+            </span>
           </h1>
           <h2 className={done.has('clear') ? 'struck' : ''}>Our computers don’t.</h2>
         </section>
@@ -139,10 +146,14 @@ export function PitchStage() {
   // Swipe-to-advance: grab empty space in the right quarter and pull it across.
   const mousePressed = useRef(false)
   const wasPressed = useRef(false)
-  const swipe = useRef<{ startX: number; x: number } | null>(null)
+  const swipe = useRef<{ startX: number; x: number; dir: SwipeDir } | null>(null)
   const commandRef = useRef<(c: StageCommand) => void>(() => {})
   // Memory on the band.
   const [memOpen, setMemOpen] = useState(false)
+  // The opening line starts without its last word; the presenter brings it in by hand.
+  const [handsShown, setHandsShown] = useState(false)
+  const handsRef = useRef(handsShown)
+  handsRef.current = handsShown
   const [memRows, setMemRows] = useState<{ rows: BandMemoryRow[]; from: 'band' | 'browser'; at: number } | null>(null)
   const [memToast, setMemToast] = useState<{ text: string; ok: boolean; key: number } | null>(null)
   /** Ends the current Voice recording (closing the hand calls it). */
@@ -206,11 +217,16 @@ export function PitchStage() {
   const command = useCallback(
     (c: StageCommand) => {
       const now = performance.now()
-      if (c.cmd === 'next') ctl.next(now)
+      // The clicker's first press on the opening slide brings in "hands." (the backup for the hidden button).
+      if (c.cmd === 'next' && ctl.sceneIndex === 0 && !handsRef.current) setHandsShown(true)
+      else if (c.cmd === 'next') ctl.next(now)
       else if (c.cmd === 'nextScene') ctl.nextScene(now)
       else if (c.cmd === 'previous') ctl.previous(now)
       else if (c.cmd === 'goto') ctl.goto(c.index, now, 'console')
-      else if (c.cmd === 'reset') ctl.reset(now)
+      else if (c.cmd === 'reset') {
+        ctl.reset(now)
+        setHandsShown(false)
+      }
       else if (c.cmd === 'resetLayout') ctl.resetLayout()
       else if (c.cmd === 'toggleGestures') rt.cameraGesturesEnabled = !rt.cameraGesturesEnabled
       else if (c.cmd === 'camera') {
@@ -238,10 +254,15 @@ export function PitchStage() {
       if (!p.valid || !stageRef.current || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return false
       const b = stageRef.current.getBoundingClientRect()
       if (b.width <= 0 || b.height <= 0) return false
-      const action = document.elementFromPoint(b.left + p.x * b.width, b.top + p.y * b.height)?.closest<HTMLElement>('[data-air-action]')?.dataset.airAction
-      // The right edge strip belongs to the swipe: don't let the grab land on a nearby object.
-      if (!action) return p.x >= EDGE_X
-      if (action === 'next') command({ type: 'cmd', cmd: 'next' })
+      // Look down through empty layers (the objects layer covers the copy) to the first object or
+      // air control; an object on top always wins, so grabbing never presses a button beneath it.
+      const under = document.elementsFromPoint(b.left + p.x * b.width, b.top + p.y * b.height)
+      const first = under.find((el) => el.closest('[data-air-action], .pitch-obj'))
+      const action = first?.closest('.pitch-obj') ? undefined : first?.closest<HTMLElement>('[data-air-action]')?.dataset.airAction
+      // The edge strips belong to the swipe: don't let the grab land on a nearby object.
+      if (!action) return atEdge(p)
+      if (action === 'reveal-hands') setHandsShown(true)
+      else if (action === 'next') command({ type: 'cmd', cmd: 'next' })
       else if (action === 'memory') setMemOpen((v) => !v)
       else if (action.startsWith('close-explain:')) rt.radial.executor.closeExplain(action.slice('close-explain:'.length))
       else if (action.startsWith('explain-ask:')) {
@@ -431,16 +452,17 @@ export function PitchStage() {
       if (voiceRecording.current && engagedNow && !wasEngaged.current) voiceFinish.current?.()
       wasEngaged.current = engagedNow
 
-      // Swipe: a press that starts on empty space in the right quarter, released after
-      // pulling at least a fifth of the stage to the left, is "next".
+      // Swipe: a press on empty space in the right quarter, pulled at least a fifth of the
+      // stage to the left, is "next"; the same from the left quarter pulled right is "back".
       const pressed = mousePressed.current || (rt.detector.engaged && rt.pointer.source !== 'mouse')
       const pt = rt.pointer
-      if (pressed && !wasPressed.current && pt.valid && swipeStart(pt, ix.hitTest(pt)) && !ix.grabbedId && !rt.radial.controller.isOpen && rt.calibration.kind === 'none') {
-        swipe.current = { startX: pt.x, x: pt.x }
+      const dir = pressed && !wasPressed.current && pt.valid ? swipeStart(pt, ix.hitTest(pt)) : null
+      if (dir && !ix.grabbedId && !rt.radial.controller.isOpen && rt.calibration.kind === 'none') {
+        swipe.current = { startX: pt.x, x: pt.x, dir }
       }
       if (swipe.current && pt.valid) swipe.current.x = pt.x
       if (!pressed && wasPressed.current && swipe.current) {
-        if (swipe.current.startX - swipe.current.x >= SWIPE_MIN) commandRef.current({ type: 'cmd', cmd: 'next' })
+        if (swipePull(swipe.current) >= SWIPE_MIN) commandRef.current({ type: 'cmd', cmd: swipe.current.dir })
         swipe.current = null
       }
       wasPressed.current = pressed
@@ -585,7 +607,7 @@ export function PitchStage() {
         )}
 
         {exiting !== null && exiting !== ctl.sceneIndex && <SceneCopy key={`x-${SCENES[exiting].id}`} scene={SCENES[exiting]} done={new Set()} state="exit" />}
-        <SceneCopy key={scene.id} scene={scene} done={done} state="enter" />
+        <SceneCopy key={scene.id} scene={scene} done={done} state="enter" hands={handsShown} />
 
         {scene.id === 'product' && done.has('converge') && <div className="pitch-pipeline" aria-hidden="true" />}
 
@@ -658,15 +680,16 @@ export function PitchStage() {
           {status && <span className="status">{status}</span>}
         </div>
 
-        {/* swipe affordance: the page edge you can grab */}
+        {/* swipe affordance: the page edge you can grab (right = next, left = back) */}
         {!calibrating && (() => {
           const sw = swipe.current
-          const pull = sw ? Math.max(0, sw.startX - sw.x) : 0
-          const nearEdge = !sw && p.valid && swipeStart(p, ix.hitTest(p)) && !ix.grabbedId && !radialOpen
-          if (!sw && !nearEdge) return null
+          const pull = sw ? swipePull(sw) : 0
+          const near = !sw && p.valid && !ix.grabbedId && !radialOpen ? swipeStart(p, ix.hitTest(p)) : null
+          const dir = sw?.dir ?? near
+          if (!dir || (dir === 'previous' && ctl.sceneIndex === 0) || (dir === 'next' && ctl.sceneIndex === ctl.scenes.length - 1)) return null
           return (
-            <div className={`pitch-swipe ${sw ? 'is-pulling' : ''} ${pull >= SWIPE_MIN ? 'is-armed' : ''}`} style={{ width: pct(Math.min(0.6, 0.018 + pull)) }}>
-              {sw && <span>{pull >= SWIPE_MIN ? 'Let go — next' : 'Keep pulling'}</span>}
+            <div className={`pitch-swipe ${dir === 'previous' ? 'is-left' : ''} ${sw ? 'is-pulling' : ''} ${pull >= SWIPE_MIN ? 'is-armed' : ''}`} style={{ width: pct(Math.min(0.6, 0.018 + pull)) }}>
+              {sw && <span>{pull >= SWIPE_MIN ? (dir === 'next' ? 'Let go — next' : 'Let go — back') : 'Keep pulling'}</span>}
             </div>
           )
         })()}

@@ -68,11 +68,96 @@ export interface RadialMenuProps {
   /** The band is the kit's pretend band: its gyro data is simulated. */
   bandPretend: boolean
   onChoose: (a: RadialAction) => void
+  /** Close without running anything (the presenter menu's centre). */
+  onCancel?: () => void
   graspMode?: boolean
   theme?: 'spatial' | 'presenter'
 }
 
-export function RadialActionMenu({ state, object, canvas, thresholdDeg, maxDeg, closing, bandLost, bandPretend, onChoose, graspMode = false, theme = 'spatial' }: RadialMenuProps) {
+export function RadialActionMenu(props: RadialMenuProps) {
+  if (props.theme === 'presenter') return <PresenterRadial {...props} />
+  return <SpatialRadial {...props} />
+}
+
+// ---- presenter / pitch: a calm ring for a shared screen ------------------------------------
+// Icons sit in the ring, names sit just outside it (so no text ever crosses a seam), and the
+// centre says what letting go will do. Moving the hand off the menu arms a cancel.
+const P_GAP = 7
+
+function PresenterRadial({ state, object, canvas, maxDeg, closing, bandLost, onChoose, onCancel }: RadialMenuProps) {
+  const R = Math.round(Math.max(96, Math.min(200, Math.min(canvas.w, canvas.h) * 0.19)))
+  const rIn = R * 0.6
+  const tagR = R + R * 0.13
+  const tagSize = Math.max(12, Math.round(R * 0.105))
+  // room for the names outside the ring
+  const padX = R * 0.62
+  const padTop = R * 0.36
+  const cx = Math.max(R + padX, Math.min(canvas.w - R - padX, (object.x + object.w / 2) * canvas.w))
+  const cy = Math.max(R + padTop, Math.min(canvas.h - R - 12, (object.y + object.h / 2) * canvas.h))
+  const lost = state.status === 'TRACKING_LOST'
+  const confirming = state.status === 'CONFIRMING' || state.status === 'CONFIRMED'
+  const cancel = !!state.cancelArmed
+  const needle = -90 + Math.max(-maxDeg, Math.min(maxDeg, state.rotationDegrees))
+  const [nx, ny] = pt(rIn - R * 0.07, needle)
+  const W = R * 2 + padX * 2
+  const H = R * 2 + padTop
+  const centre = lost ? 'Hand lost' : cancel ? 'Cancel' : ACTION_LABEL[state.activeAction]
+  const sub = lost ? 'menu held' : cancel ? 'let go to cancel' : bandLost ? 'band lost · tilt or ← →' : 'open hand to run'
+
+  return (
+    <div className={`rm-root rm-presenter rm-p ${closing ? 'rm-closing' : ''} ${lost ? 'rm-lost' : ''} ${cancel ? 'rm-cancel' : ''}`} style={{ left: cx - R - padX, top: cy - R - padTop, width: W, height: H }}>
+      <svg width={W} height={H} viewBox={`${-R - padX} ${-R - padTop} ${W} ${H}`} className="rm-svg">
+        <circle r={R + 2} className="rm-p-halo" />
+        {SECTORS.map(({ action, mid }) => {
+          const active = !cancel && state.activeAction === action
+          const [ix, iy] = pt((rIn + R) / 2, mid)
+          const [tx, ty] = pt(tagR, mid)
+          const anchor = Math.abs(Math.cos(rad(mid))) < 0.2 ? 'middle' : Math.cos(rad(mid)) > 0 ? 'start' : 'end'
+          const dy = Math.sin(rad(mid)) < -0.5 ? -tagSize * 0.35 : tagSize * 0.95
+          return (
+            <g
+              key={action}
+              className={`rm-sector ${active ? 'rm-active' : ''} ${active && confirming ? 'rm-confirm' : ''}`}
+              onPointerDown={(e) => {
+                e.stopPropagation()
+                onChoose(action)
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <path className="rm-seg" d={sectorPath(rIn, R, mid - SPAN / 2 + P_GAP / 2, mid + SPAN / 2 - P_GAP / 2)} />
+              <g transform={`translate(${ix},${iy}) scale(${R / 125})`} className="rm-icon">
+                <Icon action={action} />
+              </g>
+              <text x={tx} y={ty + dy} textAnchor={anchor} fontSize={tagSize} className="rm-tag">
+                {ACTION_LABEL[action]}
+              </text>
+            </g>
+          )
+        })}
+        <g
+          className="rm-p-centre"
+          onPointerDown={(e) => {
+            e.stopPropagation()
+            onCancel?.()
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <circle r={rIn - R * 0.05} />
+          <text y={R * 0.03} textAnchor="middle" fontSize={Math.round(R * 0.16)} className="rm-p-name">
+            {centre}
+          </text>
+          <text y={R * 0.03 + R * 0.15} textAnchor="middle" fontSize={Math.max(9, Math.round(R * 0.062))} className="rm-p-sub">
+            {sub}
+          </text>
+        </g>
+        {!cancel && !lost && <circle cx={nx} cy={ny} r={Math.max(2.5, R * 0.022)} className="rm-p-needle" />}
+      </svg>
+    </div>
+  )
+}
+
+// ---- spatial (debug pages): the original, with sensor details ---------------------------
+function SpatialRadial({ state, object, canvas, thresholdDeg, maxDeg, closing, bandLost, bandPretend, onChoose, graspMode = false, theme = 'spatial' }: RadialMenuProps) {
   const quiet = theme === 'presenter'
   const sourceLabel = state.inputSource === 'vexo' && bandPretend ? 'Vexo PRETEND band · simulated gyro' : SOURCE_LABEL[state.inputSource]
   const R = Math.round(quiet ? Math.max(86, Math.min(160, Math.min(canvas.w, canvas.h) * .24)) : Math.max(130, Math.min(220, Math.min(canvas.w, canvas.h) * 0.2)))
@@ -87,7 +172,7 @@ export function RadialActionMenu({ state, object, canvas, thresholdDeg, maxDeg, 
   const fontSize = Math.round(R * 0.125)
 
   return (
-    <div className={`rm-root ${quiet ? 'rm-presenter' : ''} ${closing ? 'rm-closing' : ''} ${lost ? 'rm-lost' : ''}`} style={{ left: cx - R, top: cy - R, width: R * 2, height: R * 2 + 48 }}>
+    <div className={`rm-root ${quiet ? 'rm-presenter' : ''} ${closing ? 'rm-closing' : ''} ${lost ? 'rm-lost' : ''} ${state.cancelArmed ? 'rm-cancel' : ''}`} style={{ left: cx - R, top: cy - R, width: R * 2, height: R * 2 + 48 }}>
       <svg width={R * 2} height={R * 2} viewBox={`${-R} ${-R} ${R * 2} ${R * 2}`} className="rm-svg">
         <defs>
           <radialGradient id="rm-bg">
@@ -148,7 +233,7 @@ export function RadialActionMenu({ state, object, canvas, thresholdDeg, maxDeg, 
           <span className="rm-warn">Band disconnected — rotate by hand tilt, ← → keys or wheel</span>
         ) : (
           <>
-            {quiet ? `Open hand to ${ACTION_LABEL[state.activeAction].toLowerCase()}` : graspMode ? `Tilt hand or use ← → · open hand to ${ACTION_LABEL[state.activeAction].toLowerCase()} · Esc cancels` : `Rotate wrist · release to ${ACTION_LABEL[state.activeAction].toLowerCase()} · open palm to cancel`}
+            {state.cancelArmed ? 'Let go to cancel' : quiet ? `Open hand to ${ACTION_LABEL[state.activeAction].toLowerCase()}` : graspMode ? `Tilt hand or use ← → · open hand to ${ACTION_LABEL[state.activeAction].toLowerCase()} · move away or Esc cancels` : `Rotate wrist · release to ${ACTION_LABEL[state.activeAction].toLowerCase()} · open palm to cancel`}
           </>
         )}
         {!quiet && <div className="rm-source">{sourceLabel}</div>}

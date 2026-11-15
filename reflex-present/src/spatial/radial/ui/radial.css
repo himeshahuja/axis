@@ -472,3 +472,103 @@
   background: #4aa3ff;
   transition: width 60ms linear;
 }
+
+/* ---- presenter / pitch ring (.rm-p) ------------------------------------------------------ */
+.rm-root.rm-p {
+  z-index: 30;
+  --rm-accent: #edca7c;
+  --rm-on-accent: #24231e;
+  --rm-ink: #f4f0e8;
+  --rm-mute: #9c988f;
+  --rm-bg: #1c1d1f;
+  --rm-seg: #2a2b2e;
+  --rm-font: 'Helvetica Neue', system-ui, sans-serif;
+  --rm-tag-font: 'Helvetica Neue', system-ui, sans-serif;
+}
+.rm-p .rm-svg {
+  filter: drop-shadow(0 14px 34px rgba(0, 0, 0, 0.55));
+}
+.rm-p .rm-p-halo {
+  fill: var(--rm-bg);
+  stroke: none;
+  opacity: 0.94;
+}
+.rm-root.rm-p .rm-sector {
+  color: var(--rm-mute);
+}
+.rm-root.rm-p .rm-seg {
+  fill: var(--rm-seg);
+  stroke: none;
+  transition: fill 160ms ease, transform 160ms ease;
+}
+.rm-root.rm-p .rm-sector:hover .rm-seg {
+  fill: color-mix(in srgb, var(--rm-seg), white 8%);
+}
+.rm-root.rm-p .rm-sector.rm-active {
+  color: var(--rm-on-accent);
+}
+.rm-root.rm-p .rm-sector.rm-active .rm-seg {
+  fill: var(--rm-accent);
+}
+.rm-root.rm-p .rm-sector.rm-confirm .rm-seg {
+  fill: color-mix(in srgb, var(--rm-accent), white 20%);
+}
+.rm-root.rm-p .rm-icon path,
+.rm-root.rm-p .rm-icon rect {
+  fill: none;
+  stroke: currentColor;
+}
+.rm-p .rm-p-halo {
+  stroke: color-mix(in srgb, var(--rm-ink), transparent 90%);
+}
+.rm-p .rm-tag {
+  fill: var(--rm-mute);
+  /* a dark outline so the names read over whatever is on the slide behind them */
+  paint-order: stroke;
+  stroke: var(--rm-bg);
+  stroke-width: 0.5em;
+  stroke-linejoin: round;
+  font-family: var(--rm-tag-font);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  transition: fill 160ms ease;
+}
+.rm-p .rm-sector.rm-active .rm-tag {
+  fill: var(--rm-ink);
+}
+.rm-p .rm-p-centre {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.rm-p .rm-p-centre circle {
+  fill: var(--rm-bg);
+  stroke: color-mix(in srgb, var(--rm-ink), transparent 88%);
+  transition: stroke 160ms ease;
+}
+.rm-p .rm-p-centre:hover circle {
+  stroke: color-mix(in srgb, var(--rm-ink), transparent 60%);
+}
+.rm-p .rm-p-name {
+  fill: var(--rm-ink);
+  font-family: var(--rm-font);
+  font-weight: 600;
+}
+.rm-p .rm-p-sub {
+  fill: var(--rm-mute);
+  font-family: var(--rm-tag-font);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.rm-p .rm-p-needle {
+  fill: var(--rm-accent);
+}
+/* moved off the menu: everything greys back and the centre says Cancel */
+.rm-p.rm-cancel .rm-sector {
+  opacity: 0.4;
+}
+.rm-p.rm-cancel .rm-p-name {
+  fill: #ff8a7a;
+}
+.rm-p.rm-lost .rm-svg {
+  opacity: 0.5;
+}

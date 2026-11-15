@@ -52,6 +52,8 @@ export interface RadialMenuState {
   /** 0..1 while HOLDING. */
   holdProgress: number
   openedAtMs: number | null
+  /** The hand has moved off the open menu: letting go now cancels instead of running. */
+  cancelArmed?: boolean
 }
 
 export interface RadialActionEvent {
