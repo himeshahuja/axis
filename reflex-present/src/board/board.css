@@ -1,0 +1,486 @@
+/* AXIS Board (/board). Built on src/site/site.css: its tokens (.site), nav, buttons,
+   chips, pipeline, launch and footer. Only what the board adds lives here, under .bd. */
+
+.bd .bd-nav-sub {
+  font: 500 11px/1 var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+
+/* ---- hero -------------------------------------------------------------------------------- */
+.bd .bd-hero .hero-statement {
+  grid-column: 6 / span 7;
+}
+.bd .bd-word {
+  font-size: 100px; /* sized to the width by BigWord */
+}
+
+/* ---- section heads (live, hardware, proof) ----------------------------------------------- */
+.bd .bd-live,
+.bd .bd-hardware,
+.bd .bd-proof {
+  padding: 140px var(--gutter) 110px;
+  border-top: 1px solid var(--line);
+}
+.bd .bd-head {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  column-gap: 16px;
+  row-gap: 22px;
+  align-items: end;
+  margin-bottom: 56px;
+}
+.bd .bd-head .section-index,
+.bd .bd-index {
+  grid-column: 1 / -1;
+}
+.bd .bd-title {
+  grid-column: 1 / span 6;
+  font: 400 clamp(46px, 6vw, 108px) / 0.95 var(--display);
+  letter-spacing: -0.02em;
+}
+.bd .bd-title em {
+  font: italic 400 1.08em/0.8 var(--serif);
+  color: var(--hot);
+  letter-spacing: 0;
+}
+.bd .bd-lede {
+  grid-column: 8 / span 5;
+  color: var(--mute);
+  font-size: 18px;
+  max-width: 44ch;
+}
+.bd .system-head .bd-index {
+  margin-bottom: 22px;
+}
+
+/* ---- live -------------------------------------------------------------------------------- */
+.bd .bd-controls {
+  border-bottom: 1px solid var(--line);
+}
+.bd .bd-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--line2);
+  margin: 0 6px;
+}
+.bd .bd-play {
+  margin-left: auto;
+  height: 44px;
+}
+.bd .bd-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 8fr) minmax(260px, 4fr);
+  border-bottom: 1px solid var(--line);
+}
+.bd .bd-board {
+  position: relative;
+  padding: 18px 18px 18px 0;
+  border-right: 1px solid var(--line);
+}
+.bd .bd-board-canvas {
+  display: block;
+  width: 100%;
+  height: clamp(360px, 52vw, 620px);
+}
+.bd .bd-steps {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bd .bd-steps li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  color: var(--dim);
+  transition:
+    color 0.3s,
+    border-color 0.3s,
+    background 0.3s;
+}
+.bd .bd-steps li span {
+  color: var(--dim);
+}
+.bd .bd-steps li.done {
+  color: var(--mute);
+  border-color: var(--line2);
+}
+.bd .bd-steps li.done span {
+  color: var(--hot);
+}
+.bd .bd-steps li.now {
+  color: var(--ink);
+  border-color: var(--hot);
+  background: var(--hot-soft);
+}
+.bd .bd-readouts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 0 18px 18px;
+}
+.bd .bd-readouts .pipe-out {
+  margin: 0;
+  min-height: 0;
+}
+.bd .bd-readouts .pipe-out p {
+  color: var(--ink);
+}
+.bd .bd-big {
+  border-color: var(--line2);
+}
+.bd .bd-num {
+  display: block;
+  font: 400 clamp(56px, 6vw, 96px) / 1 var(--display);
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+.bd .bd-status {
+  font-size: 15px;
+  min-height: 2.7em;
+}
+.bd .bd-lights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.bd .bd-light {
+  font: 500 11px/1 var(--sans);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 8px 10px;
+  border: 1px solid var(--line2);
+  color: var(--dim);
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+.bd .bd-light.on {
+  background: var(--hot);
+  border-color: var(--hot);
+  color: #080808;
+}
+.bd .bd-clock {
+  display: block;
+  margin-top: 8px;
+  color: var(--dim);
+}
+.bd .bd-strips {
+  display: block;
+  width: 100%;
+  height: 210px;
+  margin-top: 18px;
+}
+.bd .bd-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  animation: rise 0.7s var(--ease);
+}
+.bd .bd-scores {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(110px, 1fr));
+  gap: 0;
+  margin: 0;
+  flex: 1;
+}
+.bd .bd-scores div {
+  padding: 4px 18px 4px 0;
+}
+.bd .bd-scores div + div {
+  padding-left: 18px;
+  border-left: 1px solid var(--line);
+}
+.bd .bd-scores dt {
+  color: var(--dim);
+}
+.bd .bd-scores dd {
+  margin: 8px 0 0;
+  font: 400 clamp(26px, 2.6vw, 40px) / 1 var(--display);
+  letter-spacing: -0.02em;
+}
+.bd .bd-live > .provenance {
+  margin-top: 16px;
+}
+
+/* ---- hardware ---------------------------------------------------------------------------- */
+.bd .bd-hw-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 48px;
+  align-items: center;
+}
+.bd .bd-diagram {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.bd .d-board {
+  fill: rgba(242, 240, 235, 0.03);
+  stroke: var(--line2);
+}
+.bd .d-ring {
+  fill: none;
+  stroke: var(--hot);
+  stroke-opacity: 0.35;
+}
+.bd .d-ray {
+  stroke: var(--hot);
+  stroke-opacity: 0.55;
+  stroke-dasharray: 3 5;
+}
+.bd .d-puck {
+  fill: var(--hot);
+}
+.bd .d-band {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+.bd .d-band-core {
+  fill: var(--ink);
+}
+.bd .d-marker {
+  stroke: var(--ink);
+  stroke-width: 5;
+  stroke-linecap: square;
+}
+.bd .d-ink {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+}
+.bd .d-label {
+  fill: var(--mute);
+  font: 500 10px var(--sans);
+  letter-spacing: 0.06em;
+}
+.bd .bd-parts li {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+.bd .bd-parts span {
+  font-size: 13px;
+  color: var(--mute);
+}
+
+/* ---- proof ------------------------------------------------------------------------------- */
+.bd .bd-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.bd .bd-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 28px 28px 32px 0;
+}
+.bd .bd-stat + .bd-stat {
+  padding-left: 28px;
+  border-left: 1px solid var(--line);
+}
+.bd .bd-stat > .mono {
+  color: var(--mute);
+}
+.bd .bd-stat b {
+  font: 400 clamp(54px, 6.4vw, 118px) / 0.9 var(--display);
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+.bd .bd-stat small {
+  font: 400 0.32em/1 var(--sans);
+  letter-spacing: 0;
+  color: var(--mute);
+  margin-left: 6px;
+}
+.bd .bd-stat i {
+  font: italic 400 0.6em/1 var(--serif);
+  color: var(--hot);
+  margin: 0 0.1em;
+}
+.bd .bd-stat.hot b {
+  font-size: clamp(38px, 4.2vw, 76px);
+}
+.bd .bd-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 40px;
+  font-size: 16px;
+}
+.bd .bd-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--dim);
+  padding: 10px 16px 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.bd .bd-table td {
+  padding: 14px 16px 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.bd .bd-table td:first-child {
+  color: var(--mute);
+}
+.bd .bd-table td.warn {
+  color: var(--hot);
+}
+.bd .bd-left {
+  margin-top: 56px;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  column-gap: 16px;
+}
+.bd .bd-left h3 {
+  grid-column: 1 / span 3;
+  margin: 4px 0 0;
+  color: var(--mute);
+  font-weight: 500;
+}
+.bd .bd-left ol {
+  grid-column: 5 / span 8;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: left;
+}
+.bd .bd-left li {
+  counter-increment: left;
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  color: var(--mute);
+}
+.bd .bd-left li::before {
+  content: '0' counter(left);
+  font: 500 12px var(--sans);
+  color: var(--hot);
+  padding-top: 4px;
+}
+.bd .bd-left li b {
+  color: var(--ink);
+  font-weight: 500;
+}
+.bd .bd-left li:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.bd .bd-proof > .provenance {
+  margin-top: 24px;
+  max-width: 90ch;
+}
+
+/* ---- responsive -------------------------------------------------------------------------- */
+@media (max-width: 1100px) {
+  .bd .bd-stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bd .bd-board {
+    border-right: 0;
+    padding-right: 0;
+  }
+  .bd .bd-readouts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .bd .bd-scores {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 18px;
+  }
+  .bd .bd-scores div:nth-child(4) {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .bd .bd-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bd .bd-stat:nth-child(3) {
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .bd .bd-stat:nth-child(4) {
+    border-top: 1px solid var(--line);
+  }
+}
+@media (max-width: 760px) {
+  .bd .bd-live,
+  .bd .bd-hardware,
+  .bd .bd-proof {
+    padding: 96px var(--gutter) 72px;
+  }
+  .bd .bd-title,
+  .bd .bd-lede,
+  .bd .bd-left h3,
+  .bd .bd-left ol {
+    grid-column: 1 / -1;
+  }
+  .bd .bd-hero .hero-statement {
+    grid-column: 1 / -1;
+  }
+  .bd .bd-sep {
+    display: none;
+  }
+  .bd .bd-play {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
+  }
+  .bd .bd-board-canvas {
+    height: 340px;
+  }
+  .bd .bd-readouts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bd .bd-strips {
+    height: 180px;
+  }
+  .bd .bd-scores {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bd .bd-scores div,
+  .bd .bd-scores div + div {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .bd .bd-hw-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+  .bd .bd-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bd .bd-stat,
+  .bd .bd-stat + .bd-stat {
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .bd .bd-table {
+    font-size: 13px;
+  }
+  .bd .bd-table th:nth-child(5),
+  .bd .bd-table td:nth-child(5) {
+    display: none;
+  }
+}

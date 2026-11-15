@@ -1,0 +1,2466 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400&family=Gravitas+One&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* Axis pitch. Everything is sized from the 16:9 stage (cqw / cqh), so the
+   composition holds on a laptop, a TV and a projector alike. */
+
+.pitch-root,
+.pitch-console {
+  --bg: #080808;
+  --bg2: #101010;
+  --ink: #f2f0eb;
+  --mute: #9a9893;
+  --dim: #55534f;
+  --line: rgba(242, 240, 235, 0.12);
+  --line2: rgba(242, 240, 235, 0.24);
+  --hot: #ff5a1f;
+  --hot-soft: rgba(255, 90, 31, 0.14);
+  --display: 'Gravitas One', 'DM Serif Display', Georgia, serif;
+  --sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  --ease: cubic-bezier(0.2, 0.7, 0.1, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pitch-root {
+  position: fixed;
+  inset: 0;
+  background: #030303;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: var(--sans);
+  text-align: left;
+  user-select: none;
+}
+
+.pitch-stage {
+  position: relative;
+  width: min(100vw, calc(100vh * 16 / 9));
+  aspect-ratio: 16 / 9;
+  background: radial-gradient(120% 90% at 30% 20%, #121110 0%, var(--bg) 55%, #050505 100%);
+  overflow: hidden;
+  container-type: size;
+  container-name: stage;
+  cursor: none;
+  isolation: isolate;
+}
+.pitch-stage .hot {
+  color: var(--hot);
+}
+/* index.css colours h1/h2 with --text-h, which is near-black in a light-mode browser */
+.pitch-root h1,
+.pitch-root h2,
+.pitch-console h1,
+.pitch-console h2 {
+  color: var(--ink);
+}
+.pitch-stage .hot,
+.pitch-stage h1 .hot,
+.pitch-stage h2 .hot {
+  color: var(--hot);
+}
+
+/* ---- ambient layers ----------------------------------------------------------------------- */
+.pitch-field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 900ms var(--ease);
+}
+.scene-demo .pitch-field,
+.scene-utility .pitch-field {
+  opacity: 0.22;
+}
+.pitch-mirror {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0.16;
+  filter: grayscale(1) contrast(1.1);
+  pointer-events: none;
+}
+.pitch-mirror canvas {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+/* an editorial hairline sweeps across on every scene change */
+.pitch-stage::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1cqw;
+  width: 0.22cqw;
+  background: var(--hot);
+  z-index: 45;
+  opacity: 0;
+  pointer-events: none;
+}
+.pitch-stage.in-transition::after {
+  animation: pitch-sweep 900ms var(--ease) both;
+}
+@keyframes pitch-sweep {
+  0% {
+    left: -1cqw;
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    left: 101cqw;
+    opacity: 0;
+  }
+}
+
+/* ---- scene typography ---------------------------------------------------------------------- */
+.pitch-copy {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+.pitch-copy h1 {
+  font-family: var(--display);
+  font-weight: 400;
+  margin: 0;
+  letter-spacing: -0.01em;
+  line-height: 0.98;
+}
+.pitch-copy .kicker,
+.pitch-copy .hint {
+  font-family: var(--mono);
+  font-size: 0.92cqw;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--mute);
+  margin: 0;
+}
+.pitch-copy.is-enter > * {
+  animation: copy-in 1000ms var(--ease-out) both;
+}
+.pitch-copy.is-enter > *:nth-child(2) {
+  animation-delay: 90ms;
+}
+.pitch-copy.is-enter > *:nth-child(3) {
+  animation-delay: 180ms;
+}
+.pitch-copy.is-enter > *:nth-child(4) {
+  animation-delay: 270ms;
+}
+.pitch-copy.is-exit {
+  animation: copy-out 650ms var(--ease) both;
+}
+@keyframes copy-in {
+  from {
+    opacity: 0;
+    transform: translateY(2.2cqw);
+    filter: blur(8px);
+  }
+}
+@keyframes copy-out {
+  to {
+    opacity: 0;
+    transform: translateY(-2cqw) scale(0.98);
+    filter: blur(10px);
+  }
+}
+
+/* 01 */
+.copy-problem {
+  left: 5.5%;
+  top: 15%;
+  width: 46%;
+}
+.copy-problem h1 {
+  font-size: 7.6cqw;
+  line-height: 0.94;
+}
+.copy-problem h1 span {
+  display: block;
+}
+.copy-problem.is-enter h1 span {
+  animation: copy-in 1100ms var(--ease-out) both;
+}
+.copy-problem.is-enter h1 span:nth-child(2) {
+  animation-delay: 110ms;
+}
+.copy-problem.is-enter h1 span:nth-child(3) {
+  animation-delay: 220ms;
+}
+.copy-problem h2 {
+  position: relative;
+  display: inline-block;
+  margin: 3.2cqw 0 0;
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 2.2cqw;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.copy-problem h2::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 52%;
+  height: 0.28cqw;
+  width: 0;
+  background: var(--hot);
+  transition: width 700ms var(--ease);
+}
+.copy-problem h2.struck::after {
+  width: 100%;
+}
+
+/* 02 */
+.copy-product {
+  inset: 0;
+}
+.copy-product .kicker {
+  position: absolute;
+  left: 5.5%;
+  top: 7%;
+}
+.copy-product .wordmark {
+  position: absolute;
+  left: 5%;
+  top: 9.5%;
+  font-size: 15.5cqw;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.copy-product h2 {
+  position: absolute;
+  right: 5.5%;
+  top: 13%;
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 3.7cqw;
+  text-align: right;
+  line-height: 1.05;
+}
+.copy-product h2 span {
+  display: block;
+}
+.copy-product .lede {
+  position: absolute;
+  right: 5.5%;
+  top: 35%;
+  width: 33%;
+  margin: 0;
+  text-align: right;
+  font-size: 1.4cqw;
+  line-height: 1.4;
+  color: var(--mute);
+}
+
+.copy-product .hint {
+  position: absolute;
+  left: 5.5%;
+  top: 50.5%;
+  color: var(--dim);
+}
+
+/* 03 / 04 / 05 */
+.copy-demo,
+.copy-future,
+.copy-compare {
+  inset: 0;
+}
+.copy-demo .kicker,
+.copy-future .kicker,
+.copy-compare .kicker {
+  position: absolute;
+  left: 5.5%;
+  top: 7%;
+}
+.copy-demo h1,
+.copy-future h1,
+.copy-compare h1 {
+  position: absolute;
+  left: 5.5%;
+  top: 11%;
+  width: 89%;
+  font-size: 3.7cqw;
+}
+.copy-demo .hint,
+.copy-future .hint,
+.copy-compare .hint {
+  position: absolute;
+  left: 50%;
+  bottom: 10.5%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  color: var(--dim);
+}
+
+/* 06 */
+.copy-vision {
+  inset: 0;
+}
+.copy-vision .kicker {
+  position: absolute;
+  left: 5.5%;
+  top: 7%;
+}
+.copy-vision h1.quiet {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  font-size: 3.1cqw;
+  line-height: 1.08;
+  transition: opacity 600ms var(--ease), transform 900ms var(--ease);
+}
+.is-assembled .copy-vision h1.quiet {
+  opacity: 0;
+  transform: translate(-50%, -80%);
+}
+.copy-vision .closing {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.copy-vision .closing h1 {
+  font-size: 9.6cqw;
+  line-height: 0.95;
+}
+.copy-vision .closing h1 span {
+  display: block;
+  animation: copy-in 1400ms var(--ease-out) both;
+}
+.copy-vision .closing h1 span:nth-child(2) {
+  animation-delay: 260ms;
+}
+.copy-vision .closing h1 em {
+  font-style: normal;
+}
+.copy-vision .closing p {
+  margin: 3cqw 0 0;
+  font-size: 1.8cqw;
+  color: var(--mute);
+  animation: copy-in 1200ms 700ms var(--ease-out) both;
+}
+.copy-vision .closing footer {
+  position: absolute;
+  bottom: 13%;
+  display: flex;
+  gap: 2.4cqw;
+  font-family: var(--mono);
+  font-size: 0.95cqw;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--dim);
+  animation: copy-in 1200ms 1100ms var(--ease-out) both;
+}
+.copy-vision .closing footer strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+/* ---- objects -------------------------------------------------------------------------------- */
+.pitch-objects {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+}
+.pitch-obj {
+  position: absolute;
+  box-sizing: border-box;
+  container-type: size;
+  transform: rotate(var(--tilt, 0deg));
+  transition:
+    left 620ms var(--ease),
+    top 620ms var(--ease),
+    width 620ms var(--ease),
+    height 620ms var(--ease),
+    transform 420ms var(--ease),
+    opacity 600ms var(--ease),
+    filter 600ms var(--ease);
+  animation: obj-in 1100ms var(--ease-out) both;
+  animation-delay: calc(260ms + var(--i, 0) * 95ms);
+  outline: 0.14cqw solid transparent;
+  outline-offset: 0.45cqw;
+}
+@keyframes obj-in {
+  from {
+    opacity: 0;
+    transform: translateY(5cqh) scale(0.92) rotate(var(--tilt, 0deg));
+    filter: blur(10px);
+  }
+}
+.pitch-obj.is-hover,
+.pitch-obj.is-lit {
+  outline-color: rgba(255, 90, 31, 0.55);
+}
+.pitch-obj.is-grabbed {
+  transition:
+    width 620ms var(--ease),
+    height 620ms var(--ease),
+    transform 220ms var(--ease);
+  transform: rotate(var(--tilt, 0deg)) scale(1.035);
+  outline-color: var(--hot);
+  z-index: 3;
+  filter: drop-shadow(0 2.4cqw 3cqw rgba(0, 0, 0, 0.7));
+}
+.pitch-obj.is-menu {
+  outline-color: var(--hot);
+  outline-offset: 0.7cqw;
+}
+.pitch-obj .idx {
+  font-family: var(--mono);
+  color: var(--mute);
+  letter-spacing: 0.18em;
+}
+
+/* the stock hold ring is sized to the object; the pitch puts it on the cursor instead */
+.pitch-stage .rm-hold {
+  display: none;
+}
+
+/* drop zones: where a piece goes (02 slots, 03 spotlight) */
+.pitch-zone {
+  position: absolute;
+  z-index: 3;
+  box-sizing: border-box;
+  border: 1px dashed var(--line2);
+  background: rgba(242, 240, 235, 0.015);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 1.2cqw;
+  gap: 0.4cqw;
+  transition: border-color 200ms, background 200ms;
+  animation: copy-in 900ms 300ms var(--ease-out) both;
+  pointer-events: none;
+}
+.pitch-zone .zi {
+  font-family: var(--display);
+  font-size: 2.6cqw;
+  color: var(--dim);
+}
+.pitch-zone .zl {
+  font-family: var(--mono);
+  font-size: 0.85cqw;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.pitch-zone.is-over {
+  border: 0.14cqw solid var(--hot);
+  background: var(--hot-soft);
+}
+.pitch-zone.is-over .zi,
+.pitch-zone.is-over .zl {
+  color: var(--hot);
+}
+
+/* 05: the empty half, waiting for the question */
+.pitch-voice-space {
+  position: absolute;
+  z-index: 3;
+  left: 54.5%;
+  top: 30%;
+  width: 40%;
+  height: 55%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+.pitch-voice-space p {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 2.2cqw;
+  line-height: 1.2;
+  color: var(--mute) !important;
+  animation: copy-in 500ms var(--ease-out) both;
+}
+.pitch-mic {
+  position: absolute;
+  z-index: 41;
+  left: 50%;
+  top: 4.6%;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 0.78cqw;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mute);
+  display: flex;
+  align-items: center;
+  gap: 0.6cqw;
+  white-space: nowrap;
+}
+.pitch-mic::before {
+  content: '';
+  width: 0.55cqw;
+  height: 0.55cqw;
+  border-radius: 50%;
+  background: #4ea3ff;
+  animation: blink 1.4s ease-in-out infinite;
+}
+
+/* 01: the old interface leaves */
+.is-discarding .pitch-obj {
+  animation: obj-discard 1150ms var(--ease) both !important;
+}
+.is-discarding .pitch-obj:nth-child(2) {
+  animation-delay: 80ms !important;
+}
+.is-discarding .pitch-obj:nth-child(3) {
+  animation-delay: 160ms !important;
+}
+@keyframes obj-discard {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(28cqh) rotate(calc(var(--tilt, 0deg) + 9deg)) scale(0.86);
+    filter: blur(14px);
+  }
+}
+
+/* 06: everything recedes behind the closing line */
+.is-closing .pitch-obj {
+  opacity: 0.05;
+  filter: blur(4px);
+  transform: scale(0.92);
+}
+/* the final frame is the line and nothing else */
+.is-closing .pitch-chrome > :not(.status) {
+  opacity: 0;
+  transition: opacity 800ms var(--ease);
+}
+
+/* window */
+.pv-window {
+  width: 100%;
+  height: 100%;
+  background: #121212;
+  border: 1px solid var(--line2);
+  border-radius: 1.6cqw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 3cqw 8cqw rgba(0, 0, 0, 0.6);
+}
+.pv-window .bar {
+  height: 9cqh;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 1.6cqw;
+  padding: 0 3cqw;
+  border-bottom: 1px solid var(--line);
+  background: #181818;
+}
+.pv-window .bar i {
+  width: 2.4cqw;
+  height: 2.4cqw;
+  border-radius: 50%;
+  background: #3a3936;
+}
+.pv-window .bar span {
+  margin-left: 3cqw;
+  font-family: var(--sans);
+  font-size: 3.2cqw;
+  color: var(--mute);
+}
+.pv-window .body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 17% 1fr 22%;
+}
+.pv-window .side {
+  border-right: 1px solid var(--line);
+  padding: 4cqw 2.6cqw;
+  display: flex;
+  flex-direction: column;
+  gap: 2.6cqw;
+}
+.pv-window .side b {
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--line2);
+  background: #1a1a1a;
+}
+.pv-window .side b.sel {
+  border-color: #6a6863;
+}
+.pv-window .canvas {
+  padding: 6cqw;
+  display: flex;
+  flex-direction: column;
+  gap: 3cqw;
+}
+.pv-window .ph {
+  height: 3.2cqw;
+  width: 70%;
+  background: #262624;
+}
+.pv-window .ph.h {
+  height: 6cqw;
+  width: 55%;
+  background: #3a3936;
+}
+.pv-window .ph.s {
+  width: 40%;
+}
+.pv-window .grid {
+  margin-top: 2cqw;
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2cqw;
+}
+.pv-window .grid b {
+  background: #1b1b1a;
+  border: 1px solid var(--line);
+}
+.pv-window .inspector {
+  border-left: 1px solid var(--line);
+  padding: 4cqw 3cqw;
+  display: flex;
+  flex-direction: column;
+  gap: 2.4cqw;
+}
+.pv-window .inspector span {
+  font-size: 2.6cqw;
+  color: var(--dim);
+}
+.pv-window .inspector b {
+  height: 2.4cqw;
+  background: #222220;
+}
+
+/* cursor + toolbar */
+.pv-cursor {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 1.4cqw 2cqw rgba(0, 0, 0, 0.6));
+}
+.pv-cursor path {
+  fill: var(--ink);
+  stroke: #080808;
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+.pv-toolbar {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4.2cqw;
+  padding: 0 4.5cqw;
+  background: #141414;
+  border: 1px solid var(--line2);
+  border-radius: 1.4cqw;
+  font-size: 30cqh;
+  color: var(--mute);
+  box-shadow: 0 2cqw 5cqw rgba(0, 0, 0, 0.5);
+}
+.pv-toolbar span.open {
+  color: var(--ink);
+  border-bottom: 0.4cqh solid var(--mute);
+}
+.pv-toolbar em {
+  margin-left: auto;
+  font-style: normal;
+  font-family: var(--mono);
+  color: var(--dim);
+  font-size: 24cqh;
+  white-space: nowrap;
+}
+
+/* 02 pillars */
+.pv-pillar {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 7cqw;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #121211, #0b0b0b);
+  transition: border-color 400ms var(--ease), background 400ms var(--ease);
+}
+.is-lit .pv-pillar {
+  border-color: rgba(255, 90, 31, 0.6);
+  background: linear-gradient(180deg, #1a110c, #0b0b0b);
+}
+.pv-pillar .idx {
+  font-size: 4.4cqw;
+}
+.pv-pillar .viz {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 3cqh 0;
+}
+.pv-pillar .viz > * {
+  height: 38cqh;
+  width: 38cqh;
+}
+.pv-pillar strong {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 11cqw;
+  line-height: 1;
+}
+.pv-pillar p {
+  margin: 3cqw 0 0;
+  font-size: 5cqw;
+  line-height: 1.35;
+  color: var(--mute);
+}
+.is-assembled .pv-pillar p,
+.scene-product .pitch-obj:not(.is-lit) .pv-pillar p {
+  opacity: 0.8;
+}
+
+.pv-hand line {
+  stroke: var(--mute);
+  stroke-width: 0.012;
+  stroke-linecap: round;
+  transition: stroke 300ms;
+}
+.pv-hand circle {
+  fill: var(--ink);
+  transition: fill 300ms;
+}
+.pv-hand.lit line {
+  stroke: var(--ink);
+  stroke-dasharray: 0.3;
+  animation: hand-draw 900ms var(--ease) both;
+}
+.pv-hand.lit circle {
+  animation: dot-pop 700ms var(--ease-out) both;
+}
+.pv-hand.lit circle.tip {
+  fill: var(--hot);
+}
+@keyframes hand-draw {
+  from {
+    stroke-dashoffset: 0.3;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes dot-pop {
+  0% {
+    transform: scale(0);
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  60% {
+    transform: scale(1.6);
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+}
+
+.pv-ring .sector path {
+  fill: rgba(242, 240, 235, 0.05);
+  stroke: var(--line2);
+  stroke-width: 0.006;
+  transition: fill 300ms;
+}
+.pv-ring text {
+  font-family: var(--mono);
+  font-size: 0.045px;
+  letter-spacing: 0.01px;
+  fill: var(--mute);
+}
+.pv-ring .core {
+  fill: none;
+  stroke: var(--mute);
+  stroke-width: 0.008;
+}
+.pv-ring.lit .sector path {
+  animation: ring-cycle 2.7s linear infinite;
+}
+.pv-ring.lit .s1 path {
+  animation-delay: 0.9s;
+}
+.pv-ring.lit .s2 path {
+  animation-delay: 1.8s;
+}
+.pv-ring.lit .core {
+  stroke: var(--hot);
+}
+@keyframes ring-cycle {
+  0%,
+  30% {
+    fill: rgba(255, 90, 31, 0.75);
+  }
+  36%,
+  100% {
+    fill: rgba(242, 240, 235, 0.05);
+  }
+}
+
+.pv-act {
+  position: relative;
+  display: grid;
+  place-items: end center;
+}
+.pv-act .pv-bars {
+  width: 70%;
+  height: 70%;
+}
+.pv-act .tick {
+  position: absolute;
+  top: 6%;
+  right: 6%;
+  font-size: 18cqw;
+  color: var(--dim);
+  transition: color 300ms, transform 500ms var(--ease-out);
+}
+.pv-act.lit .tick {
+  color: var(--hot);
+  transform: scale(1.15);
+}
+
+/* bars (charts and the Action pillar) */
+.pv-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 5%;
+  width: 100%;
+  height: 100%;
+}
+.pv-bars .bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+  text-align: center;
+}
+.pv-bars .bar i {
+  display: block;
+  background: rgba(242, 240, 235, 0.82);
+  transform-origin: bottom;
+  animation: bar-grow 900ms var(--ease-out) both;
+}
+.pv-bars .bar.hot i {
+  background: var(--hot);
+}
+.pv-bars .v,
+.pv-bars .l {
+  font-family: var(--mono);
+  font-size: 3.6cqw;
+  color: var(--mute);
+  padding: 1.6cqw 0;
+}
+.pv-bars .bar.hot .v {
+  color: var(--hot);
+}
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+/* chart, metric, diagram, note */
+.pv-chart,
+.pv-metric,
+.pv-diagram,
+.pv-note,
+.pv-contrast {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  background: rgba(16, 16, 16, 0.92);
+  display: flex;
+  flex-direction: column;
+}
+.pv-chart {
+  padding: 5cqw 6cqw 3cqw;
+}
+.pv-chart header,
+.pv-diagram header,
+.pv-note header {
+  display: flex;
+  align-items: baseline;
+  gap: 3cqw;
+  margin-bottom: 4cqh;
+}
+.pv-chart header .idx {
+  font-size: 2.4cqw;
+}
+.pv-chart header strong {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 4.6cqw;
+}
+.pv-chart header em {
+  margin-left: auto;
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 2.4cqw;
+  color: var(--dim);
+}
+.pv-chart .pv-bars {
+  flex: 1;
+  min-height: 0;
+}
+.pv-chart .pv-bars .v,
+.pv-chart .pv-bars .l {
+  font-size: 2.6cqw;
+}
+
+.pv-metric {
+  padding: 6cqw 7cqw;
+  justify-content: space-between;
+  position: relative;
+}
+.pv-metric .idx {
+  font-size: 4.4cqw;
+}
+.pv-metric .num {
+  margin-top: auto;
+  font-family: var(--display);
+  font-size: 17cqw;
+  line-height: 1;
+  color: var(--hot);
+}
+.pv-metric strong {
+  margin-top: 3cqh;
+  font-weight: 500;
+  font-size: 5.4cqw;
+}
+.pv-metric p {
+  margin: 2cqh 0 0;
+  font-size: 4cqw;
+  line-height: 1.35;
+  color: var(--mute);
+}
+
+.pv-diagram {
+  padding: 6cqw;
+}
+.pv-diagram header .idx,
+.pv-note header .idx {
+  font-size: 4.4cqw;
+}
+.pv-diagram header strong,
+.pv-note header strong {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 7.6cqw;
+}
+.pv-diagram ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+}
+.pv-diagram ol::before {
+  content: '';
+  position: absolute;
+  left: 7.5cqw;
+  top: 6cqh;
+  bottom: 6cqh;
+  width: 1px;
+  background: var(--line2);
+}
+.pv-diagram li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5cqw;
+  font-size: 7.2cqw;
+  font-weight: 500;
+  animation: copy-in 800ms var(--ease-out) both;
+}
+.pv-diagram li span {
+  flex: none;
+  width: 15cqw;
+  height: 15cqw;
+  display: grid;
+  place-items: center;
+  background: var(--bg2);
+  border: 1px solid var(--line2);
+  font-family: var(--mono);
+  font-size: 4.6cqw;
+  color: var(--mute);
+}
+.pv-diagram li:last-child span {
+  border-color: var(--hot);
+  color: var(--hot);
+}
+
+.pv-note {
+  padding: 7cqw;
+}
+.pv-note ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2.4cqh;
+}
+.pv-note li {
+  font-size: 5.5cqw;
+  line-height: 1.3;
+  padding-left: 7cqw;
+  position: relative;
+  color: #d9d6cf;
+}
+.pv-note li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 3.6cqw;
+  height: 1px;
+  background: var(--mute);
+}
+
+/* 05 contrast cards */
+.pv-contrast {
+  padding: 5cqw 6cqw;
+  position: relative;
+}
+.pv-contrast .idx {
+  font-size: 2.6cqw;
+}
+.pv-contrast strong {
+  margin: 4cqh 0 6cqh;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 7.4cqw;
+  line-height: 1;
+}
+.pv-contrast ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2.6cqh;
+}
+.pv-contrast li {
+  font-size: 4.2cqw;
+  padding: 2.4cqh 3cqw;
+}
+.pv-contrast.theirs {
+  background: #0e0e0e;
+}
+.pv-contrast.theirs strong {
+  color: #b9b6b0;
+}
+.pv-contrast.theirs li {
+  border: 1px solid var(--line);
+  background: #141414;
+  color: var(--mute);
+  font-family: var(--sans);
+}
+.pv-contrast.ours {
+  border-color: rgba(255, 90, 31, 0.45);
+}
+.pv-contrast.ours strong {
+  color: var(--hot);
+}
+.pv-contrast.ours li {
+  border-left: 0.5cqw solid var(--hot);
+  color: var(--ink);
+}
+/* once compared, the cards shrink to the sides: tighten their type */
+.scene-compare .pitch-obj[style*='width: 20%'] .pv-contrast strong {
+  font-size: 8.4cqw;
+}
+.copy-compare h1 {
+  font-size: 2.75cqw !important;
+}
+.scene-compare .pitch-obj[style*='width: 20%'] .pv-contrast li {
+  font-size: 7cqw;
+}
+
+/* 06 glyphs */
+.pv-glyph {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 10cqw;
+  border: 1px solid var(--line);
+  background: rgba(16, 16, 16, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6cqh;
+}
+.pv-glyph > svg {
+  width: 72%;
+  height: auto;
+  max-height: 62cqh;
+}
+.pv-glyph span {
+  font-family: var(--mono);
+  font-size: 7.5cqw;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.pv-memory .stack {
+  position: relative;
+  width: 62%;
+  aspect-ratio: 1.3;
+}
+.pv-memory .stack b {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--line2);
+  background: #151515;
+}
+.pv-memory .stack b:nth-child(1) {
+  transform: translate(-10%, -14%);
+}
+.pv-memory .stack b:nth-child(2) {
+  transform: translate(-5%, -7%);
+}
+.pv-memory .stack b.top {
+  display: grid;
+  place-items: center;
+  border-color: var(--hot);
+  color: var(--hot);
+  font-size: 22cqw;
+}
+.pv-voice .wave {
+  width: 70%;
+  height: 40cqh;
+  display: flex;
+  align-items: center;
+  gap: 7%;
+}
+.pv-voice .wave i {
+  flex: 1;
+  background: var(--hot);
+  animation: wave 1.2s ease-in-out infinite alternate;
+}
+@keyframes wave {
+  to {
+    transform: scaleY(0.35);
+  }
+}
+
+/* 02 pipeline once the three pillars converge */
+.pitch-pipeline {
+  position: absolute;
+  z-index: 3;
+  left: 14.5%;
+  right: 14.5%;
+  top: 71%;
+  height: 0.16cqw;
+  background: var(--hot);
+  transform-origin: left;
+  animation: line-draw 900ms 400ms var(--ease) both;
+}
+@keyframes line-draw {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* remember: a ghost of the object flies into the memory collection */
+.pitch-ghost {
+  position: absolute;
+  z-index: 30;
+  border: 0.15cqw solid var(--hot);
+  background: var(--hot-soft);
+  pointer-events: none;
+  animation: ghost-fly 950ms var(--ease) both;
+}
+@keyframes ghost-fly {
+  0% {
+    opacity: 0.9;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--to-x), var(--to-y)) scale(0.08);
+  }
+}
+
+/* ---- chrome ----------------------------------------------------------------------------------- */
+.pitch-chrome {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  font-family: var(--mono);
+}
+.pitch-chrome .brand {
+  position: absolute;
+  right: 5.5%;
+  top: 6.6%;
+  font-size: 0.92cqw;
+  letter-spacing: 0.4em;
+  color: var(--mute);
+}
+.scene-product .pitch-chrome .brand,
+.scene-demo .pitch-chrome .brand,
+.scene-utility .pitch-chrome .brand,
+.scene-compare .pitch-chrome .brand {
+  opacity: 0;
+}
+.pitch-chrome .count {
+  position: absolute;
+  left: 5.5%;
+  bottom: 5%;
+  font-family: var(--display);
+  font-size: 1.5cqw;
+}
+.pitch-chrome .count i {
+  font-style: normal;
+  color: var(--dim);
+}
+.pitch-chrome .progress {
+  position: absolute;
+  left: 13.5%;
+  bottom: 5.9%;
+  width: 18%;
+  display: flex;
+  gap: 0.4cqw;
+}
+.pitch-chrome .progress b {
+  flex: 1;
+  height: 0.12cqw;
+  background: var(--line);
+  position: relative;
+  overflow: hidden;
+}
+.pitch-chrome .progress b.past {
+  background: var(--mute);
+}
+.pitch-chrome .progress b i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--hot);
+  transition: width 250ms linear;
+}
+.pitch-chrome .status {
+  position: absolute;
+  left: 50%;
+  bottom: 5%;
+  transform: translateX(-50%);
+  font-size: 0.82cqw;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--hot);
+  display: flex;
+  align-items: center;
+  gap: 0.7cqw;
+}
+.pitch-chrome .status::before {
+  content: '';
+  width: 0.5cqw;
+  height: 0.5cqw;
+  border-radius: 50%;
+  background: var(--hot);
+  animation: blink 1.4s ease-in-out infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+.pitch-chrome-btn {
+  pointer-events: auto;
+  font-family: var(--mono);
+  font-size: 0.85cqw;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--mute);
+  border: 1px solid var(--line2);
+  padding: 0.7cqw 1.1cqw;
+  cursor: pointer;
+}
+.pitch-chrome-btn:hover {
+  color: var(--ink);
+  border-color: var(--mute);
+}
+.pitch-chrome .air-next {
+  position: absolute;
+  right: 5.5%;
+  bottom: 4.2%;
+  padding: 1cqw 1.6cqw;
+  opacity: 0.55;
+  transition: opacity 300ms, border-color 300ms, color 300ms;
+}
+.pitch-chrome .air-next span {
+  color: var(--hot);
+  margin-left: 0.5cqw;
+}
+
+/* ---- cursor ---------------------------------------------------------------------------------- */
+.pitch-cursor {
+  position: absolute;
+  z-index: 50;
+  width: 2.3cqw;
+  height: 2.3cqw;
+  margin: -1.15cqw 0 0 -1.15cqw;
+  border-radius: 50%;
+  border: 0.14cqw solid var(--ink);
+  pointer-events: none;
+  transition: transform 140ms var(--ease), border-color 200ms, background 200ms;
+  mix-blend-mode: difference;
+}
+.pitch-cursor::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.35cqw;
+  height: 0.35cqw;
+  margin: -0.175cqw;
+  border-radius: 50%;
+  background: var(--hot);
+}
+.pitch-cursor.is-over {
+  transform: scale(1.35);
+  border-color: var(--hot);
+  mix-blend-mode: normal;
+}
+.pitch-hold-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  /* the engaged cursor is scaled to 0.62, so this lands at ~5.6cqw */
+  width: 9cqw;
+  height: 9cqw;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  overflow: visible;
+}
+.pitch-hold-ring circle {
+  fill: none;
+  stroke-width: 5;
+}
+.pitch-hold-ring .track {
+  stroke: rgba(242, 240, 235, 0.18);
+}
+.pitch-hold-ring .fill {
+  stroke: var(--hot);
+  stroke-linecap: round;
+  stroke-dasharray: 276.5;
+}
+.pitch-cursor.is-holding {
+  mix-blend-mode: normal;
+}
+.pitch-cursor.is-engaged {
+  transform: scale(0.62);
+  background: var(--hot);
+  border-color: var(--hot);
+  mix-blend-mode: normal;
+}
+
+/* ---- radial menu + action panels, retuned for the pitch palette -------------------------------- */
+.pitch-stage .presenter-actions {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+}
+.pitch-stage .presenter-actions > * {
+  pointer-events: auto;
+}
+.pitch-stage .rm-root {
+  transform: scale(1.4);
+  transform-origin: 50% 160px;
+}
+.pitch-stage .rm-svg {
+  filter: drop-shadow(0 2cqw 4cqw rgba(0, 0, 0, 0.75));
+}
+.pitch-stage .rm-svg > circle:first-of-type {
+  fill: #0c0c0c;
+  stroke: rgba(242, 240, 235, 0.16);
+}
+.pitch-stage .rm-svg > circle:not(:first-of-type) {
+  fill: #0b0b0b;
+  stroke: rgba(242, 240, 235, 0.14);
+}
+.pitch-stage .rm-sector {
+  color: var(--mute);
+}
+.pitch-stage .rm-sector path {
+  fill: rgba(242, 240, 235, 0.045);
+  stroke: rgba(242, 240, 235, 0.14);
+}
+.pitch-stage .rm-sector.rm-active {
+  color: #0b0b0b;
+}
+.pitch-stage .rm-sector.rm-active path {
+  fill: var(--hot);
+  stroke: var(--hot);
+}
+.pitch-stage .rm-sector.rm-confirm path {
+  fill: #ff7a45;
+}
+.pitch-stage .rm-label {
+  font-family: var(--sans);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.pitch-stage .rm-svg > line {
+  stroke: rgba(255, 90, 31, 0.55);
+}
+.pitch-stage .rm-needle line {
+  stroke: var(--hot);
+  stroke-width: 3;
+}
+.pitch-stage .rm-center-label {
+  fill: var(--mute);
+  font-family: var(--mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.pitch-stage .rm-hint {
+  font-family: var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-shadow: 0 1px 10px #000;
+}
+.pitch-stage .ap-card {
+  background: rgba(12, 12, 12, 0.97);
+  border: 1px solid rgba(255, 90, 31, 0.5);
+  border-radius: 0;
+  font-family: var(--sans);
+  font-size: 1.05cqw;
+  color: var(--ink);
+  box-shadow: 0 2cqw 5cqw rgba(0, 0, 0, 0.6);
+}
+.pitch-stage .ap-head strong {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 1.25cqw;
+}
+.pitch-stage .ap-facts li {
+  margin-bottom: 0.35cqw;
+}
+.pitch-stage .ap-badge {
+  font-family: var(--mono);
+  font-size: 0.75cqw;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.pitch-stage .ap-memory-tab,
+.pitch-stage .ap-memory-body {
+  border-radius: 0;
+  background: rgba(12, 12, 12, 0.96);
+  border-color: rgba(255, 90, 31, 0.45);
+  color: var(--ink);
+  font-family: var(--mono);
+}
+.pitch-stage .ap-memory {
+  right: 5.5%;
+  top: 5.5%;
+}
+.pitch-stage .ap-saved {
+  border-radius: 0;
+  background: rgba(12, 12, 12, 0.96);
+  border-color: var(--hot);
+  font-family: var(--sans);
+}
+.pitch-stage .ap-computed {
+  color: var(--hot);
+  font-family: var(--display);
+  font-size: 1.7cqw;
+  line-height: 1.15;
+  margin-top: 0.6cqw;
+}
+.pitch-stage .ap-preview,
+.pitch-stage .ap-select,
+.pitch-stage .ap-typed {
+  border-radius: 0;
+}
+
+/* ---- calibration ------------------------------------------------------------------------------ */
+.pitch-calibrate {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  background: #050505;
+}
+.pitch-calibrate canvas {
+  width: 100% !important;
+  height: 100% !important;
+  opacity: 0.4;
+  border: none !important;
+  border-radius: 0 !important;
+}
+.pitch-calibrate .range {
+  position: absolute;
+  border: 0.16cqw solid var(--hot);
+  background: var(--hot-soft);
+}
+.pitch-calibrate .hand {
+  position: absolute;
+  width: 2.6cqw;
+  height: 2.6cqw;
+  margin: -1.3cqw 0 0 -1.3cqw;
+  border-radius: 50%;
+  border: 0.2cqw solid var(--hot);
+}
+.pitch-calibrate section {
+  position: absolute;
+  left: 5.5%;
+  bottom: 9%;
+  width: 40%;
+  display: flex;
+  flex-direction: column;
+  gap: 1cqw;
+  align-items: flex-start;
+}
+.pitch-calibrate section span {
+  font-family: var(--mono);
+  font-size: 0.9cqw;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--hot);
+}
+.pitch-calibrate section strong {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 2.6cqw;
+  line-height: 1.1;
+}
+.pitch-calibrate progress {
+  width: 100%;
+  height: 0.3cqw;
+  appearance: none;
+  border: none;
+  background: var(--line);
+}
+.pitch-calibrate progress::-webkit-progress-bar {
+  background: var(--line);
+}
+.pitch-calibrate progress::-webkit-progress-value {
+  background: var(--hot);
+}
+
+/* ---- rehearsal overlay ------------------------------------------------------------------------- */
+.pitch-rehearsal {
+  position: absolute;
+  z-index: 70;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 27%;
+  box-sizing: border-box;
+  padding: 1.6cqw;
+  background: rgba(8, 8, 8, 0.94);
+  border-left: 1px solid var(--line2);
+  font-size: 0.85cqw;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2cqw;
+  cursor: default;
+  overflow-y: auto;
+}
+.pitch-rehearsal header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3cqw;
+}
+.pitch-rehearsal header span {
+  font-family: var(--mono);
+  color: var(--hot);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-size: 0.75cqw;
+}
+.pitch-rehearsal header strong {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 1.3cqw;
+}
+.pitch-rehearsal header em {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 1.6cqw;
+}
+.pitch-rehearsal header em.over {
+  color: var(--hot);
+}
+.pitch-rehearsal header small,
+.pitch-rehearsal .keys,
+.pitch-rehearsal .state {
+  font-family: var(--mono);
+  color: var(--mute);
+  font-size: 0.72cqw;
+  line-height: 1.6;
+}
+.pitch-rehearsal .steps {
+  margin: 0;
+  padding-left: 1.2cqw;
+  line-height: 1.45;
+}
+.pitch-rehearsal .steps li.done {
+  color: var(--dim);
+  text-decoration: line-through;
+}
+.pitch-rehearsal .steps li.next {
+  list-style: none;
+  margin-left: -1.2cqw;
+  margin-top: 0.4cqw;
+  color: var(--mute);
+}
+.pitch-rehearsal .steps i {
+  color: var(--dim);
+  font-style: normal;
+}
+.pitch-rehearsal .notes p {
+  margin: 0 0 0.6cqw;
+  line-height: 1.45;
+  color: #d9d6cf;
+}
+.pitch-rehearsal .state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4cqw 1cqw;
+}
+.pitch-rehearsal .voice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5cqw;
+  padding: 0.9cqw 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 0.7cqw;
+  color: var(--mute);
+  line-height: 1.5;
+}
+.pitch-rehearsal .voice strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+.pitch-rehearsal .voice input {
+  background: #111;
+  border: 1px solid var(--line2);
+  color: var(--ink);
+  padding: 0.5cqw;
+  font-family: var(--mono);
+  font-size: 0.72cqw;
+}
+.pitch-rehearsal .btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5cqw;
+}
+.pitch-rehearsal .pitch-chrome-btn {
+  font-size: 0.7cqw;
+  padding: 0.5cqw 0.7cqw;
+}
+
+/* ---- presenter console (laptop window) ------------------------------------------------------- */
+.pitch-console {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  text-align: left;
+  box-sizing: border-box;
+  padding: 28px 32px;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+}
+.pitch-console header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.pitch-console .ok {
+  color: #7fd6a4;
+}
+.pitch-console .bad {
+  color: var(--hot);
+}
+.pitch-console .now {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 24px;
+  align-items: center;
+  margin: 26px 0;
+  padding: 22px 0;
+  border-top: 1px solid var(--line2);
+  border-bottom: 1px solid var(--line2);
+}
+.pitch-console .now .n {
+  font-family: var(--display);
+  font-size: 64px;
+  color: var(--hot);
+}
+.pitch-console .now small {
+  font-family: var(--mono);
+  color: var(--mute);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+.pitch-console .now h1 {
+  margin: 6px 0 0;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 34px;
+}
+.pitch-console .time {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.pitch-console .time b {
+  font-family: var(--mono);
+  font-size: 52px;
+  font-weight: 400;
+}
+.pitch-console .time b.over {
+  color: var(--hot);
+}
+.pitch-console .cols {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 36px;
+}
+.pitch-console h2 {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mute);
+  margin: 20px 0 8px;
+}
+.pitch-console .notes p {
+  font-size: 21px;
+  line-height: 1.45;
+  margin: 0 0 10px;
+}
+.pitch-console .notes ol {
+  margin: 0;
+  padding-left: 22px;
+  font-size: 17px;
+  line-height: 1.5;
+}
+.pitch-console .notes li.done {
+  color: var(--dim);
+  text-decoration: line-through;
+}
+.pitch-console .notes i {
+  color: var(--dim);
+  font-style: normal;
+}
+.pitch-console .up {
+  font-family: var(--display);
+  font-size: 20px;
+  color: var(--mute);
+}
+.pitch-console .status {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 18px;
+  font-size: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+.pitch-console .status span {
+  color: var(--mute);
+}
+.pitch-console .status b {
+  font-weight: 500;
+}
+.pitch-console .btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 18px 0;
+}
+.pitch-console button {
+  background: var(--bg2);
+  color: var(--ink);
+  border: 1px solid var(--line2);
+  padding: 11px 12px;
+  font-family: var(--sans);
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+.pitch-console button:hover {
+  border-color: var(--mute);
+}
+.pitch-console button.primary {
+  background: var(--hot);
+  border-color: var(--hot);
+  color: #0b0b0b;
+  font-weight: 600;
+}
+.pitch-console .scenes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pitch-console .scenes button {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+}
+.pitch-console .scenes button.on {
+  border-color: var(--hot);
+}
+.pitch-console .scenes span {
+  font-family: var(--mono);
+  color: var(--hot);
+}
+.pitch-console .scenes em {
+  margin-left: auto;
+  font-style: normal;
+  color: var(--dim);
+  font-family: var(--mono);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pitch-root *,
+  .pitch-root *::before,
+  .pitch-root *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* ---- swipe to advance: the page edge in the right quarter --------------------------------------- */
+.pitch-swipe {
+  position: absolute;
+  z-index: 44;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  border-left: 0.16cqw solid rgba(255, 90, 31, 0.55);
+  background: linear-gradient(90deg, rgba(255, 90, 31, 0.1), rgba(255, 90, 31, 0.02));
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  transition: width 60ms linear, background 200ms, border-color 200ms;
+}
+.pitch-swipe span {
+  margin-left: -9.5cqw;
+  width: 9cqw;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 0.8cqw;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mute);
+  white-space: nowrap;
+}
+.pitch-swipe.is-pulling {
+  background: linear-gradient(90deg, rgba(255, 90, 31, 0.22), rgba(255, 90, 31, 0.06));
+}
+.pitch-swipe.is-pulling span {
+  margin-left: 2cqw;
+  text-align: left;
+  color: var(--ink);
+}
+.pitch-swipe.is-armed {
+  border-left-color: var(--hot);
+  background: linear-gradient(90deg, rgba(255, 90, 31, 0.4), rgba(255, 90, 31, 0.12));
+}
+.pitch-swipe.is-armed span {
+  color: var(--hot);
+}
+
+/* ---- memory: tab, drawer, toast (replaces the stock panel inside the pitch) ---------------------- */
+.pitch-stage .ap-memory,
+.pitch-stage .ap-saved {
+  display: none;
+}
+.pitch-memtab {
+  position: absolute;
+  z-index: 42;
+  background: #0b0b0b;
+  right: 5.5%;
+  top: 5.6%;
+}
+.pitch-memtab span {
+  color: var(--hot);
+  margin-left: 0.5cqw;
+}
+.pitch-memory {
+  position: absolute;
+  z-index: 46;
+  right: 5.5%;
+  top: 21%;
+  width: 27%;
+  max-height: 64%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 1.4cqw;
+  background: rgba(10, 10, 10, 0.97);
+  border: 1px solid rgba(255, 90, 31, 0.5);
+  cursor: default;
+  animation: copy-in 500ms var(--ease-out) both;
+}
+.pitch-memory header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.pitch-memory header strong {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 1.6cqw;
+}
+.pitch-memory .src {
+  margin: 0.6cqw 0 1cqw;
+  font-family: var(--mono);
+  font-size: 0.72cqw;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.pitch-memory .src.ok {
+  color: var(--hot);
+}
+.pitch-memory .empty {
+  color: var(--mute);
+  font-size: 0.95cqw;
+}
+.pitch-memory ul {
+  list-style: none;
+  margin: 0 0 1cqw;
+  padding: 0;
+}
+.pitch-memory li {
+  padding: 0.8cqw 0;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25cqw;
+}
+.pitch-memory li strong {
+  font-size: 1.05cqw;
+  font-weight: 600;
+}
+.pitch-memory li span {
+  font-family: var(--mono);
+  font-size: 0.7cqw;
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.pitch-memory li p {
+  margin: 0;
+  font-size: 0.9cqw;
+  color: var(--mute);
+}
+.pitch-memtoast {
+  position: absolute;
+  z-index: 46;
+  left: 50%;
+  top: 6%;
+  transform: translateX(-50%);
+  padding: 0.8cqw 1.4cqw;
+  background: rgba(10, 10, 10, 0.97);
+  border: 1px solid var(--line2);
+  font-size: 1cqw;
+  white-space: nowrap;
+  animation: copy-in 400ms var(--ease-out) both;
+}
+.pitch-memtoast.ok {
+  border-color: var(--hot);
+}
+.pitch-memtoast b {
+  color: var(--hot);
+  margin-right: 0.4cqw;
+}
+
+/* ---- the ending, slower: pieces drift into place, then the line arrives on the swipe ------------ */
+.scene-vision .pitch-obj {
+  transition:
+    left 1500ms var(--ease),
+    top 1500ms var(--ease),
+    width 1500ms var(--ease),
+    height 1500ms var(--ease),
+    transform 1200ms var(--ease),
+    opacity 1600ms var(--ease),
+    filter 1600ms var(--ease);
+}
+.scene-vision .pitch-obj:nth-child(2) { transition-delay: 90ms; }
+.scene-vision .pitch-obj:nth-child(3) { transition-delay: 180ms; }
+.scene-vision .pitch-obj:nth-child(4) { transition-delay: 270ms; }
+.scene-vision .pitch-obj:nth-child(5) { transition-delay: 360ms; }
+.scene-vision .pitch-obj:nth-child(6) { transition-delay: 450ms; }
+.scene-vision .pitch-obj.is-grabbed {
+  transition: transform 220ms var(--ease);
+  transition-delay: 0ms;
+}
+.copy-vision .closing h1 span {
+  animation-duration: 2200ms;
+}
+.copy-vision .closing h1 span:nth-child(2) {
+  animation-delay: 600ms;
+}
+.copy-vision .closing p {
+  animation-duration: 1800ms;
+  animation-delay: 1500ms;
+}
+.copy-vision .closing footer {
+  animation-duration: 1600ms;
+  animation-delay: 2200ms;
+}
+.is-closing .pitch-obj {
+  transition-duration: 1800ms;
+}
+
+/* ---- 04: the Axis card is the reply — it grows out of where the Voice panel was ------------------ */
+.pitch-obj.from-reply {
+  transform-origin: 0 0;
+  animation: reply-in 1100ms var(--ease-out) both !important;
+}
+@keyframes reply-in {
+  0% {
+    opacity: 0.35;
+    transform: translate(var(--fx), var(--fy)) scale(var(--sx), var(--sy));
+    filter: blur(2px);
+  }
+  60% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* ---- 05: future directions — each card flips from its input to its result ----------------------- */
+.pv-future {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  perspective: 160cqw;
+}
+.pv-future .face {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  padding: 6cqw;
+  border: 1px solid var(--line);
+  background: rgba(16, 16, 16, 0.94);
+  display: flex;
+  flex-direction: column;
+  backface-visibility: hidden;
+  transition: transform 1000ms var(--ease);
+}
+.pv-future .back {
+  transform: rotateY(180deg);
+  border-color: rgba(255, 90, 31, 0.55);
+}
+.pv-future.is-done .front {
+  transform: rotateY(-180deg);
+}
+.pv-future.is-done .back {
+  transform: rotateY(0deg);
+}
+.pv-future header {
+  display: flex;
+  align-items: baseline;
+  gap: 3cqw;
+  margin-bottom: 4cqh;
+}
+.pv-future header .idx {
+  font-size: 4cqw;
+}
+.pv-future header strong {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 7cqw;
+}
+.pv-future .body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.pv-future footer {
+  margin-top: 4cqh;
+  font-family: var(--mono);
+  font-size: 3.6cqw;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.pv-future .back footer {
+  color: var(--hot);
+}
+.pv-eq {
+  font-family: var(--display);
+  font-size: 11cqw;
+  text-align: center;
+  padding: 6cqh 0;
+  border: 1px dashed var(--line2);
+  background: rgba(242, 240, 235, 0.03);
+}
+.pv-graph {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+.pv-graph .axis {
+  stroke: var(--line2);
+  stroke-width: 0.4;
+}
+.pv-graph .curve {
+  fill: none;
+  stroke: var(--hot);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+.pv-graph .pt {
+  fill: var(--ink);
+}
+.pv-graph .pt.v {
+  fill: var(--hot);
+}
+.pv-future .facts {
+  margin: 2cqh 0 0;
+  font-family: var(--mono);
+  font-size: 3.6cqw;
+  color: var(--mute);
+}
+.pv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 6cqw;
+}
+.pv-table td {
+  padding: 2.4cqh 3cqw;
+  border: 1px solid var(--line);
+}
+.pv-table td:last-child {
+  text-align: right;
+  font-family: var(--mono);
+}
+.pv-future .back .pv-bars {
+  flex: 1;
+}
+.pv-stickies {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4cqw;
+}
+.pv-stickies b {
+  background: #ffd23f;
+  color: #141414;
+  font-weight: 600;
+  font-size: 5cqw;
+  line-height: 1.25;
+  padding: 5cqw;
+  min-height: 22cqh;
+  box-shadow: 0 2cqw 4cqw rgba(0, 0, 0, 0.4);
+}
+.pv-tasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3cqh;
+}
+.pv-tasks li {
+  display: flex;
+  align-items: center;
+  gap: 3cqw;
+  font-size: 5.6cqw;
+  padding: 2.6cqh 3cqw;
+  border: 1px solid var(--line);
+}
+.pv-tasks i {
+  width: 4cqw;
+  height: 4cqw;
+  border: 0.4cqw solid var(--mute);
+  flex: none;
+}
+.pv-tasks em {
+  margin-left: auto;
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 3.4cqw;
+  color: var(--hot);
+  text-transform: uppercase;
+}
+
+/* ---- 05 concepts ------------------------------------------------------------------------------ */
+.pv-lamp {
+  width: 70%;
+  margin: 0 auto;
+  display: block;
+}
+.pv-lamp .glow {
+  fill: rgba(255, 196, 92, calc(0.42 * var(--glow, 1)));
+  filter: blur(6px);
+  transition: fill 1200ms var(--ease);
+}
+.pv-lamp .shade {
+  fill: rgba(242, 240, 235, calc(0.35 + 0.6 * var(--glow, 1)));
+}
+.pv-lamp .stem {
+  stroke: var(--mute);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+.pv-future .what {
+  margin: 3cqh 0 0;
+  text-align: center;
+  font-size: 5cqw;
+  color: var(--mute);
+}
+.pv-future .back .what {
+  color: var(--hot);
+}
+.pv-floor {
+  width: 100%;
+  border: 1px solid var(--line);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 9px, rgba(242, 240, 235, 0.04) 9px 10px),
+    repeating-linear-gradient(90deg, transparent 0 9px, rgba(242, 240, 235, 0.04) 9px 10px);
+}
+.pv-floor .box {
+  fill: #c9a26b;
+}
+.pv-floor .you {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+}
+.pv-floor .bot {
+  fill: var(--hot);
+}
+.pv-floor .route {
+  fill: none;
+  stroke: var(--hot);
+  stroke-width: 1.4;
+  stroke-dasharray: 3 2.5;
+}
+.pv-steps {
+  margin: 3cqh 0 0;
+  padding-left: 7cqw;
+  font-size: 5cqw;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.pv-board {
+  display: flex;
+  flex-direction: column;
+  gap: 2.6cqh;
+  padding: 6cqw;
+  border: 1px solid var(--line2);
+  background: #f2f0eb;
+  color: #161616;
+}
+.pv-board strong {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 6.4cqw;
+}
+.pv-board span {
+  font-size: 5.4cqw;
+}
+/* the three flip at the same moment */
+.pv-future .face {
+  transition-duration: 1100ms;
+  transition-delay: 0ms;
+}
+
+/* ---- the pitch's own Voice bar --------------------------------------------------------------- */
+.pitch-voice {
+  position: absolute;
+  z-index: 20;
+  box-sizing: border-box;
+  padding: 1.1cqw 1.3cqw 0.9cqw;
+  background: rgba(10, 10, 10, 0.97);
+  border: 1px solid rgba(255, 90, 31, 0.5);
+  box-shadow: 0 2cqw 5cqw rgba(0, 0, 0, 0.6);
+  cursor: default;
+  animation: copy-in 450ms var(--ease-out) both;
+}
+.pitch-voice header {
+  display: flex;
+  align-items: center;
+  gap: 0.7cqw;
+}
+.pitch-voice header strong {
+  flex: 1;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 1.35cqw;
+}
+.pitch-voice .dot {
+  width: 0.65cqw;
+  height: 0.65cqw;
+  border-radius: 50%;
+  background: var(--dim);
+}
+.pitch-voice.is-listening .dot {
+  background: #4ea3ff;
+  animation: blink 1.2s ease-in-out infinite;
+}
+.pitch-voice.is-thinking .dot {
+  background: var(--hot);
+  animation: blink 0.6s ease-in-out infinite;
+}
+.pitch-voice .x {
+  background: none;
+  border: none;
+  color: var(--mute);
+  font-size: 1.4cqw;
+  cursor: pointer;
+}
+.pitch-voice .meter {
+  display: flex;
+  align-items: center;
+  gap: 0.25cqw;
+  height: 3.2cqw;
+  margin: 0.9cqw 0 0.6cqw;
+}
+.pitch-voice .meter i {
+  flex: 1;
+  height: 100%;
+  background: var(--hot);
+  transform-origin: center;
+  transition: transform 70ms linear;
+}
+.pitch-voice.is-thinking .meter i {
+  animation: wave 0.9s ease-in-out infinite alternate;
+  transform: scaleY(0.3) !important;
+}
+.pitch-voice .words {
+  margin: 0.4cqw 0 0;
+  font-size: 1.25cqw;
+  line-height: 1.35;
+}
+.pitch-voice .reply {
+  margin: 0.8cqw 0 0;
+  padding-left: 0.9cqw;
+  border-left: 2px solid var(--hot);
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 1.3cqw;
+  line-height: 1.4;
+  color: var(--ink);
+  animation: copy-in 400ms var(--ease-out) both;
+}
+.pitch-voice.is-answered .meter {
+  display: none;
+}
+.pitch-voice.is-answered .words {
+  color: var(--mute);
+  font-size: 1.05cqw;
+}
+.pitch-voice .how,
+.pitch-voice .err,
+.pitch-voice .need p {
+  margin: 0.5cqw 0 0;
+  font-size: 0.85cqw;
+  color: var(--mute);
+}
+.pitch-voice .err {
+  color: #ffb4a0;
+}
+.pitch-voice .need {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7cqw;
+  align-items: flex-start;
+  margin-top: 0.6cqw;
+}
+.pitch-voice footer {
+  margin-top: 0.7cqw;
+  font-family: var(--mono);
+  font-size: 0.66cqw;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* ---- closing: AXIS — the interface is you ---------------------------------------------------- */
+.copy-vision .closing .mark {
+  font-size: 15cqw;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  animation: copy-in 2000ms 900ms var(--ease-out) both;
+}
+.copy-vision .closing h2 {
+  margin: 1.6cqw 0 0;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 4.4cqw;
+  animation: copy-in 1800ms 1600ms var(--ease-out) both;
+}
+.copy-vision .closing h2 em {
+  font-style: normal;
+}
+.copy-vision .closing p {
+  animation-delay: 2400ms !important;
+}
+.copy-vision .closing footer {
+  animation-delay: 2900ms !important;
+}
+/* text → boxes: the line lifts away softly while the pieces glide in */
+.is-assembled .copy-vision h1.quiet {
+  transition:
+    opacity 1100ms var(--ease),
+    transform 1500ms var(--ease),
+    filter 1100ms var(--ease);
+  filter: blur(6px);
+}
+/* boxes → final: they recede one after another before the mark arrives */
+.is-closing .pitch-obj {
+  transition-duration: 1600ms !important;
+}
+.is-closing .pitch-obj:nth-child(2) { transition-delay: 80ms !important; }
+.is-closing .pitch-obj:nth-child(3) { transition-delay: 160ms !important; }
+.is-closing .pitch-obj:nth-child(4) { transition-delay: 240ms !important; }
+.is-closing .pitch-obj:nth-child(5) { transition-delay: 320ms !important; }
+.is-closing .pitch-obj:nth-child(6) { transition-delay: 400ms !important; }

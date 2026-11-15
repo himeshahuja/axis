@@ -215,6 +215,11 @@ feels a marker's light press, and battery life.
 
 Files: `concept.html`, `css/concept.css`, `js/concept/`, `tests/concept.mjs`.
 
+**The AXIS version.** The same pitch is also a page in the AXIS app, in its design, at `/board`:
+`cd reflex-present && npm install && npx vite`, then open <http://localhost:5173/board>. It runs this
+engine (copied into `reflex-present/src/board/engine/`) live in the browser. `reflex-present/` is the
+AXIS app from the `pinch-and-drag` branch, with the Board page added.
+
 ## If time runs short
 
 - No real recordings yet: the network in `model/` was trained on simulated readings and is there to start from. It may or may not read real writing; try it, but plan on step 4.
