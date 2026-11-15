@@ -61,3 +61,8 @@ export interface AgentResult {
   turns: number
   ms: number
 }
+
+/** An artifact that can stand on its own on the slide (not code). */
+export type AgentFigure = Extract<AgentArtifact, { type: 'graph' | 'chart' | 'image' }>
+
+export const isFigureArtifact = (a: AgentArtifact): a is AgentFigure => a.type === 'graph' || a.type === 'chart' || a.type === 'image'

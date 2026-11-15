@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PresenterActions } from '../components/PresenterActions'
+import { isFigure } from '../spatial/radial/figures'
+import { FigureView } from '../spatial/radial/ui/AgentArtifacts'
 import { AxisMark } from './AxisMark'
 import { parseAskAction } from '../spatial/radial/actions/explain'
 import { LocalMemoryStore } from '../spatial/radial/actions/memory'
@@ -582,8 +584,8 @@ export function PitchStage() {
       const ix = rt.interaction
       if (ctl.layoutVersion !== applied.current) {
         applied.current = ctl.layoutVersion
-        // What was said stays through the scene's own re-layouts; a new scene starts without it.
-        const said = ctl.sceneIndex === appliedScene.current ? ix.objects.filter(isSaid) : []
+        // What was said (and figures the agent put on the slide) stays through the scene's own re-layouts; a new scene starts without it.
+        const said = ctl.sceneIndex === appliedScene.current ? ix.objects.filter((o) => isSaid(o) || isFigure(o)) : []
         appliedScene.current = ctl.sceneIndex
         rt.setObjects([...objectsFor(ctl.scene, ctl.done), ...said])
       }
@@ -764,7 +766,7 @@ export function PitchStage() {
   // first), and moving its DOM node would restart its entrance animation (it vanished).
   const sceneOrder = new Map(scene.objects.map((o, i) => [o.id, i]))
   // Said cards come after the scene's own, oldest first (their ids count recordings).
-  const rank = (o: SpatialObject) => sceneOrder.get(o.id) ?? (isSaid(o) ? sceneOrder.size + (Number(o.id.slice(SAID.length)) || 0) : 0)
+  const rank = (o: SpatialObject) => sceneOrder.get(o.id) ?? (isSaid(o) ? sceneOrder.size + (Number(o.id.slice(SAID.length)) || 0) : isFigure(o) ? sceneOrder.size + 1e6 : 0)
   const orderedObjects = [...(ix.objects as PitchObject[])].sort((a, b) => rank(a) - rank(b))
   const grabbedObj = ix.grabbedId ? ix.objects.find((o) => o.id === ix.grabbedId) : null
   const overZone = (z: { x: number; y: number; w: number; h: number }) => {
@@ -854,11 +856,11 @@ export function PitchStage() {
             return (
               <div
                 key={o.id}
-                className={`pitch-obj v-${o.visual} ${hovered ? 'is-hover' : ''} ${grabbed ? 'is-grabbed' : ''} ${lit ? 'is-lit' : ''} ${menu ? 'is-menu' : ''} ${rf ? 'from-reply' : ''}`}
+                className={`pitch-obj v-${o.figure ? 'figure' : o.visual} ${hovered ? 'is-hover' : ''} ${grabbed ? 'is-grabbed' : ''} ${lit ? 'is-lit' : ''} ${menu ? 'is-menu' : ''} ${rf ? 'from-reply' : ''}`}
                 style={{ left: pct(o.x), top: pct(o.y), width: pct(o.w), height: pct(o.h), '--tilt': `${assembled ? 0 : (o.tilt ?? 0)}deg`, '--i': i, ...morph } as unknown as React.CSSProperties}
               >
-                <ObjectVisual o={o} lit={lit} transformed={!!o.transformedBy && done.has(o.transformedBy)} />
-                {isSaid(o) && (
+                {o.figure ? <FigureView figure={o.figure} /> : <ObjectVisual o={o} lit={lit} transformed={!!o.transformedBy && done.has(o.transformedBy)} />}
+                {(isSaid(o) || isFigure(o)) && (
                   <button className="pitch-said-x" data-air-action={`delete-said:${o.id}`} onClick={() => deleteSaid(rt, o.id)} aria-label="Delete">
                     ×
                   </button>
@@ -868,7 +870,7 @@ export function PitchStage() {
           })}
         </div>
 
-        {scene.radial && !calibrating && <PresenterActions rt={rt} ownVoice />}
+        {scene.radial && !calibrating && <PresenterActions rt={rt} ownVoice figureArea={{ top: 0.22, bottom: 0.9, left: 0.02, right: 0.98 }} />}
         {scene.radial && !calibrating && rt.radial.executor.voice && ix.objects.some((o) => o.id === rt.radial.executor.voice!.objectId) && (
           <PitchVoice
             key={rt.radial.executor.voice.id}

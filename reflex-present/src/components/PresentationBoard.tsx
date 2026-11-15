@@ -3,11 +3,12 @@ import { demoIdentity, presentationDeck } from '../data/presentationDeck'
 import { defaultProfile, type CalibrationProfile } from '../spatial/calibration'
 import type { Zone } from '../spatial/interaction'
 import { parseAskAction } from '../spatial/radial/actions/explain'
-import { SpatialRuntime, useRuntime } from '../spatial/runtime'
+import { exposeForDev, SpatialRuntime, useRuntime } from '../spatial/runtime'
 import type { SpatialObject } from '../spatial/types'
 import { CameraPreview } from '../spatial/ui/CameraPreview'
 import './PresentationBoard.css'
 import { PresenterActions } from './PresenterActions'
+import { FigureView } from '../spatial/radial/ui/AgentArtifacts'
 import { PresenterActionTray } from './PresenterActionTray'
 import './PresenterTheme.css'
 import { BAND_NUMBER } from '../spatial/wearable/band'
@@ -70,10 +71,10 @@ function airActionNear(stage: HTMLElement, x: number, y: number, preferred: stri
 function SlideCard({ object, active, grabbed, trashing }: { object: SpatialObject; active: boolean; grabbed: boolean; trashing: boolean }) {
   return (
     <div
-      className={`presentation-card ${active ? 'is-hovered' : ''} ${grabbed ? 'is-grabbed' : ''} ${trashing ? 'is-trashing' : ''} ${object.variant === 'transcript' ? 'is-transcript' : ''} ${object.shape}`}
+      className={`presentation-card ${active ? 'is-hovered' : ''} ${grabbed ? 'is-grabbed' : ''} ${trashing ? 'is-trashing' : ''} ${object.variant === 'transcript' ? 'is-transcript' : ''} ${object.figure ? 'is-figure' : ''} ${object.shape}`}
       style={{ left: pct(object.x), top: pct(object.y), width: pct(object.w), height: pct(object.h), '--card-color': object.color } as React.CSSProperties}
     >
-      {object.variant === 'transcript' ? <span>{object.label}</span> : object.label.split('\n').map((line, i) => <span key={i}>{line}</span>)}
+      {object.figure ? <FigureView figure={object.figure} /> : object.variant === 'transcript' ? <span>{object.label}</span> : object.label.split('\n').map((line, i) => <span key={i}>{line}</span>)}
     </div>
   )
 }
@@ -92,6 +93,8 @@ function TrashZone({ ready, armed }: { ready: boolean; armed: boolean }) {
 export function PresentationBoard() {
   const [runtime] = useState(() => new SpatialRuntime(presentationDeck[0].objects))
   useRuntime(runtime)
+  // Dev builds only: window.__reflexRuntime for scripted checks, as on the other pages.
+  useEffect(() => exposeForDev(runtime), [runtime])
   const [slideIndex, setSlideIndex] = useState(0)
   const [showCamera, setShowCamera] = useState(true)
   const [showNotes, setShowNotes] = useState(false)
@@ -259,7 +262,8 @@ export function PresentationBoard() {
       const ask = parseAskAction(action)
       if (ask) runtime.radial.executor.askSuggested(ask.objectId, ask.index, runtime.interaction.objects)
     }
-    else if (action.startsWith('explain-mic:')) stageRef.current?.querySelector<HTMLElement>(`[data-air-action="${CSS.escape(action)}"]`)?.click()
+    // Buttons inside an Explain card (its microphone, putting a figure on the slide): a closed hand clicks them.
+    else if (action.startsWith('explain-mic:') || action.startsWith('place-figure:')) stageRef.current?.querySelector<HTMLElement>(`[data-air-action="${CSS.escape(action)}"]`)?.click()
     if (action !== 'tools' && action !== 'band-connect') setShowTools(false)
   }, [runtime, beginCalibration, slideIndex])
 

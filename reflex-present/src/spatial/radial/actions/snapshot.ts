@@ -20,6 +20,9 @@ export interface Snapshot {
   data: string
 }
 
+/** The stage an element (an Explain card) sits on. */
+export const stageOf = (el: Element): HTMLElement | null => el.closest<HTMLElement>(STAGE)
+
 function stageFor(objectId: string): HTMLElement | null {
   const card = document.querySelector(`[data-explain-card="${CSS.escape(objectId)}"]`)
   return (card?.closest(STAGE) as HTMLElement | null) ?? document.querySelector<HTMLElement>(STAGE)
