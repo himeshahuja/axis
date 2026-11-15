@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { isMenuOpen, type RadialMenuState } from '../radial/types'
+import { placeFigure } from '../radial/figures'
 import { ExplainPanel, MemoryPanel, SavedToast, VoiceCapturePanel } from '../radial/ui/ActionPanels'
+import { FigureView } from '../radial/ui/AgentArtifacts'
 import { HoldRing, RadialActionMenu } from '../radial/ui/RadialActionMenu'
 import type { SpatialRuntime } from '../runtime'
 import type { PointerSource, SpatialObject } from '../types'
@@ -58,10 +60,10 @@ function Content({ o }: { o: SpatialObject }) {
 
 function ObjectView({ o, hover, grabbed, frozen, menu }: { o: SpatialObject; hover: boolean; grabbed: boolean; frozen: boolean; menu: boolean }) {
   const radius = o.shape === 'circle' ? '50%' : o.shape === 'pill' ? '999px' : '14px'
-  const classes = ['sp-obj', hover && 'hover', grabbed && 'grabbed', frozen && 'frozen', grabbed && 'dragging', menu && 'menu-target'].filter(Boolean).join(' ')
+  const classes = ['sp-obj', o.figure && 'is-figure', hover && 'hover', grabbed && 'grabbed', frozen && 'frozen', grabbed && 'dragging', menu && 'menu-target'].filter(Boolean).join(' ')
   return (
     <div className={classes} style={{ left: pct(o.x), top: pct(o.y), width: pct(o.w), height: pct(o.h), background: o.color, borderRadius: radius }}>
-      <Content o={o} />
+      {o.figure ? <FigureView figure={o.figure} /> : <Content o={o} />}
     </div>
   )
 }
@@ -161,7 +163,7 @@ export function SpatialCanvas({ rt, pointerHidden = false }: { rt: SpatialRuntim
 
       {[...ex.explainCards.values()].map((card) => {
         const o = byId(card.objectId)
-        return o ? <ExplainPanel key={card.objectId} card={card} object={o} thread={ex.explainThreads.get(card.objectId)} onAsk={(q) => ex.ask(card.objectId, q, ix.objects)} voiceProviders={rt.radial.voiceProviders} objects={ix.objects} onClose={() => ex.closeExplain(card.objectId)} /> : null
+        return o ? <ExplainPanel key={card.objectId} card={card} object={o} thread={ex.explainThreads.get(card.objectId)} onAsk={(q) => ex.ask(card.objectId, q, ix.objects)} voiceProviders={rt.radial.voiceProviders} objects={ix.objects} onPlaceFigure={(f, where) => placeFigure(rt, f, { ...where, near: o })} onClose={() => ex.closeExplain(card.objectId)} /> : null
       })}
 
       {ex.voice && voiceObj && (

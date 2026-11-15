@@ -16,14 +16,21 @@
 }
 .ag-desmos {
   width: 100%;
-  height: clamp(180px, 26cqh, 300px);
+  height: 100%;
   border-radius: 8px;
   overflow: hidden;
   background: #000;
 }
 .ag-chart {
   width: 100%;
-  height: clamp(160px, 24cqh, 260px);
+  height: 100%;
+}
+.ag-frame {
+  width: 100%;
+  height: clamp(170px, 26cqh, 290px);
+}
+.ag-frame-image {
+  height: auto;
 }
 .ag-exprs {
   display: flex;
@@ -96,4 +103,137 @@
 }
 .ag-mic .ap-small {
   flex-basis: 100%;
+}
+
+/* ---- taking a figure out of the card ---- */
+.ag-place {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.ag-place button {
+  font: inherit;
+  font-size: 0.8em;
+  border-radius: 7px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.ag-drag {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px dashed currentColor;
+  background: transparent;
+  color: inherit;
+  opacity: 0.85;
+  cursor: grab !important;
+  touch-action: none;
+  text-align: left;
+}
+.ag-drag:active {
+  cursor: grabbing !important;
+}
+.ag-grip {
+  font-size: 1.15em;
+  line-height: 1;
+  letter-spacing: -0.1em;
+}
+.ag-put {
+  border: 1px solid var(--ag-accent, #edca7c);
+  background: var(--ag-accent, #edca7c);
+  color: #1b1a17;
+  font-weight: 600;
+}
+.ag-put.is-placed {
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: default;
+}
+.ag-put.proximity-active:not(.is-placed) {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.ag-ghost {
+  position: fixed;
+  z-index: 10000;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 160px;
+  padding: 14px 18px;
+  border: 1.5px dashed var(--ag-accent, #edca7c);
+  border-radius: 10px;
+  background: #151517e6;
+  color: #f1ede4;
+  font: 500 13px/1.3 system-ui, sans-serif;
+  box-shadow: 0 12px 32px #0007;
+}
+.ag-ghost small {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.pitch-stage .ag-put,
+.pitch-stage .ag-ghost {
+  --ag-accent: #ff5a1f;
+}
+
+/* ---- a figure on the slide (FigureView inside the page's own object box) ---- */
+.ag-onstage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  border: 1px solid #ffffff1f;
+  border-radius: 12px;
+  background: #151517;
+  color: #eeeae2;
+  font: 400 clamp(10px, 1cqw, 14px)/1.3 system-ui, sans-serif;
+  text-align: left;
+  overflow: hidden;
+}
+.ag-onstage-title {
+  font-size: 0.95em;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ag-onstage-body {
+  flex: 1;
+  min-height: 0;
+  /* The stage owns the pointer: grabbing the object must not pan the graph or hover the chart. */
+  pointer-events: none;
+}
+.ag-onstage .ag-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.ag-onstage .ag-exprs {
+  font-size: 0.85em;
+}
+.pitch-obj.v-figure,
+.presentation-card.is-figure,
+.sp-obj.is-figure {
+  padding: 0 !important;
+  background: transparent !important;
+  overflow: visible;
+}
+.pitch-obj.v-figure.is-grabbed .ag-onstage,
+.presentation-card.is-figure.is-grabbed .ag-onstage,
+.sp-obj.is-figure.grabbed .ag-onstage {
+  border-color: var(--ag-accent, #edca7c);
+  box-shadow: 0 18px 40px #000a;
+}
+.pitch-obj.v-figure .ag-onstage {
+  --ag-accent: #ff5a1f;
+  border-radius: 0;
 }

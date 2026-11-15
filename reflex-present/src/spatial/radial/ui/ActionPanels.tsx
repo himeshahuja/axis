@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import type { AgentFigure } from '../actions/agentTypes'
+import { stageOf } from '../actions/snapshot'
+import type { Rect } from '../figures'
 import type { SpatialObject } from '../../types'
 import { BAND_NUMBER } from '../../wearable/band'
 import { askAction, suggestedQuestions } from '../actions/explain'
@@ -8,7 +11,7 @@ import { askGemini, BandGeminiProvider, forgetDeepgramKey, hasDeepgramKey, setDe
 import { previewVoiceCommand, type VoiceCommandPreview } from '../actions/voiceCommand'
 import type { ExplainCard, ExplainQA, VoiceSession } from '../RadialActionExecutor'
 import { hasVisual } from '../actions/agent'
-import { AgentArtifacts } from './AgentArtifacts'
+import { AgentArtifacts, type FigurePlacing } from './AgentArtifacts'
 import { ExplainMic } from './ExplainMic'
 
 const pct = (v: number) => `${v * 100}%`
@@ -35,6 +38,7 @@ export function ExplainPanel({
   listening = false,
   voiceProviders,
   objects = [],
+  onPlaceFigure,
 }: {
   card: ExplainCard
   object: SpatialObject
@@ -53,7 +57,10 @@ export function ExplainPanel({
   voiceProviders?: VoiceProvider[]
   /** Everything on the slide, for the voice request's context. */
   objects?: SpatialObject[]
+  /** Put an agent figure on the slide: `at` is its centre where the mouse let go, in stage fractions. */
+  onPlaceFigure?: (f: AgentFigure, where: { at?: { x: number; y: number }; avoid: Rect[] }) => void
 }) {
+  const root = useRef<HTMLDivElement>(null)
   const [draft, setDraft] = useState('')
   const asked = new Set(thread.map((qa) => qa.question))
   const submit = () => {
@@ -61,8 +68,28 @@ export function ExplainPanel({
     onAsk(draft)
     setDraft('')
   }
+  /** How this card's figures go onto the slide: screen points become stage fractions here. */
+  const figurePlacing = (qaId: number): FigurePlacing => ({
+    onPlace: (f, at) => {
+      const cardEl = root.current
+      const stage = cardEl ? stageOf(cardEl) : null
+      const sb = stage?.getBoundingClientRect()
+      if (!onPlaceFigure || !cardEl || !sb || sb.width <= 0 || sb.height <= 0) return
+      const cb = cardEl.getBoundingClientRect()
+      const inside = (r: DOMRect, p: { clientX: number; clientY: number }) => p.clientX >= r.left && p.clientX <= r.right && p.clientY >= r.top && p.clientY <= r.bottom
+      // Let go off the slide, or back on this card: nothing happens.
+      if (at && (!inside(sb, at) || inside(cb, at))) return
+      onPlaceFigure(f, {
+        at: at && { x: (at.clientX - sb.left) / sb.width, y: (at.clientY - sb.top) / sb.height },
+        avoid: [{ x: (cb.left - sb.left) / sb.width, y: (cb.top - sb.top) / sb.height, w: cb.width / sb.width, h: cb.height / sb.height }],
+      })
+    },
+    placed: (f) => objects.some((o) => o.figure === f),
+    airAction: compact ? (i) => `place-figure:${card.objectId}:${qaId}:${i}` : undefined,
+    hoverAction,
+  })
   return (
-    <div className={`ap-card ap-explain ${thread.some((qa) => hasVisual(qa.answer?.artifacts)) ? 'ap-has-figure' : ''}`} data-explain-card={card.objectId} style={beside(object, 0.24)} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+    <div ref={root} className={`ap-card ap-explain ${thread.some((qa) => hasVisual(qa.answer?.artifacts)) ? 'ap-has-figure' : ''}`} data-explain-card={card.objectId} style={beside(object, 0.24)} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
       <div className="ap-head">
         <span className="ap-dot" style={{ background: object.color }} />
         <strong>Explain · {object.label}</strong>
@@ -90,7 +117,7 @@ export function ExplainPanel({
           {qa.answer && (
             <>
               <p className="ap-a">{qa.answer.text}</p>
-              <AgentArtifacts artifacts={qa.answer.artifacts} />
+              <AgentArtifacts artifacts={qa.answer.artifacts} placing={onPlaceFigure ? figurePlacing(qa.id) : undefined} />
               <div className="ap-muted ap-small">{qa.answer.label}</div>
             </>
           )}

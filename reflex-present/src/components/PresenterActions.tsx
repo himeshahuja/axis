@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { SpatialRuntime } from '../spatial/runtime'
 import type { SpatialObject } from '../spatial/types'
+import { placeFigure, type PlaceOptions } from '../spatial/radial/figures'
 import { isMenuOpen } from '../spatial/radial/types'
 import { ExplainPanel, MemoryPanel, SavedToast, VoiceCapturePanel } from '../spatial/radial/ui/ActionPanels'
 import { HoldRing, RadialActionMenu } from '../spatial/radial/ui/RadialActionMenu'
@@ -11,7 +12,7 @@ import '../spatial/radial/ui/radial.css'
  * With `onPaste`, Voice dictates: what was said is handed over to go on the slide.
  * `ownVoice`: the host draws its own Voice capture (the pitch does), so this panel stays out of it.
  */
-export function PresenterActions({ rt, onPaste, hoverAction = null, ownVoice = false }: { rt: SpatialRuntime; onPaste?: (text: string, near: SpatialObject) => void; hoverAction?: string | null; ownVoice?: boolean }) {
+export function PresenterActions({ rt, onPaste, hoverAction = null, ownVoice = false, figureArea }: { rt: SpatialRuntime; onPaste?: (text: string, near: SpatialObject) => void; hoverAction?: string | null; ownVoice?: boolean; /** Where the agent's figures may go on this stage. */ figureArea?: PlaceOptions['area'] }) {
   const [memoryOpen, setMemoryOpen] = useState(false)
   const state = rt.radial.state
   const executor = rt.radial.executor
@@ -27,7 +28,7 @@ export function PresenterActions({ rt, onPaste, hoverAction = null, ownVoice = f
       // The pitch draws its own microphone into the card (ownVoice); elsewhere the card records itself.
       const voiceAsk = ownVoice ? () => executor.askByVoice(card.objectId, rt.interaction.objects) : undefined
       const listening = !!executor.voice?.ask && executor.voice.objectId === card.objectId
-      return target ? <ExplainPanel key={card.objectId} card={card} object={target} compact hoverAction={hoverAction} thread={executor.explainThreads.get(card.objectId)} onAsk={(q) => executor.ask(card.objectId, q, rt.interaction.objects)} onVoiceAsk={voiceAsk} listening={listening} voiceProviders={rt.radial.voiceProviders} objects={rt.interaction.objects} onClose={() => executor.closeExplain(card.objectId)} /> : null
+      return target ? <ExplainPanel key={card.objectId} card={card} object={target} compact hoverAction={hoverAction} thread={executor.explainThreads.get(card.objectId)} onAsk={(q) => executor.ask(card.objectId, q, rt.interaction.objects)} onVoiceAsk={voiceAsk} listening={listening} voiceProviders={rt.radial.voiceProviders} objects={rt.interaction.objects} onPlaceFigure={(f, where) => placeFigure(rt, f, { ...where, near: target, area: figureArea })} onClose={() => executor.closeExplain(card.objectId)} /> : null
     })}
     {!ownVoice && executor.voice && voiceObject && <VoiceCapturePanel session={executor.voice} object={voiceObject} objects={rt.interaction.objects} providers={rt.radial.voiceProviders} onClose={() => executor.closeVoice()} onConnectBand={() => rt.radial.connectBand('ble')} bandStatus={rt.radial.band?.status} onPaste={onPaste ? (text) => onPaste(text, voiceObject) : undefined} />}
     {recentSave && <SavedToast entry={executor.lastSaved!} />}

@@ -13,6 +13,8 @@
 //            top→bottom, independent of display resolution.
 //   device — whatever the wearable reports before calibration (opaque here).
 
+import type { AgentFigure } from './radial/actions/agentTypes'
+
 export type CoordinateFrame = 'camera' | 'canvas' | 'device'
 
 export interface Point2 {
@@ -148,4 +150,6 @@ export interface SpatialObject {
   content?: SpatialObjectContent
   /** 'transcript': text pasted onto the slide, drawn as a note rather than a coloured card. */
   variant?: 'transcript'
+  /** A graph, chart or image the Explain agent made, put on the slide (drawn instead of the label). */
+  figure?: AgentFigure
 }
