@@ -202,6 +202,8 @@ const pillar = (id: string, index: string, label: string, line: string, x: numbe
   h: SLOT_H,
   tilt,
   lines: [line],
+  // What Explain and Remember read when the piece is held.
+  content: { kind: 'note', text: line },
 })
 
 export const SCENES: PitchScene[] = [
@@ -211,7 +213,7 @@ export const SCENES: PitchScene[] = [
     kicker: 'The problem',
     title: 'We think with our hands',
     targetSeconds: 28,
-    radial: false,
+    radial: true,
     notes: [
       'When we present, teach or collaborate, we already talk with our hands.',
       'But the computer can’t see any of it. So we walk back to the laptop, find the mouse, dig through menus.',
@@ -230,8 +232,8 @@ export const SCENES: PitchScene[] = [
         h: 0.5,
         content: { kind: 'note', text: 'A conventional application window' },
       },
-      { id: 'p-cursor', label: 'Cursor', visual: 'cursor', color: '#f2f0eb', shape: 'card', x: 0.5, y: 0.53, w: 0.055, h: 0.11, tilt: -8 },
-      { id: 'p-toolbar', label: 'File  Edit  Insert  Format  Arrange  View', visual: 'toolbar', color: '#f2f0eb', shape: 'card', x: 0.575, y: 0.72, w: 0.36, h: 0.085 },
+      { id: 'p-cursor', label: 'Cursor', visual: 'cursor', color: '#f2f0eb', shape: 'card', x: 0.5, y: 0.53, w: 0.055, h: 0.11, tilt: -8, content: { kind: 'note', text: 'A mouse pointer' } },
+      { id: 'p-toolbar', label: 'File  Edit  Insert  Format  Arrange  View', visual: 'toolbar', color: '#f2f0eb', shape: 'card', x: 0.575, y: 0.72, w: 0.36, h: 0.085, content: { kind: 'note', text: 'Application menus: File, Edit, Insert, Format, Arrange, View' } },
     ],
     beats: [
       {
@@ -249,7 +251,7 @@ export const SCENES: PitchScene[] = [
     kicker: 'Introducing',
     title: `${PRODUCT}: point, hold, act`,
     targetSeconds: 22,
-    radial: false,
+    radial: true,
     notes: [
       `So we built ${PRODUCT}: a spatial workspace that understands what you point at and what you want to do with it.`,
       'Let me build it for you. Perception: the camera follows your hand.',
