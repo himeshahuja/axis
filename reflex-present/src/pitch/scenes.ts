@@ -28,9 +28,9 @@ export type VisualKind =
   | 'glyph-ring'
   | 'glyph-memory'
   | 'glyph-voice'
-  | 'equation'
-  | 'table'
-  | 'sticky'
+  | 'lamp'
+  | 'robot'
+  | 'agent'
 
 export interface PitchObject extends SpatialObject {
   visual: VisualKind
@@ -46,8 +46,6 @@ export interface PitchObject extends SpatialObject {
   transformedBy?: string
   /** What the result would open in (shown as "Next: …"). */
   destination?: string
-  /** y = a·x² + b·x + c, for the equation card. */
-  formula?: { a: number; b: number; c: number }
 }
 
 /** A place on the stage where an object can be put down. */
@@ -389,20 +387,19 @@ export const SCENES: PitchScene[] = [
     id: 'future',
     number: '05',
     kicker: 'What’s next',
-    title: 'Point at anything. Ask.',
+    title: 'Point at the world. It acts.',
     targetSeconds: 30,
     radial: true,
     notes: [
-      'Where this goes: anything you can point at becomes something you can ask about.',
-      'An equation on the whiteboard — hold it, “graph this” — it opens in Desmos.',
-      'A table — “chart this” — Excel. Sticky notes from a retro — “make these tasks” — Linear.',
-      'These results are computed here from the card’s own data; the hand-offs to Desmos, Excel and Linear are the next step.',
+      'Today it’s a screen. Next, the same gesture works on the world around you.',
+      'Point at a lamp, “dim this”. Point at a package, a robot brings it. Point at a plan on the whiteboard, and an agent makes it happen — asking you before anything is sent.',
+      'Hold any card, Voice, ask: all three show what’s next. These are concepts, not shipped features.',
     ],
     objects: [
       {
-        id: 'f-equation',
-        label: 'On the whiteboard',
-        visual: 'equation',
+        id: 'f-lamp',
+        label: 'The physical world',
+        visual: 'lamp',
         color: '#f2f0eb',
         shape: 'card',
         index: 'A',
@@ -410,16 +407,15 @@ export const SCENES: PitchScene[] = [
         y: 0.29,
         w: 0.27,
         h: 0.54,
-        transformedBy: 't-equation',
-        destination: 'Desmos',
-        lines: ['y = x² − 2x − 3'],
-        formula: { a: 1, b: -2, c: -3 },
-        content: { kind: 'note', text: 'y = x² − 2x − 3' },
+        transformedBy: 't-all',
+        destination: 'smart-home devices (Matter)',
+        lines: ['Desk lamp', '“Dim this.”'],
+        content: { kind: 'note', text: 'Desk lamp, on at 100%' },
       },
       {
-        id: 'f-table',
-        label: 'Signups by month',
-        visual: 'table',
+        id: 'f-robot',
+        label: 'Robots',
+        visual: 'robot',
         color: '#f2f0eb',
         shape: 'card',
         index: 'B',
@@ -427,31 +423,29 @@ export const SCENES: PitchScene[] = [
         y: 0.29,
         w: 0.27,
         h: 0.54,
-        transformedBy: 't-table',
-        destination: 'Excel',
-        content: { kind: 'chart', series: [{ label: 'Jan', value: 420 }, { label: 'Feb', value: 510 }, { label: 'Mar', value: 640 }, { label: 'Apr', value: 780 }] },
+        transformedBy: 't-all',
+        destination: 'robot fleets',
+        lines: ['Package on the floor', '“Bring this to me.”'],
+        content: { kind: 'note', text: 'A package across the room' },
       },
       {
-        id: 'f-notes',
-        label: 'Retro notes',
-        visual: 'sticky',
-        color: '#ffd23f',
+        id: 'f-agent',
+        label: 'Agents',
+        visual: 'agent',
+        color: '#f2f0eb',
         shape: 'card',
         index: 'C',
         x: 0.675,
         y: 0.29,
         w: 0.27,
         h: 0.54,
-        transformedBy: 't-notes',
-        destination: 'Linear',
-        content: { kind: 'note', text: 'Onboarding takes too long\nDocs are hard to find\nAdd a dark theme' },
+        transformedBy: 't-all',
+        destination: 'AI agents, with your approval',
+        lines: ['Whiteboard: team offsite, Mar 12', '“Make it happen.”'],
+        content: { kind: 'note', text: 'Team offsite Mar 12\nBook a room\nInvite the team\nOrder lunch' },
       },
     ],
-    beats: [
-      { id: 't-equation', step: 'Hold the equation → Voice → “graph this”', trigger: { kind: 'voice_reply', objectId: 'f-equation' }, fallback: true },
-      { id: 't-table', step: 'Hold the table → Voice → “chart this”', trigger: { kind: 'voice_reply', objectId: 'f-table' }, fallback: true },
-      { id: 't-notes', step: 'Hold the notes → Voice → “make these tasks”', trigger: { kind: 'voice_reply', objectId: 'f-notes' }, fallback: true },
-    ],
+    beats: [{ id: 't-all', step: 'Hold any card → Voice → ask it: all three show what’s next', trigger: { kind: 'voice_reply' }, fallback: true }],
   },
   {
     id: 'vision',
@@ -463,7 +457,7 @@ export const SCENES: PitchScene[] = [
     notes: [
       'We’re building interfaces that adapt to how people already communicate.',
       'Charts, notes, memory, voice — pull one in, and it all comes together.',
-      'Then pull the page across: the interface is you.',
+      'Then, on its own: Axis. The interface is you.',
     ],
     objects: [
       { id: 'v-chart', label: 'Revenue', visual: 'chart', color: '#f2f0eb', shape: 'card', x: 0.07, y: 0.12, w: 0.2, h: 0.26, tilt: -6, content: { kind: 'chart', unit: '$k', series: REVENUE } },
@@ -479,6 +473,7 @@ export const SCENES: PitchScene[] = [
         step: 'Grab any piece and let go — the canvas organises itself',
         trigger: { kind: 'any_drop' },
         fallback: true,
+        then: { kind: 'complete_next_beat', delayMs: 2600 },
         layout: {
           'v-chart': { x: 0.055, y: 0.35, w: 0.225, h: 0.3 },
           'v-note': { x: 0.295, y: 0.35, w: 0.17, h: 0.3 },
@@ -488,7 +483,7 @@ export const SCENES: PitchScene[] = [
           'v-memory': { x: 0.84, y: 0.35, w: 0.105, h: 0.3 },
         },
       },
-      { id: 'statement', step: 'Grab the empty right edge and pull it across → the closing line', trigger: { kind: 'swipe' }, fallback: true },
+      { id: 'statement', step: 'The closing screen follows on its own', trigger: { kind: 'follow_up' }, fallback: true },
     ],
   },
 ]

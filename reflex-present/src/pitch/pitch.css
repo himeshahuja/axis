@@ -2230,3 +2230,237 @@
   color: var(--hot);
   text-transform: uppercase;
 }
+
+/* ---- 05 concepts ------------------------------------------------------------------------------ */
+.pv-lamp {
+  width: 70%;
+  margin: 0 auto;
+  display: block;
+}
+.pv-lamp .glow {
+  fill: rgba(255, 196, 92, calc(0.42 * var(--glow, 1)));
+  filter: blur(6px);
+  transition: fill 1200ms var(--ease);
+}
+.pv-lamp .shade {
+  fill: rgba(242, 240, 235, calc(0.35 + 0.6 * var(--glow, 1)));
+}
+.pv-lamp .stem {
+  stroke: var(--mute);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+.pv-future .what {
+  margin: 3cqh 0 0;
+  text-align: center;
+  font-size: 5cqw;
+  color: var(--mute);
+}
+.pv-future .back .what {
+  color: var(--hot);
+}
+.pv-floor {
+  width: 100%;
+  border: 1px solid var(--line);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 9px, rgba(242, 240, 235, 0.04) 9px 10px),
+    repeating-linear-gradient(90deg, transparent 0 9px, rgba(242, 240, 235, 0.04) 9px 10px);
+}
+.pv-floor .box {
+  fill: #c9a26b;
+}
+.pv-floor .you {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+}
+.pv-floor .bot {
+  fill: var(--hot);
+}
+.pv-floor .route {
+  fill: none;
+  stroke: var(--hot);
+  stroke-width: 1.4;
+  stroke-dasharray: 3 2.5;
+}
+.pv-steps {
+  margin: 3cqh 0 0;
+  padding-left: 7cqw;
+  font-size: 5cqw;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.pv-board {
+  display: flex;
+  flex-direction: column;
+  gap: 2.6cqh;
+  padding: 6cqw;
+  border: 1px solid var(--line2);
+  background: #f2f0eb;
+  color: #161616;
+}
+.pv-board strong {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 6.4cqw;
+}
+.pv-board span {
+  font-size: 5.4cqw;
+}
+/* the three flip at the same moment */
+.pv-future .face {
+  transition-duration: 1100ms;
+  transition-delay: 0ms;
+}
+
+/* ---- the pitch's own Voice bar --------------------------------------------------------------- */
+.pitch-voice {
+  position: absolute;
+  z-index: 20;
+  box-sizing: border-box;
+  padding: 1.1cqw 1.3cqw 0.9cqw;
+  background: rgba(10, 10, 10, 0.97);
+  border: 1px solid rgba(255, 90, 31, 0.5);
+  box-shadow: 0 2cqw 5cqw rgba(0, 0, 0, 0.6);
+  cursor: default;
+  animation: copy-in 450ms var(--ease-out) both;
+}
+.pitch-voice header {
+  display: flex;
+  align-items: center;
+  gap: 0.7cqw;
+}
+.pitch-voice header strong {
+  flex: 1;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 1.35cqw;
+}
+.pitch-voice .dot {
+  width: 0.65cqw;
+  height: 0.65cqw;
+  border-radius: 50%;
+  background: var(--dim);
+}
+.pitch-voice.is-listening .dot {
+  background: #4ea3ff;
+  animation: blink 1.2s ease-in-out infinite;
+}
+.pitch-voice.is-thinking .dot {
+  background: var(--hot);
+  animation: blink 0.6s ease-in-out infinite;
+}
+.pitch-voice .x {
+  background: none;
+  border: none;
+  color: var(--mute);
+  font-size: 1.4cqw;
+  cursor: pointer;
+}
+.pitch-voice .meter {
+  display: flex;
+  align-items: center;
+  gap: 0.25cqw;
+  height: 3.2cqw;
+  margin: 0.9cqw 0 0.6cqw;
+}
+.pitch-voice .meter i {
+  flex: 1;
+  height: 100%;
+  background: var(--hot);
+  transform-origin: center;
+  transition: transform 70ms linear;
+}
+.pitch-voice.is-thinking .meter i {
+  animation: wave 0.9s ease-in-out infinite alternate;
+  transform: scaleY(0.3) !important;
+}
+.pitch-voice .words {
+  margin: 0.4cqw 0 0;
+  font-size: 1.25cqw;
+  line-height: 1.35;
+}
+.pitch-voice .reply {
+  margin: 0.8cqw 0 0;
+  padding-left: 0.9cqw;
+  border-left: 2px solid var(--hot);
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: 1.3cqw;
+  line-height: 1.4;
+  color: var(--ink);
+  animation: copy-in 400ms var(--ease-out) both;
+}
+.pitch-voice.is-answered .meter {
+  display: none;
+}
+.pitch-voice.is-answered .words {
+  color: var(--mute);
+  font-size: 1.05cqw;
+}
+.pitch-voice .how,
+.pitch-voice .err,
+.pitch-voice .need p {
+  margin: 0.5cqw 0 0;
+  font-size: 0.85cqw;
+  color: var(--mute);
+}
+.pitch-voice .err {
+  color: #ffb4a0;
+}
+.pitch-voice .need {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7cqw;
+  align-items: flex-start;
+  margin-top: 0.6cqw;
+}
+.pitch-voice footer {
+  margin-top: 0.7cqw;
+  font-family: var(--mono);
+  font-size: 0.66cqw;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* ---- closing: AXIS — the interface is you ---------------------------------------------------- */
+.copy-vision .closing .mark {
+  font-size: 15cqw;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  animation: copy-in 2000ms 900ms var(--ease-out) both;
+}
+.copy-vision .closing h2 {
+  margin: 1.6cqw 0 0;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 4.4cqw;
+  animation: copy-in 1800ms 1600ms var(--ease-out) both;
+}
+.copy-vision .closing h2 em {
+  font-style: normal;
+}
+.copy-vision .closing p {
+  animation-delay: 2400ms !important;
+}
+.copy-vision .closing footer {
+  animation-delay: 2900ms !important;
+}
+/* text → boxes: the line lifts away softly while the pieces glide in */
+.is-assembled .copy-vision h1.quiet {
+  transition:
+    opacity 1100ms var(--ease),
+    transform 1500ms var(--ease),
+    filter 1100ms var(--ease);
+  filter: blur(6px);
+}
+/* boxes → final: they recede one after another before the mark arrives */
+.is-closing .pitch-obj {
+  transition-duration: 1600ms !important;
+}
+.is-closing .pitch-obj:nth-child(2) { transition-delay: 80ms !important; }
+.is-closing .pitch-obj:nth-child(3) { transition-delay: 160ms !important; }
+.is-closing .pitch-obj:nth-child(4) { transition-delay: 240ms !important; }
+.is-closing .pitch-obj:nth-child(5) { transition-delay: 320ms !important; }
+.is-closing .pitch-obj:nth-child(6) { transition-delay: 400ms !important; }

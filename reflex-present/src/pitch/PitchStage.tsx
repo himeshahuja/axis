@@ -12,6 +12,7 @@ import { PitchController, TRANSITION_MS } from './pitchController'
 import { EVENT, objectsFor, PRODUCT, SCENES, type PitchObject, type PitchScene } from './scenes'
 import { BAND_NUMBER } from '../spatial/wearable/band'
 import { PLACEHOLDER_MEMORY } from './placeholderMemory'
+import { PitchVoice } from './PitchVoice'
 import { clearBand, readFromBand, saveToBand, seedBand, storageOf, summarize, type BandMemoryRow } from './vexoMemory'
 import { openChannel, type StageCommand, type StageStatus } from './sync'
 import { MemoryGhost, ObjectVisual } from './visuals'
@@ -85,9 +86,8 @@ function SceneCopy({ scene, done, state }: { scene: PitchScene; done: ReadonlySe
             {scene.number} — {scene.kicker}
           </p>
           <h1>
-            Next: point at <span className="hot">anything</span> and ask.
+            Next: point at <span className="hot">the world.</span> It acts.
           </h1>
-          <p className="hint">Hold a card · Voice · ask the band</p>
         </section>
       )
     case 'vision':
@@ -104,12 +104,10 @@ function SceneCopy({ scene, done, state }: { scene: PitchScene; done: ReadonlySe
             </>
           ) : (
             <div className="closing">
-              <h1>
-                <span>The interface</span>
-                <span>
-                  is <em className="hot">you.</em>
-                </span>
-              </h1>
+              <h1 className="mark">{PRODUCT}</h1>
+              <h2>
+                The interface is <em className="hot">you.</em>
+              </h2>
               <p>Computing for the world beyond the keyboard.</p>
               <footer>
                 <strong>{PRODUCT}</strong>
@@ -146,6 +144,11 @@ export function PitchStage() {
   const [memOpen, setMemOpen] = useState(false)
   const [memRows, setMemRows] = useState<{ rows: BandMemoryRow[]; from: 'band' | 'browser'; at: number } | null>(null)
   const [memToast, setMemToast] = useState<{ text: string; ok: boolean; key: number } | null>(null)
+  /** Ends the current Voice recording (closing the hand calls it). */
+  const voiceFinish = useRef<(() => void) | null>(null)
+  const voiceRecording = useRef(false)
+  const gesturesBefore = useRef(true)
+  const wasEngaged = useRef(false)
   /** Where the Voice panel was when a spoken request became the scene's answer (the card grows out of it). */
   const replyFrom = useRef<{ target: string; left: number; top: number; width: number; height: number } | null>(null)
 
@@ -341,7 +344,7 @@ export function PitchStage() {
               const objectId = rt.radial.executor.voice?.objectId
               const said = text.trim()
               if (!final || !objectId || !said || /^\(no speech/i.test(said) || !ctl.takesVoiceFor(objectId)) return
-              const panel = document.querySelector('.ap-voice')?.getBoundingClientRect()
+              const panel = document.querySelector('.pitch-voice')?.getBoundingClientRect()
               const stage = stageRef.current?.getBoundingClientRect()
               const target = ctl.scene.id === 'compare' ? 'c-axis' : objectId
               if (panel && stage) replyFrom.current = { target, left: panel.left - stage.left, top: panel.top - stage.top, width: panel.width, height: panel.height }
@@ -419,6 +422,11 @@ export function PitchStage() {
         }
         ctl.onAction(last.event.action, now)
       }
+      // Closing the hand while Voice is recording sends it (grabbing is paused meanwhile).
+      const engagedNow = rt.detector.engaged
+      if (voiceRecording.current && engagedNow && !wasEngaged.current) voiceFinish.current?.()
+      wasEngaged.current = engagedNow
+
       // Swipe: a press that starts on empty space in the right quarter, released after
       // pulling at least a fifth of the stage to the left, is "next".
       const pressed = mousePressed.current || (rt.detector.engaged && rt.pointer.source !== 'mouse')
@@ -609,7 +617,25 @@ export function PitchStage() {
           })}
         </div>
 
-        {scene.radial && !calibrating && <PresenterActions rt={rt} />}
+        {scene.radial && !calibrating && <PresenterActions rt={rt} ownVoice />}
+        {scene.radial && !calibrating && rt.radial.executor.voice && ix.objects.some((o) => o.id === rt.radial.executor.voice!.objectId) && (
+          <PitchVoice
+            key={rt.radial.executor.voice.id}
+            rt={rt}
+            session={rt.radial.executor.voice}
+            object={ix.objects.find((o) => o.id === rt.radial.executor.voice!.objectId)!}
+            finishRef={voiceFinish}
+            onRecording={(on) => {
+              if (on === voiceRecording.current) return
+              voiceRecording.current = on
+              // While recording, a closed hand means "send", not "grab" (and a manual pause is kept).
+              if (on) {
+                gesturesBefore.current = rt.cameraGesturesEnabled
+                rt.cameraGesturesEnabled = false
+              } else rt.cameraGesturesEnabled = gesturesBefore.current
+            }}
+          />
+        )}
         {ghost && <MemoryGhost key={ghost.key} o={ghost.o} stage={rt.canvasPx} />}
 
         {/* chrome: deliberately sparse */}
@@ -636,7 +662,7 @@ export function PitchStage() {
           if (!sw && !nearEdge) return null
           return (
             <div className={`pitch-swipe ${sw ? 'is-pulling' : ''} ${pull >= SWIPE_MIN ? 'is-armed' : ''}`} style={{ width: pct(Math.min(0.6, 0.018 + pull)) }}>
-              <span>{sw ? (pull >= SWIPE_MIN ? 'Let go — next' : 'Keep pulling') : 'Grab & pull ←'}</span>
+              {sw && <span>{pull >= SWIPE_MIN ? 'Let go — next' : 'Keep pulling'}</span>}
             </div>
           )
         })()}

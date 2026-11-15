@@ -92,84 +92,72 @@ function Pillar({ o, lit }: { o: PitchObject; lit: boolean }) {
   )
 }
 
-/** y = ax² + bx + c plotted over the window around its vertex; roots and vertex computed, not drawn by hand. */
-function Graph({ a, b, c }: { a: number; b: number; c: number }) {
-  const f = (x: number) => a * x * x + b * x + c
-  const vx = -b / (2 * a)
-  const x0 = vx - 3
-  const x1 = vx + 3
-  const ys = Array.from({ length: 61 }, (_, i) => f(x0 + ((x1 - x0) * i) / 60))
-  const y0 = Math.min(...ys, 0) - 1
-  const y1 = Math.max(...ys, 0) + 1
-  const X = (x: number) => ((x - x0) / (x1 - x0)) * 100
-  const Y = (y: number) => 100 - ((y - y0) / (y1 - y0)) * 100
-  const d = ys.map((y, i) => `${i ? 'L' : 'M'}${X(x0 + ((x1 - x0) * i) / 60).toFixed(2)},${Y(y).toFixed(2)}`).join(' ')
-  const disc = b * b - 4 * a * c
-  const roots = disc >= 0 ? [(-b - Math.sqrt(disc)) / (2 * a), (-b + Math.sqrt(disc)) / (2 * a)] : []
-  return (
-    <svg viewBox="0 0 100 100" className="pv-graph" preserveAspectRatio="none">
-      <line x1={0} x2={100} y1={Y(0)} y2={Y(0)} className="axis" />
-      <line y1={0} y2={100} x1={X(0)} x2={X(0)} className="axis" />
-      <path d={d} className="curve" />
-      {roots.map((r) => (
-        <circle key={r} cx={X(r)} cy={Y(0)} r={1.8} className="pt" />
-      ))}
-      <circle cx={X(vx)} cy={Y(f(vx))} r={1.8} className="pt v" />
-    </svg>
-  )
-}
-
-const num = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(2))
-
+/** Future-directions concepts: the same point-and-ask, aimed at the world instead of a screen. */
 function FutureCard({ o, transformed }: { o: PitchObject; transformed: boolean }) {
-  const c = o.content
   let front: React.ReactNode = null
   let back: React.ReactNode = null
-  if (o.visual === 'equation' && o.formula) {
-    const { a, b, c: k } = o.formula
-    const vx = -b / (2 * a)
-    const disc = b * b - 4 * a * k
-    const roots = disc >= 0 ? [(-b - Math.sqrt(disc)) / (2 * a), (-b + Math.sqrt(disc)) / (2 * a)] : []
-    front = <div className="pv-eq">{o.lines?.[0]}</div>
-    back = (
+  if (o.visual === 'lamp') {
+    const lamp = (level: number) => (
+      <svg viewBox="0 0 100 100" className="pv-lamp" style={{ '--glow': level } as React.CSSProperties}>
+        <circle cx="50" cy="42" r="34" className="glow" />
+        <path d="M30 40 L70 40 L60 18 L40 18 Z" className="shade" />
+        <line x1="50" y1="40" x2="50" y2="82" className="stem" />
+        <line x1="34" y1="84" x2="66" y2="84" className="stem" />
+      </svg>
+    )
+    front = (
       <>
-        <Graph a={a} b={b} c={k} />
-        <p className="facts">
-          roots {roots.map(num).join(', ') || 'none'} · vertex ({num(vx)}, {num(a * vx * vx + b * vx + k)})
-        </p>
+        {lamp(1)}
+        <p className="what">{o.lines?.[0]} · 100%</p>
       </>
     )
-  } else if (o.visual === 'table' && c?.kind === 'chart') {
-    front = (
-      <table className="pv-table">
-        <tbody>
-          {c.series.map((p) => (
-            <tr key={p.label}>
-              <td>{p.label}</td>
-              <td>{p.value}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    back = (
+      <>
+        {lamp(0.3)}
+        <p className="what">{o.lines?.[0]} · dimmed to 30%</p>
+      </>
     )
-    back = <Bars series={c.series} highlight={c.series.length - 1} />
-  } else if (o.visual === 'sticky' && c?.kind === 'note') {
-    const lines = c.text.split('\n')
+  } else if (o.visual === 'robot') {
     front = (
-      <div className="pv-stickies">
-        {lines.map((l, i) => (
-          <b key={l} style={{ transform: `rotate(${[-4, 3, -2][i % 3]}deg)` }}>
-            {l}
-          </b>
+      <>
+        <svg viewBox="0 0 100 70" className="pv-floor">
+          <rect x="66" y="40" width="16" height="14" className="box" />
+          <circle cx="16" cy="18" r="6" className="you" />
+        </svg>
+        <p className="what">{o.lines?.[0]}</p>
+      </>
+    )
+    back = (
+      <>
+        <svg viewBox="0 0 100 70" className="pv-floor">
+          <path d="M44 60 L74 47 L22 22" className="route" />
+          <rect x="66" y="40" width="16" height="14" className="box" />
+          <circle cx="16" cy="18" r="6" className="you" />
+          <rect x="38" y="55" width="12" height="9" rx="2" className="bot" />
+        </svg>
+        <ol className="pv-steps">
+          <li>Go to the package</li>
+          <li>Pick it up</li>
+          <li>Bring it to you</li>
+        </ol>
+      </>
+    )
+  } else if (o.visual === 'agent') {
+    const [title, ...tasks] = (o.content?.kind === 'note' ? o.content.text : '').split('\n')
+    front = (
+      <div className="pv-board">
+        <strong>{title}</strong>
+        {tasks.map((t) => (
+          <span key={t}>— {t}</span>
         ))}
       </div>
     )
     back = (
       <ul className="pv-tasks">
-        {lines.map((l) => (
-          <li key={l}>
-            <i /> {l}
-            <em>To do</em>
+        {tasks.map((t) => (
+          <li key={t}>
+            <i /> {t}
+            <em>Your OK?</em>
           </li>
         ))}
       </ul>
@@ -183,15 +171,15 @@ function FutureCard({ o, transformed }: { o: PitchObject; transformed: boolean }
           <strong>{o.label}</strong>
         </header>
         <div className="body">{front}</div>
-        <footer>Hold · Voice · ask</footer>
+        <footer>{o.lines?.[1]}</footer>
       </div>
       <div className="face back">
         <header>
           <span className="idx">{o.index}</span>
-          <strong>{o.visual === 'equation' ? 'Graph' : o.visual === 'table' ? 'Chart' : 'Tasks'}</strong>
+          <strong>{o.label}</strong>
         </header>
         <div className="body">{back}</div>
-        <footer>Next: opens in {o.destination}</footer>
+        <footer>Concept · next: {o.destination}</footer>
       </div>
     </div>
   )
@@ -200,9 +188,9 @@ function FutureCard({ o, transformed }: { o: PitchObject; transformed: boolean }
 export function ObjectVisual({ o, lit, transformed = false }: { o: PitchObject; lit: boolean; transformed?: boolean }) {
   const c = o.content
   switch (o.visual) {
-    case 'equation':
-    case 'table':
-    case 'sticky':
+    case 'lamp':
+    case 'robot':
+    case 'agent':
       return <FutureCard o={o} transformed={transformed} />
     case 'window':
       return (

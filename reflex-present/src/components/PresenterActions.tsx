@@ -6,7 +6,8 @@ import { HoldRing, RadialActionMenu } from '../spatial/radial/ui/RadialActionMen
 import '../spatial/radial/ui/radial.css'
 
 /** His Explain / Remember / Voice actions, on the presenter's original stage. */
-export function PresenterActions({ rt }: { rt: SpatialRuntime }) {
+/** `ownVoice`: the host draws its own Voice capture (the pitch does), so this panel stays out of it. */
+export function PresenterActions({ rt, ownVoice = false }: { rt: SpatialRuntime; ownVoice?: boolean }) {
   const [memoryOpen, setMemoryOpen] = useState(false)
   const state = rt.radial.state
   const executor = rt.radial.executor
@@ -21,7 +22,7 @@ export function PresenterActions({ rt }: { rt: SpatialRuntime }) {
       const target = find(card.objectId)
       return target ? <ExplainPanel key={card.objectId} card={card} object={target} compact onClose={() => executor.closeExplain(card.objectId)} /> : null
     })}
-    {executor.voice && voiceObject && <VoiceCapturePanel session={executor.voice} object={voiceObject} objects={rt.interaction.objects} providers={rt.radial.voiceProviders} onClose={() => executor.closeVoice()} onConnectBand={() => rt.radial.connectBand('ble')} bandStatus={rt.radial.band?.status} />}
+    {!ownVoice && executor.voice && voiceObject && <VoiceCapturePanel session={executor.voice} object={voiceObject} objects={rt.interaction.objects} providers={rt.radial.voiceProviders} onClose={() => executor.closeVoice()} onConnectBand={() => rt.radial.connectBand('ble')} bandStatus={rt.radial.band?.status} />}
     {recentSave && <SavedToast entry={executor.lastSaved!} />}
     {(memoryOpen || executor.memory.list().length > 0) && <MemoryPanel entries={executor.memory.list()} label={executor.memory.label} highlightId={recentSave ? executor.lastSaved!.id : null} open={memoryOpen} onToggle={() => setMemoryOpen((v) => !v)} />}
   </div>

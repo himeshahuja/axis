@@ -118,31 +118,28 @@ describe('pitch progression', () => {
     expect(c.sceneIndex).toBe(4)
   })
 
-  it('future directions: each card answers only a request about itself', () => {
+  it('future directions: one request flips all three cards at once', () => {
     const c = new PitchController(SCENES, 0)
     c.goto(4, 0)
     const t = settled(c, 0)
-    expect(c.onVoiceReply('f-table', 'chart this', t)).toBe(true)
-    expect(c.done.has('t-table')).toBe(true)
-    expect(c.done.has('t-equation')).toBe(false)
-    expect(c.onVoiceReply('f-table', 'again', t)).toBe(false)
-    expect(c.onVoiceReply('f-equation', 'graph this', t)).toBe(true)
+    expect(SCENES[4].objects.every((o) => o.transformedBy === 't-all')).toBe(true)
+    expect(c.onVoiceReply('f-robot', 'bring this to me', t)).toBe(true)
+    expect(c.done.has('t-all')).toBe(true)
+    expect(c.onVoiceReply('f-lamp', 'dim this', t)).toBe(false)
     // in a scene without voice beats, speech is just a normal Voice request
     c.goto(2, t + 1000)
     expect(c.takesVoiceFor('revenue')).toBe(false)
   })
 
-  it('the closing line waits for the presenter to pull the page across', () => {
+  it('after the pieces line up, the closing screen follows on its own', () => {
     const c = new PitchController(SCENES, 0)
     c.goto(5, 0)
     const t = settled(c, 0)
     c.onDrop('v-note', { x: 0, y: 0 }, { x: 0.01, y: 0 }, [], 16 / 9, t)
     expect(c.pendingBeat?.id).toBe('statement')
-    c.tick(t + 60_000)
-    expect(c.pendingBeat?.id).toBe('statement') // no timer: it never appears on its own
-    // a further drop is not a swipe
-    expect(c.onDrop('v-chart', { x: 0, y: 0 }, { x: 0.3, y: 0 }, [], 16 / 9, t + 1)).toBe(false)
-    expect(c.next(t + 2)).toBe(true) // the swipe (or → as the stage fallback)
+    c.tick(t + 2599)
+    expect(c.pendingBeat?.id).toBe('statement')
+    c.tick(t + 2600)
     expect(c.pendingBeat).toBeNull()
   })
 
