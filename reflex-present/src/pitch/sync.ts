@@ -15,6 +15,8 @@ export interface StageStatus extends PitchSnapshot {
   handTracked: boolean
   band: string
   gesturesEnabled: boolean
+  /** The camera image is flipped left-right (a mirror). */
+  mirrored: boolean
   gestureMode: string
   mode: 'presentation' | 'rehearsal'
   radialStatus: string
@@ -22,7 +24,7 @@ export interface StageStatus extends PitchSnapshot {
 }
 
 export type StageCommand =
-  | { type: 'cmd'; cmd: 'next' | 'previous' | 'nextScene' | 'reset' | 'resetLayout' | 'toggleGestures' | 'camera' | 'calibrate' | 'toggleMode' | 'recenter' | 'openMenu' }
+  | { type: 'cmd'; cmd: 'next' | 'previous' | 'nextScene' | 'reset' | 'resetLayout' | 'toggleGestures' | 'toggleMirror' | 'camera' | 'calibrate' | 'toggleMode' | 'recenter' | 'openMenu' }
   | { type: 'cmd'; cmd: 'goto'; index: number }
 
 export function openChannel(): BroadcastChannel | null {

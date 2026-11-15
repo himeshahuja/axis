@@ -206,6 +206,8 @@ export function PitchStage() {
   const [exiting, setExiting] = useState<number | null>(null)
   const [ghost, setGhost] = useState<{ o: SpatialObject; key: string } | null>(null)
   const [showCamera, setShowCamera] = useState(false)
+  /** Mirror the camera (on by default); kept when the camera restarts. */
+  const mirror = useRef(true)
   const applied = useRef(-1)
   const appliedScene = useRef(-1)
   const seenMoves = useRef(new WeakSet<object>())
@@ -246,7 +248,7 @@ export function PitchStage() {
     rt.autoRangeCapture = true
     // A camera cursor wobbles more than a mouse while the hand is held closed: allow it.
     rt.radial.controller.config.holdMaxMove = 0.05
-    void rt.startCamera().then(() => rt.updateProfile({ mirrorX: true }))
+    void rt.startCamera().then(() => rt.updateProfile({ mirrorX: mirror.current }))
     const off = ctl.onChange((c) => {
       if (c.kind !== 'scene') return
       const next = ctl.scenes[c.to]
@@ -291,9 +293,12 @@ export function PitchStage() {
       else if (c.cmd === 'reset') ctl.reset(now)
       else if (c.cmd === 'resetLayout') ctl.resetLayout()
       else if (c.cmd === 'toggleGestures') rt.cameraGesturesEnabled = !rt.cameraGesturesEnabled
-      else if (c.cmd === 'camera') {
+      else if (c.cmd === 'toggleMirror') {
+        mirror.current = !rt.profile.mirrorX
+        rt.updateProfile({ mirrorX: mirror.current })
+      } else if (c.cmd === 'camera') {
         if (rt.tracker.status === 'running' || rt.tracker.status === 'loading') rt.stopCamera()
-        else void rt.startCamera().then(() => rt.updateProfile({ mirrorX: true }))
+        else void rt.startCamera().then(() => rt.updateProfile({ mirrorX: mirror.current }))
       } else if (c.cmd === 'calibrate') void calibrate()
       else if (c.cmd === 'toggleMode') setMode((m) => (m === 'presentation' ? 'rehearsal' : 'presentation'))
       else if (c.cmd === 'recenter') rt.recenter()
@@ -352,6 +357,7 @@ export function PitchStage() {
       else if (e.key === 'Home') run('reset')
       else if (k === 'd' && !e.metaKey) run('toggleMode')
       else if (k === 'g') run('toggleGestures')
+      else if (k === 'h') run('toggleMirror')
       else if (k === 'k') run('calibrate')
       else if (k === 'c' && !e.metaKey) run('camera')
       else if (k === 'x') run('resetLayout')
@@ -388,6 +394,7 @@ export function PitchStage() {
     handTracked: !!rt.latestFeatures,
     band: rt.radial.band ? `${rt.radial.band.status}${rt.radial.band.link === 'sim' ? ' (pretend)' : ''}` : 'not connected',
     gesturesEnabled: rt.cameraGesturesEnabled,
+    mirrored: rt.profile.mirrorX,
     gestureMode: rt.detector.mode,
     mode,
     radialStatus: rt.radial.state.status,
@@ -972,9 +979,10 @@ function Rehearsal({ rt, ctl, onCommand }: { rt: SpatialRuntime; ctl: PitchContr
         <button className="pitch-chrome-btn" onClick={() => onCommand({ type: 'cmd', cmd: 'next' })}>Next →</button>
         <button className="pitch-chrome-btn" onClick={() => onCommand({ type: 'cmd', cmd: 'resetLayout' })}>Reset layout</button>
         <button className="pitch-chrome-btn" onClick={() => onCommand({ type: 'cmd', cmd: 'calibrate' })}>Calibrate</button>
+        <button className="pitch-chrome-btn" onClick={() => onCommand({ type: 'cmd', cmd: 'toggleMirror' })}>Mirror {rt.profile.mirrorX ? 'on' : 'off'}</button>
         <button className="pitch-chrome-btn" onClick={() => onCommand({ type: 'cmd', cmd: 'reset' })}>Restart</button>
       </div>
-      <p className="keys">→ next · ⇧→ skip · ← back · Home restart · M actions · G gestures · K calibrate · C camera · X layout · ⌘Z undo · P console · D hide</p>
+      <p className="keys">→ next · ⇧→ skip · ← back · Home restart · M actions · G gestures · H mirror · K calibrate · C camera · X layout · ⌘Z undo · P console · D hide</p>
     </aside>
   )
 }
