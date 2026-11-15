@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'">
+<title>Vexo Board</title>
+<meta name="description" content="A concept band that tracks a marker on a whiteboard to a few millimetres: ultrasound to three pucks, its microphone, and forearm EMG.">
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="vexo-open-kit/projects/shared/style.css">
+<link rel="stylesheet" href="css/concept.css">
+</head>
+<body>
+<header class="hero">
+  <p class="kicker">A concept for the next Vexo band</p>
+  <h1>Vexo Board</h1>
+  <p class="lede">Write on any whiteboard and every stroke lands in your computer as ink, to a few millimetres.
+  The band clicks ultrasound to three pucks stuck on the board, hears the marker touch it, and feels your forearm
+  press and pinch.</p>
+</header>
+
+<main class="grid">
+  <section class="card wide" aria-labelledby="how-title">
+    <h2 id="how-title">How it works</h2>
+    <div class="how">
+      <svg class="diagram" viewBox="0 0 420 260" role="img" aria-label="A whiteboard with three pucks at its bottom left, top left and top right corners, and a band on a wrist sending sound to each puck">
+        <rect x="40" y="30" width="300" height="190" rx="4" class="board"/>
+        <g class="rings">
+          <circle cx="215" cy="150" r="22"/><circle cx="215" cy="150" r="44"/><circle cx="215" cy="150" r="66"/>
+        </g>
+        <line x1="215" y1="150" x2="40" y2="220" class="ray"/>
+        <line x1="215" y1="150" x2="40" y2="30" class="ray"/>
+        <line x1="215" y1="150" x2="340" y2="30" class="ray"/>
+        <circle cx="40" cy="220" r="9" class="puck"/><circle cx="40" cy="30" r="9" class="puck"/><circle cx="340" cy="30" r="9" class="puck"/>
+        <text x="56" y="236" class="label">puck</text><text x="56" y="22" class="label">puck</text><text x="296" y="22" class="label">puck</text>
+        <path d="M188 112 q10 -14 22 -8" class="ink"/><path d="M168 118 q6 -12 14 -4 q6 8 -2 12" class="ink"/>
+        <rect x="203" y="140" width="24" height="20" rx="6" class="band"/>
+        <line x1="215" y1="140" x2="196" y2="118" class="marker"/>
+        <text x="236" y="170" class="label">band</text>
+      </svg>
+      <ol class="steps">
+        <li><b>Where:</b> 50 times a second the band sends a 40 kHz click and an infrared flash. Each puck times
+          the click against the flash; three distances fix the band to a few millimetres. Echoes, always late,
+          are thrown out.</li>
+        <li><b>Smooth and to the tip:</b> the band's motion sensor fills in 208 times a second and says how the
+          hand is turned, so the marker's tip, a hand's length from the band, is placed too.</li>
+        <li><b>Writing or not:</b> the microphone hears the marker hiss on the board; the EMG electrodes feel
+          the forearm press, which still works in a loud room.</li>
+        <li><b>Take it with you:</b> pinch to take the writing near your hand, pinch again to put it on screen.
+          The ink goes to a handwriting recogniser.</li>
+      </ol>
+    </div>
+    <table class="parts">
+      <tr><th>Part</th><th>On today's band</th><th>What it does here</th></tr>
+      <tr><td>Motion sensor (accelerometer, gyroscope)</td><td class="yes">Yes</td><td>Fills in between clicks; how the hand is turned; knocks</td></tr>
+      <tr><td>Microphone</td><td class="yes">Yes</td><td>Hears the marker on the board</td></tr>
+      <tr><td>40 kHz ultrasonic emitter + infrared LED</td><td class="new">New</td><td>The click and the flash the pucks time</td></tr>
+      <tr><td>8 EMG electrodes on the band's inside</td><td class="new">New</td><td>Pressing, pinching; later, handwriting from the muscles</td></tr>
+      <tr><td>3 stick-on pucks (ultrasonic receiver, infrared sensor, Bluetooth)</td><td class="new">New</td><td>Hear the clicks; measure the board themselves</td></tr>
+    </table>
+  </section>
+
+  <section class="card wide" aria-labelledby="sim-title">
+    <h2 id="sim-title">Try it: a simulated session</h2>
+    <p class="soft">The hardware does not exist yet, so this plays a pretend writer through the real tracking code
+    (<code>js/concept/</code>): touch the tip to the bottom left puck, knock the left and right edges, write.</p>
+    <div class="controls">
+      <label>Scene <select id="scene">
+        <option value="reach">1.2 m board, five words</option>
+        <option value="walk">2.4 m board, walking along it</option>
+        <option value="steady">Writing without a pause</option>
+      </select></label>
+      <label class="check"><input type="checkbox" id="blocked" checked> Hand sometimes blocks a puck</label>
+      <label class="check"><input type="checkbox" id="talk" checked> Writer talks</label>
+      <label class="check"><input type="checkbox" id="noisy"> Loud room</label>
+      <label class="check"><input type="checkbox" id="emg" checked> EMG</label>
+      <label class="check"><input type="checkbox" id="truth"> Show the true path</label>
+      <label>Speed <select id="speed"><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option></select></label>
+      <button id="play" class="go">Play</button>
+    </div>
+    <canvas id="board" role="img" aria-label="The whiteboard: pucks, the band, the marker's tip and the ink written so far"></canvas>
+    <div class="meters">
+      <span id="status" class="status">Press Play.</span>
+      <span class="meter" id="m-mic">Mic: marker</span>
+      <span class="meter" id="m-emg">EMG: press</span>
+      <span class="meter" id="m-pinch">Pinch</span>
+    </div>
+    <dl id="scores" class="scores"></dl>
+    <div class="row">
+      <button id="export" disabled>Download the ink</button>
+      <span class="soft">Strokes in cm from the board's bottom left, with times: what a handwriting recogniser takes.</span>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="text-title">
+    <h2 id="text-title">From ink to text</h2>
+    <p>The ink is ordinary digital ink: strokes of points with times, so any stroke-based handwriting recogniser
+    reads it (MyScript's iink does, in the browser). Further out, the EMG itself carries the writing: Meta's
+    wristband research decoded handwriting from forearm muscle signals at 20.9 words a minute, with a model that
+    works across people (<i>Nature</i>, 2025).</p>
+  </section>
+
+  <section class="card" aria-labelledby="next-title">
+    <h2 id="next-title">What is left to prove</h2>
+    <ul class="soft">
+      <li>Real echoes off a glossy board and a body. A fourth puck would catch two echoed at once (the one weak
+        spot in the simulation: writing without a pause, 95% within 6.5 cm instead of 1 cm).</li>
+      <li>Whether forearm EMG feels a marker's light press on a real board, through a band, for many people.</li>
+      <li>Power: 50 clicks a second and eight EMG channels on a band's battery.</li>
+    </ul>
+  </section>
+</main>
+<script type="module" src="js/concept/page.js"></script>
+</body>
+</html>

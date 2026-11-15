@@ -57,11 +57,13 @@ class Axis {
 export class Fused {
   /**
    * `width`, `height`: the board's size in metres (the camera's board coordinates run
-   * from its bottom left corner). `tip`: [x, y] metres from the light to the marker's tip.
+   * from its bottom left corner). `tip`: [x, y] metres from the tracked point to the marker's tip.
+   * `fixNoise`: how far one fix may be off, metres (a camera's by default).
    */
-  constructor({ width, height, tip = [0, 0] } = {}) {
+  constructor({ width, height, tip = [0, 0], fixNoise = NOISE.camera } = {}) {
     this.size = { width, height };
     this.tip = tip;
+    this.fixNoise = fixNoise;
     this.axes = null;          // the filter, once the first camera fix has said where to start
     this.past = [];            // { t, a, rest, axes } for KEEP_MS: what each step took in, and where it ended
     this.t = [];               // the trail, one entry per band sample since the first fix: time (ms), metres
@@ -96,29 +98,32 @@ export class Fused {
     if (rest) this.axes.forEach((axis) => axis.measure(1, 0, NOISE.rest));
   }
 
-  /** A camera fix: the light seen at board metres (x, y) in a picture taken at band time `t`. */
-  fix(t, x, y) {
+  /**
+   * A fix: the tracked point seen at board metres (x, y) at band time `t`. `noise`: how
+   * far this one may be off, m, if not the usual.
+   */
+  fix(t, x, y, noise = this.fixNoise) {
     this.fixes++;
     this.lastFix = Math.max(this.lastFix ?? t, t);
     if (!this.axes) {
       this.axes = [new Axis(), new Axis()];
       this.axes[0].s[0] = x;
       this.axes[1].s[0] = y;
-      this.axes.forEach((axis) => { axis.P = [[NOISE.camera ** 2, 0, 0], [0, 0.01, 0], [0, 0, 0.01]]; });
+      this.axes.forEach((axis) => { axis.P = [[this.fixNoise ** 2, 0, 0], [0, 0.01, 0], [0, 0, 0.01]]; });
       return;
     }
     // Back to the step at or just before the picture, take the fix in, and replay the rest.
     let k = this.past.length - 1;
     while (k > 0 && this.past[k].t > t) k--;
     if (k < 0 || !this.past.length) {
-      this.axes[0].measure(0, x, NOISE.camera);
-      this.axes[1].measure(0, y, NOISE.camera);
+      this.axes[0].measure(0, x, noise);
+      this.axes[1].measure(0, y, noise);
       return;
     }
     if (this.past[k].t > t) return;                 // older than anything kept: too late to use
     this.axes = this.past[k].axes.map((a) => a.copy());
-    this.axes[0].measure(0, x, NOISE.camera);
-    this.axes[1].measure(0, y, NOISE.camera);
+    this.axes[0].measure(0, x, noise);
+    this.axes[1].measure(0, y, noise);
     this.past[k].axes = this.axes.map((a) => a.copy());
     const first = this.t.length - (this.past.length - k);
     this.x[first] = this.axes[0].s[0];
@@ -130,6 +135,24 @@ export class Fused {
       this.x[first + i - k] = this.axes[0].s[0];
       this.y[first + i - k] = this.axes[1].s[0];
     }
+  }
+
+  /**
+   * Start again from a fix that is surely right, at band time `t`: position (x, y),
+   * speed `v` [m/s across, up]. For when the filter has wandered off and been refused
+   * every fix since: its own speed is then wrong too, so it is not kept. Earlier fixes
+   * arriving late are no longer used.
+   */
+  jump(t, x, y, v = [0, 0]) {
+    if (!this.axes) return this.fix(t, x, y);
+    [x, y].forEach((p, k) => {
+      const axis = this.axes[k];
+      axis.s = [p, v[k], axis.s[2]];
+      axis.P = [[this.fixNoise ** 2, 0, 0], [0, 0.04, 0], [0, 0, axis.P[2][2]]];
+    });
+    this.past = [];
+    this.lastFix = Math.max(this.lastFix ?? t, t);
+    this.fixes++;
   }
 
   /** How long the camera has not seen the light, ms, at band time `now`. */

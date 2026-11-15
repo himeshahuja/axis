@@ -162,6 +162,59 @@ before a guided capture, then put the file in `tests/recordings/` and list it.
 Files: `board.html`, `bench.html`, `css/`, `js/board/` (the band number is in `config.js`),
 `tests/board.mjs`.
 
+## Vexo Board: a concept for the next band
+
+The band on its own cannot know where on a board it is, and its motion sensor drifts. **Vexo Board** is
+the band we would build for whiteboards. <http://localhost:8000/concept.html> is the pitch: what it is,
+and a simulated session played through its tracking code.
+
+The hardware adds three things:
+- **A 40 kHz ultrasonic emitter and an infrared LED on the band.** 50 times a second it clicks and
+  flashes.
+- **Three pucks stuck on the board's corners** (bottom left, top left, top right). Each times the click
+  against the flash, which gives the band's distance from it. They also measure the board themselves.
+- **Eight EMG electrodes inside the band.** They read the forearm's muscles: pressing the marker on the
+  board, and pinching.
+
+The motion sensor and microphone are already on today's band.
+
+**How it works:**
+
+- **Where the band is.** `js/concept/ultrasound.js` turns three distances into the band's place,
+  exactly; the formula does not even need its distance out from the board. Echoes off the board or a
+  wall are always late, so a distance much longer than predicted is thrown out. Three agreeing clicks
+  in a row win the track back if the prediction goes wrong.
+- **Smooth, and to the tip.** The board tracker's filter (`js/board/fuse.js`) fills in with the band's
+  motion 208 times a second. The band's orientation then places the marker's tip, about 15 cm from the
+  band. That offset is measured once: hold the tip on the bottom left puck for a second.
+- **Writing or not.** `js/concept/contact.js` hears the marker's hiss in the band's microphone (high,
+  noise-like, while moving), or `js/concept/emg.js` feels the forearm press. EMG keeps working in a
+  room too loud for the microphone.
+- **The ink.** `VexoBoard.ink()` gives strokes in cm with times, which any stroke-based handwriting
+  recogniser takes. EMG may later decode the writing directly: Meta's sEMG wristband research reached
+  20.9 words a minute (*Nature*, 2025).
+
+**In simulation** (`node tests/concept.mjs`, 21 checks), with a puck blocked a tenth of the time and
+the writer talking:
+
+| Scene | Tip error, median / 95% |
+|---|---|
+| 1.2 m board, five words | 0.23 / 0.99 cm |
+| 2.4 m board, walking along it | 0.42 / 0.97 cm |
+| Writing without a pause | 0.53 / 6.5 cm |
+
+The last one's tail is two pucks hearing echoes at once; a fourth puck would catch it.
+
+Other results:
+- **Marker on the board:** 100% of "on" decisions right, and 99% of the writing caught.
+- **Loud room:** the microphone alone catches 0% of the writing; with EMG, 99%.
+- **Pinches:** 2 of 2 found, none extra.
+
+**Still to be shown on real hardware:** echoes off a real board and body, whether EMG through a band
+feels a marker's light press, and battery life.
+
+Files: `concept.html`, `css/concept.css`, `js/concept/`, `tests/concept.mjs`.
+
 ## If time runs short
 
 - No real recordings yet: the network in `model/` was trained on simulated readings and is there to start from. It may or may not read real writing; try it, but plan on step 4.

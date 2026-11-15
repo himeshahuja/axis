@@ -404,12 +404,14 @@ export function session(name = 'reach', {
   drop = [],      // [seconds into the session, ms] stretches of samples lost on the way, as Bluetooth loses frames
   reversed = false, // knock the right edge first, then the left
   camera = null,  // { fps, noise (m), delay (ms), hide: [[s, s]], side }: what a webcam sees of people's wrists
+  prelude = null, // (script) => {}: something done after picking the band up, before setting up the board
 } = {}) {
   const s = new Script(TABLE);
   s.pause = pause;
   s.part(1.0, () => TABLE, null, () => 0);
   s.part(1.0, (u) => mix(TABLE, START, glide(u)), null, (u) => glide(u));
   s.rest(0.8);
+  if (prelude) prelude(s);
   const board = SCENARIOS[name](s, { gestures, reversed });
   s.lift();
   s.rest(1.0);
