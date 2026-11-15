@@ -1,16 +1,14 @@
-// Speech capture for the Voice action. Three providers, chosen by the user:
-//   band     — the Vexo band's microphone (Opus) → Deepgram, via the kit's own
-//              deepgramLink. Needs the team's Deepgram key typed into the page;
-//              it lives in memory only, never in storage, the URL or a file.
-//   browser  — this computer's microphone through the browser's speech
-//              recognition. In Chrome the audio is sent to Google to transcribe.
-//   typed    — no microphone at all.
-// Every provider that sends sound off the computer says so before it starts.
-
+// Speech capture for the Voice action. The Vexo band is the only microphone: this
+// computer's microphone is never opened. Three providers, chosen by the user:
 //   band-gemini — the Vexo band's microphone, recorded until you stop or go quiet, then
 //              sent as one WAV to Google Gemini through this laptop's dev server
 //              (server/geminiVoice.ts holds the key). Gemini returns the transcript
 //              and a reply about the selected object. The default for Voice.
+//   band     — the Vexo band's microphone (Opus) → Deepgram, via the kit's own
+//              deepgramLink. Needs the team's Deepgram key typed into the page;
+//              it lives in memory only, never in storage, the URL or a file.
+//   typed    — no microphone at all.
+// Every provider that sends sound off the computer says so before it starts.
 
 import { BandAudio, AUDIO_RATE } from '../../wearable/vexoKit'
 import { BAND_NUMBER } from '../../wearable/band'
@@ -20,7 +18,7 @@ import { encodeWav, rms, toBase64 } from './wav'
 
 export { askGemini, GeminiError, type GeminiAnswer } from './gemini'
 
-export type VoiceProviderId = 'band-gemini' | 'laptop-gemini' | 'band' | 'browser' | 'typed'
+export type VoiceProviderId = 'band-gemini' | 'band' | 'typed'
 
 export interface VoiceCallbacks {
   onText(text: string, final: boolean): void
@@ -32,8 +30,8 @@ export interface VoiceCallbacks {
   onLevel?(level: number): void
 }
 
-/** What the request is about, so a reply can use the object's real data. */
-export interface VoiceContext extends GeminiContext {
+/** What the request is about, so a reply can use the object's real data. Dictation that is not about an object leaves it out. */
+export interface VoiceContext extends Partial<GeminiContext> {
   /** 'transcribe' (dictation) asks Gemini only for the words, no reply. */
   mode?: 'answer' | 'transcribe'
 }
@@ -49,65 +47,6 @@ export interface VoiceProvider {
   stop(): void
   /** Records first and sends when done (band-gemini): stop recording and send now. */
   finish?(): void
-}
-
-// ---- browser speech recognition ---------------------------------------------------------
-interface SRResult {
-  isFinal: boolean
-  0: { transcript: string }
-}
-interface SR extends EventTarget {
-  continuous: boolean
-  interimResults: boolean
-  lang: string
-  start(): void
-  stop(): void
-  onresult: ((e: { resultIndex: number; results: ArrayLike<SRResult> }) => void) | null
-  onend: (() => void) | null
-  onerror: ((e: { error: string }) => void) | null
-}
-const SRCtor = () => {
-  const w = window as unknown as Record<string, unknown>
-  return (w.SpeechRecognition ?? w.webkitSpeechRecognition) as (new () => SR) | undefined
-}
-
-export class BrowserSpeechProvider implements VoiceProvider {
-  id = 'browser' as const
-  label = 'This computer’s microphone (browser speech recognition)'
-  notice = 'Uses this computer’s microphone. In Chrome, the audio is sent to Google’s servers to be transcribed.'
-  private rec: SR | null = null
-
-  unavailable() {
-    return SRCtor() ? null : 'This browser has no speech recognition (use Chrome or Edge).'
-  }
-
-  start(cb: VoiceCallbacks) {
-    const Ctor = SRCtor()
-    if (!Ctor) return cb.onError(this.unavailable()!)
-    const rec = new Ctor()
-    rec.continuous = false
-    rec.interimResults = true
-    rec.lang = 'en-US'
-    rec.onresult = (e) => {
-      let text = ''
-      let final = true
-      for (let i = 0; i < e.results.length; i++) {
-        text += e.results[i][0].transcript
-        if (!e.results[i].isFinal) final = false
-      }
-      cb.onText(text.trim(), final)
-    }
-    rec.onerror = (e) => cb.onError(e.error === 'not-allowed' ? 'Microphone permission was refused.' : e.error === 'no-speech' ? 'No speech was heard. Try again a little closer to the microphone.' : `Speech recognition error: ${e.error}`)
-    rec.onend = () => cb.onState('stopped')
-    this.rec = rec
-    rec.start()
-    cb.onState('listening')
-  }
-
-  stop() {
-    this.rec?.stop()
-    this.rec = null
-  }
 }
 
 // ---- band microphone → Deepgram -------------------------------------------------------------
@@ -333,7 +272,7 @@ export class BandGeminiProvider implements VoiceProvider {
     cb.onState('thinking')
     const abort = new AbortController()
     this.abort = abort
-    askGemini({ audio }, ctx, abort.signal, ctx?.mode)
+    askGemini({ audio }, ctx?.object && ctx.objects ? { object: ctx.object, objects: ctx.objects } : undefined, abort.signal, ctx?.mode)
       .then((a) => {
         if (abort.signal.aborted) return
         cb.onText(a.transcript || '(no speech heard)', true)

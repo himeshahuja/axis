@@ -178,9 +178,8 @@ click work as fallbacks; **M** opens the menu on the hovered object.
   (typed, a suggested chip, or by voice) go to the **Explain agent** below.
   Remember saves locally (Vexo has no memory
   API; its key-value store is not private). Voice uses the band mic → Deepgram
-  (team key typed into the page, memory only), the browser's speech
-  recognition, or typed text, and shows a command preview bound to the object;
-  nothing is executed.
+  (team key typed into the page, memory only) or typed text, and shows a
+  command preview bound to the object; nothing is executed.
 - **Voice → Gemini (the default).** Voice records band 75's microphone (Opus,
   decoded with the kit's `BandAudio`) until you press *done* or go quiet (12 s
   at most), sends it as a 16 kHz WAV to `/api/voice/gemini` on the dev server
@@ -189,10 +188,10 @@ click work as fallbacks; **M** opens the menu on the hovered object.
   up in the Voice panel. The key stays on the laptop — put
   `GEMINI_API_KEY=...` in `reflex-present/.env` (gitignored; optional
   `GEMINI_MODEL`, default `gemini-3.8-flash`) and restart `npm run dev`. It is
-  never sent to the page. Without a band, the laptop microphone goes the same
-  way (`laptop-gemini`, [`actions/laptopMic.ts`](src/spatial/radial/actions/laptopMic.ts));
-  a recording with no speech in it is not sent (Gemini invents words for
-  silence). Transcription uses `gemini-3.5-flash-lite` (~1 s; override with
+  never sent to the page. **Voice input comes only from the Vexo band:** the
+  laptop's microphone is never opened (no laptop mic, no browser speech
+  recognition). Without a band, Voice says why and offers to connect it, or
+  you can type. Transcription uses `gemini-3.5-flash-lite` (~1 s; override with
   `GEMINI_TRANSCRIBE_MODEL`). The pretend band's mic plays the kit's sample
   recording and is labelled that way.
 
@@ -212,7 +211,7 @@ loop of at most 5 model calls ([`server/agent/loop.ts`](server/agent/loop.ts)):
 | Python (Gemini code execution) | Google's sandbox (sympy, numpy, matplotlib), never this laptop | the code, its output, any plot |
 
 Anything else is a plain multimodal answer. Ask by voice from the card ("Ask
-with your voice": band mic, else laptop mic → Gemini transcript → the agent).
+with your voice": band mic → Gemini transcript → the agent).
 Add a tool in [`server/agent/tools.ts`](server/agent/tools.ts): a declaration,
 a runner that validates the model's arguments, and (for something to draw) an
 artifact type in `agentTypes.ts` plus its renderer in `ui/AgentArtifacts.tsx`.

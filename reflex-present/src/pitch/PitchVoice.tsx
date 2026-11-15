@@ -39,7 +39,8 @@ export function PitchVoice({
   onRecording: (on: boolean) => void
 }) {
   const providers = rt.radial.voiceProviders as Finishable[]
-  const provider = (['band-gemini', 'laptop-gemini', 'browser'] as const).map((id) => providers.find((p) => p.id === id && !p.unavailable())).find(Boolean) ?? null
+  // Only the band's microphone: until it is ready the panel waits and says why.
+  const provider = providers.find((p) => p.id === 'band-gemini' && !p.unavailable()) ?? null
   const reason = providers.find((p) => p.id === 'band-gemini')?.unavailable() ?? null
   const [phase, setPhase] = useState<Phase>('waiting')
   const [words, setWords] = useState('')
@@ -184,7 +185,7 @@ export function PitchVoice({
           {phase === 'listening' && <p className="how">Tap the band, close your hand, or pause to send</p>}
         </>
       )}
-      <footer>{provider?.id === 'band-gemini' ? `Band ${BAND_NUMBER} mic → Gemini` : provider?.id === 'laptop-gemini' ? 'Laptop mic → Gemini' : provider ? 'Laptop mic → Google' : ''}</footer>
+      <footer>{provider ? `Band ${BAND_NUMBER} mic → Gemini` : ''}</footer>
     </div>
   )
   return slot ? createPortal(panel, slot) : panel

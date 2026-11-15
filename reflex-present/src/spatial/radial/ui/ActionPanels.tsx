@@ -6,7 +6,6 @@ import type { SpatialObject } from '../../types'
 import { BAND_NUMBER } from '../../wearable/band'
 import { askAction, suggestedQuestions } from '../actions/explain'
 import type { MemoryEntry } from '../actions/memory'
-import { LaptopGeminiProvider } from '../actions/laptopMic'
 import { askGemini, BandGeminiProvider, forgetDeepgramKey, hasDeepgramKey, setDeepgramKey, type VoiceProvider, type VoiceProviderId } from '../actions/voice'
 import { previewVoiceCommand, type VoiceCommandPreview } from '../actions/voiceCommand'
 import type { ExplainCard, ExplainQA, VoiceSession } from '../RadialActionExecutor'
@@ -229,17 +228,10 @@ export function VoiceCapturePanel({
   onPaste?: (text: string) => void
 }) {
   const dictate = !!onPaste
-  // Voice uses the Vexo band by default: the team band's microphone → Gemini. If the band is not
-  // ready the panel says why instead of quietly switching to the laptop's microphone. Dictation
-  // only needs words, so it starts on this computer's microphone when the band isn't ready.
-  const [providerId, setProviderId] = useState<VoiceProviderId>(() => {
-    const band = providers.find((p) => p.id === 'band-gemini')
-    const laptop = providers.find((p) => p.id === 'browser' && !p.unavailable())
-    if (dictate && laptop && (!band || band.unavailable())) return laptop.id
-    const laptopGemini = providers.find((p) => p.id === 'laptop-gemini' && !p.unavailable())
-    if (laptopGemini && band?.unavailable()) return laptopGemini.id
-    return band ? band.id : providers[0].id
-  })
+  // Voice listens only to the Vexo band: the team band's microphone → Gemini by default. If the
+  // band is not ready the panel says why (and offers to connect it); this computer's microphone
+  // is never used.
+  const [providerId, setProviderId] = useState<VoiceProviderId>(() => providers.find((p) => p.id === 'band-gemini')?.id ?? providers[0].id)
   const [phase, setPhase] = useState<'idle' | 'listening' | 'thinking'>('idle')
   const listening = phase === 'listening'
   const [partial, setPartial] = useState('')
@@ -252,10 +244,9 @@ export function VoiceCapturePanel({
   const [, force] = useState(0)
   const active = useRef<VoiceProvider | null>(null)
   const provider = providers.find((p) => p.id === providerId)!
-  // Providers that record, then send one WAV to Gemini (band or laptop microphone).
-  const gemini = provider instanceof BandGeminiProvider || provider instanceof LaptopGeminiProvider ? provider : null
-  const micName = provider instanceof LaptopGeminiProvider ? 'Laptop mic' : `Band ${BAND_NUMBER}`
-  // The same dev-server endpoint answers words from any provider (browser speech, Deepgram, typed).
+  // The band's microphone recorded, then sent as one WAV to Gemini.
+  const gemini = provider instanceof BandGeminiProvider ? provider : null
+  // The same dev-server endpoint answers words from any provider (Deepgram, typed).
   const answerer = providers.find((p): p is BandGeminiProvider => p instanceof BandGeminiProvider) ?? null
   const canAnswer = !!answerer?.status?.configured
   const why = provider.unavailable()
@@ -437,7 +428,7 @@ export function VoiceCapturePanel({
       )}
 
       <div className="ap-notice">
-        {dictate && gemini instanceof BandGeminiProvider ? 'Records the Vexo band’s microphone, which hears everyone near it (its light turns solid blue). When you stop or go quiet, the recording goes to Google Gemini through this laptop to be transcribed.' : provider.notice}
+        {dictate && gemini ? 'Records the Vexo band’s microphone, which hears everyone near it (its light turns solid blue). When you stop or go quiet, the recording goes to Google Gemini through this laptop to be transcribed.' : provider.notice}
       </div>
       {gemini instanceof BandGeminiProvider && gemini.pretend && <div className="ap-warnline">Pretend band: its microphone plays the kit’s sample recording, not your voice.</div>}
 
@@ -462,7 +453,7 @@ export function VoiceCapturePanel({
           {phase === 'listening' ? (
             <>
               <button className="ap-btn ap-btn-stop" onClick={() => gemini.finish()}>
-                <span className="ap-pulse" /> {micName} listening — {dictate ? 'done, paste' : 'done'}
+                <span className="ap-pulse" /> Band {BAND_NUMBER} listening — {dictate ? 'done, paste' : 'done'}
               </button>
               <span className="ap-level" aria-label="Band microphone level">
                 <span style={{ width: `${Math.round(level * 100)}%` }} />
@@ -475,7 +466,7 @@ export function VoiceCapturePanel({
             <span className="ap-muted">{dictate ? 'Gemini is transcribing…' : 'Gemini is transcribing and answering…'}</span>
           ) : (
             <button className="ap-btn" disabled={!!why} onClick={start}>
-              {gemini instanceof LaptopGeminiProvider ? (dictate ? 'Record with the laptop mic' : reply ? 'Speak again' : 'Speak into the laptop mic') : dictate ? `Record with band ${BAND_NUMBER}` : reply ? 'Speak again' : `Speak into band ${BAND_NUMBER}`}
+              {dictate ? `Record with band ${BAND_NUMBER}` : reply ? 'Speak again' : `Speak into band ${BAND_NUMBER}`}
             </button>
           )}
           {why && phase === 'idle' && <span className="ap-muted">{why}</span>}
@@ -530,7 +521,7 @@ export function VoiceCapturePanel({
       {asking && <div className="ap-muted">Gemini is answering…</div>}
       {reply && (
         <div className="ap-reply" role="status">
-          <div className="ap-muted ap-small">Gemini{reply.model ? ` · ${reply.model}` : ''} · {gemini instanceof LaptopGeminiProvider ? 'heard through the laptop mic' : gemini ? `heard through band ${BAND_NUMBER}` : providerId === 'typed' ? 'typed' : 'from the transcript'}</div>
+          <div className="ap-muted ap-small">Gemini{reply.model ? ` · ${reply.model}` : ''} · {gemini ? `heard through band ${BAND_NUMBER}` : providerId === 'typed' ? 'typed' : 'from the transcript'}</div>
           <div className="ap-reply-text">{reply.text}</div>
         </div>
       )}
