@@ -7,13 +7,11 @@ export function PresenterActionTray({ providers, onClose, onPlace, onConnectBand
   onPlace: (text: string) => void
   onConnectBand: (link: 'serial' | 'ble') => void
 }) {
-  // Only the Vexo band's microphone: → Gemini by default (the dev server's key), or → Deepgram.
-  const [providerId, setProviderId] = useState<VoiceProviderId>(() => hasDeepgramKey() ? 'band' : 'band-gemini')
+  const [providerId, setProviderId] = useState<VoiceProviderId>(() => hasDeepgramKey() ? 'band' : 'browser')
   const [keyInput, setKeyInput] = useState('')
   const [transcript, setTranscript] = useState('')
   const [partial, setPartial] = useState('')
   const [listening, setListening] = useState(false)
-  const [writing, setWriting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [, refresh] = useState(0)
   const provider = providers.find((item) => item.id === providerId) ?? providers[0]
@@ -26,29 +24,20 @@ export function PresenterActionTray({ providers, onClose, onPlace, onConnectBand
     setPartial('')
     provider.start({
       onText: (text, isFinal) => {
-        if (isFinal && /^\(no speech/i.test(text)) return setError('No speech was heard. Try again closer to the band.')
         if (isFinal) {
           setTranscript((previous) => [previous, text].filter(Boolean).join(' ').trim())
           setPartial('')
         } else setPartial(text)
       },
-      onState: (state) => { setListening(state === 'listening'); setWriting(state === 'thinking') },
-      onError: (message) => { setError(message); setListening(false); setWriting(false) },
-    }, { mode: 'transcribe' })
+      onState: (state) => setListening(state === 'listening'),
+      onError: (message) => { setError(message); setListening(false) },
+    })
   }
 
-  /** Discard: switching source or closing. */
   const stop = () => {
     provider.stop()
     setListening(false)
-    setWriting(false)
     setPartial('')
-  }
-
-  /** Done talking: band → Gemini sends the recording to be written down; Deepgram just stops. */
-  const done = () => {
-    if (provider.finish) provider.finish()
-    else stop()
   }
 
   return (
@@ -60,8 +49,8 @@ export function PresenterActionTray({ providers, onClose, onPlace, onConnectBand
 
       <label className="pat-label" htmlFor="pat-provider">Microphone source</label>
       <select id="pat-provider" value={providerId} onChange={(event) => { stop(); setProviderId(event.target.value as VoiceProviderId) }}>
-        <option value="band-gemini">Vexo band microphone → Gemini</option>
-        <option value="band">Vexo band microphone → Deepgram</option>
+        <option value="browser">Computer microphone</option>
+        <option value="band">Vexo band microphone</option>
       </select>
 
       {providerId === 'band' && (
@@ -76,14 +65,14 @@ export function PresenterActionTray({ providers, onClose, onPlace, onConnectBand
       )}
 
       <p className="pat-notice">{provider.notice}</p>
-      {unavailable && /Connect band first|isn’t connected/.test(unavailable) && <div className="pat-connect">
+      {providerId === 'band' && unavailable?.includes('Connect band first') && <div className="pat-connect">
         <span>Connect Vexo 75 to use its microphone.</span>
         <button onClick={() => onConnectBand('serial')}>Connect USB</button>
         <button onClick={() => onConnectBand('ble')}>Connect Bluetooth</button>
       </div>}
       {error && <p className="pat-error" role="alert">{error}</p>}
       <div className="pat-row">
-        {listening ? <button className="pat-primary pat-stop" onClick={done}>Stop listening</button> : writing ? <span className="pat-muted">Writing down what was said…</span> : <button className="pat-primary" disabled={!!unavailable} onClick={start}>Start listening</button>}
+        {listening ? <button className="pat-primary pat-stop" onClick={stop}>Stop listening</button> : <button className="pat-primary" disabled={!!unavailable} onClick={start}>Start listening</button>}
         {unavailable && <span className="pat-muted">{unavailable}</span>}
       </div>
 

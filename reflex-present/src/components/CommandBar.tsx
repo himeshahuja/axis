@@ -1,16 +1,67 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CommandInput } from '../types'
 
-// Typed commands only: voice input comes from the Vexo band (the Voice action), never this
-// computer's microphone.
+// Minimal ambient typing for the Web Speech API (not in standard lib.dom yet).
+interface SpeechRecognitionResultLike {
+  isFinal: boolean
+  0: { transcript: string }
+}
+interface SpeechRecognitionEventLike extends Event {
+  results: ArrayLike<SpeechRecognitionResultLike>
+}
+interface SpeechRecognitionLike extends EventTarget {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  start(): void
+  stop(): void
+  onresult: ((ev: SpeechRecognitionEventLike) => void) | null
+  onend: (() => void) | null
+  onerror: ((ev: Event) => void) | null
+}
+
+function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
+  const w = window as unknown as Record<string, unknown>
+  return (w.SpeechRecognition as new () => SpeechRecognitionLike) || (w.webkitSpeechRecognition as new () => SpeechRecognitionLike) || null
+}
+
 export function CommandBar({ onCommand }: { onCommand: (cmd: CommandInput) => void }) {
   const [text, setText] = useState('')
+  const [listening, setListening] = useState(false)
+  const [voiceSupported, setVoiceSupported] = useState(false)
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+
+  useEffect(() => {
+    setVoiceSupported(getSpeechRecognition() !== null)
+  }, [])
 
   function submit(value: string, source: CommandInput['source']) {
     const trimmed = value.trim()
     if (!trimmed) return
     onCommand({ source, timestamp: Date.now(), text: trimmed })
     setText('')
+  }
+
+  function toggleVoice() {
+    const Ctor = getSpeechRecognition()
+    if (!Ctor) return
+    if (listening) {
+      recognitionRef.current?.stop()
+      return
+    }
+    const recognition = new Ctor()
+    recognition.continuous = false
+    recognition.interimResults = false
+    recognition.lang = 'en-US'
+    recognition.onresult = (ev) => {
+      const transcript = ev.results[ev.results.length - 1][0].transcript
+      submit(transcript, 'voice')
+    }
+    recognition.onend = () => setListening(false)
+    recognition.onerror = () => setListening(false)
+    recognitionRef.current = recognition
+    recognition.start()
+    setListening(true)
   }
 
   return (
@@ -35,6 +86,11 @@ export function CommandBar({ onCommand }: { onCommand: (cmd: CommandInput) => vo
       <button onClick={() => submit(text, 'text')} style={buttonStyle}>
         Send
       </button>
+      {voiceSupported && (
+        <button onClick={toggleVoice} style={{ ...buttonStyle, background: listening ? '#ff5a36' : buttonStyle.background }}>
+          {listening ? 'Listening…' : '🎙 Voice'}
+        </button>
+      )}
     </div>
   )
 }

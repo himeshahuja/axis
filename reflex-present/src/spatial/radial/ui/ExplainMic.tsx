@@ -1,6 +1,6 @@
-// Ask an Explain card by voice, right inside the card: tap, speak, pause. The band's microphone
-// records (never this computer's) and Gemini writes the words down, then the card asks the agent
-// exactly as if they had been typed.
+// Ask an Explain card by voice, right inside the card: tap, speak, pause. The words go to
+// Gemini to be written down (the band's microphone when it is connected, else this computer's),
+// then the card asks the agent exactly as if they had been typed.
 
 import { useEffect, useRef, useState } from 'react'
 import type { SpatialObject } from '../../types'
@@ -13,25 +13,34 @@ interface Finishable extends VoiceProvider {
   finish?: () => void
 }
 
-/** The band's microphone through Gemini: the only microphone this app listens to. */
-const bandMic = (providers: VoiceProvider[]): Finishable | null => providers.find((p) => p.id === 'band-gemini') ?? null
+/** Band → laptop (both through Gemini) → the browser's own speech recognition. */
+function pickVoiceProvider(providers: VoiceProvider[]): Finishable | null {
+  const ready = (id: string) => providers.find((p) => p.id === id && !p.unavailable()) ?? null
+  return ready('band-gemini') ?? ready('laptop-gemini') ?? ready('browser')
+}
+
+const source = (p: VoiceProvider | null) => (p?.id === 'band-gemini' ? `band ${BAND_NUMBER} mic → Gemini` : p?.id === 'laptop-gemini' ? 'laptop mic → Gemini' : p?.id === 'browser' ? 'laptop mic → browser speech' : '')
 
 export function ExplainMic({ providers, object, objects, onQuestion, airAction }: { providers: VoiceProvider[]; object: SpatialObject; objects: SpatialObject[]; onQuestion: (q: string) => void; airAction?: string }) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [words, setWords] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [level, setLevel] = useState(0)
+  const [using, setUsing] = useState<VoiceProvider | null>(null)
   const active = useRef<Finishable | null>(null)
   const asked = useRef(false)
 
   useEffect(() => () => active.current?.stop(), [])
 
   const start = () => {
-    const p = bandMic(providers)
-    const why = p ? p.unavailable() : `Band ${BAND_NUMBER}’s microphone is not set up on this page.`
-    if (!p || why) return setError(why)
+    const p = pickVoiceProvider(providers)
+    if (!p) {
+      const why = providers.find((x) => x.id === 'laptop-gemini')?.unavailable() ?? providers.find((x) => x.id === 'browser')?.unavailable()
+      return setError(why ?? 'No microphone is ready.')
+    }
     active.current?.stop()
     active.current = p
+    setUsing(p)
     asked.current = false
     setError(null)
     setWords('')
@@ -87,7 +96,7 @@ export function ExplainMic({ providers, object, objects, onQuestion, airAction }
           Cancel
         </button>
         {words && <div className="ag-mic-words">“{words}”</div>}
-        <div className="ap-muted ap-small">band {BAND_NUMBER} mic → Gemini</div>
+        <div className="ap-muted ap-small">{source(using)}</div>
       </div>
     )
   if (phase === 'transcribing')
