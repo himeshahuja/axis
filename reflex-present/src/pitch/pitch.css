@@ -1312,10 +1312,8 @@
   letter-spacing: 0.4em;
   color: var(--mute);
 }
-.scene-product .pitch-chrome .brand,
-.scene-demo .pitch-chrome .brand,
-.scene-utility .pitch-chrome .brand,
-.scene-compare .pitch-chrome .brand {
+/* every scene's top right now holds Annotate (and Memory), so the small mark steps aside */
+.pitch-stage .pitch-chrome .brand {
   opacity: 0;
 }
 .pitch-chrome .count {
@@ -1981,12 +1979,67 @@
 .pitch-stage .ap-saved {
   display: none;
 }
-.pitch-memtab {
+/* top right: Annotate on every scene, Memory beside it where the actions are on */
+.pitch-topright {
   position: absolute;
   z-index: 42;
-  background: #0b0b0b;
   right: 5.5%;
   top: 5.6%;
+  max-width: 50%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.6cqw;
+  pointer-events: none;
+}
+.pitch-topright .pitch-chrome-btn {
+  background: #0b0b0b;
+}
+.pitch-annotate.is-on {
+  color: var(--hot);
+  border-color: var(--hot);
+}
+
+/* annotation arrows: above the cards, under the panels and the cursor */
+.pitch-arrows {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 6;
+  overflow: visible;
+  pointer-events: none;
+}
+.pitch-arrows line {
+  stroke: var(--hot);
+  stroke-linecap: round;
+}
+.pitch-arrows line.is-drawing {
+  opacity: 0.7;
+}
+.pitch-arrows marker path {
+  fill: var(--hot);
+}
+.pitch-stage.is-annotating .pitch-cursor {
+  border-color: var(--hot);
+  mix-blend-mode: normal;
+}
+/* how to draw, beside the cursor until the first arrow */
+.pitch-cursor .tip {
+  position: absolute;
+  left: 140%;
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  padding: 0.35cqw 0.6cqw;
+  background: rgba(10, 10, 10, 0.92);
+  border: 1px solid var(--line2);
+  font-family: var(--mono);
+  font-size: 0.72cqw;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
 }
 .pitch-memtab span {
   color: var(--hot);
@@ -2422,6 +2475,23 @@
   color: var(--mute);
   font-size: 1.4cqw;
   cursor: pointer;
+}
+/* asking Explain by voice: the same bar, inside the card */
+.pitch-voice.is-inline {
+  position: static;
+  width: auto;
+  box-shadow: none;
+}
+.pitch-stage .ap-voice-ask {
+  border-radius: 0;
+  border-color: rgba(255, 90, 31, 0.5);
+  font-family: var(--mono);
+  font-size: 0.8cqw;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.pitch-stage .ap-voice-ask::before {
+  color: var(--hot);
 }
 .pitch-voice .meter {
   display: flex;

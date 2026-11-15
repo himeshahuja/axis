@@ -27,6 +27,8 @@ export function ExplainPanel({
   thread = [],
   onAsk,
   hoverAction = null,
+  onVoiceAsk,
+  listening = false,
 }: {
   card: ExplainCard
   object: SpatialObject
@@ -38,6 +40,9 @@ export function ExplainPanel({
   onAsk?: (question: string) => void
   /** The air control the hand cursor is on, to highlight it. */
   hoverAction?: string | null
+  /** Ask by speaking: the host records and asks; while `listening` it draws its microphone into the card's voice slot. */
+  onVoiceAsk?: () => void
+  listening?: boolean
 }) {
   const [draft, setDraft] = useState('')
   const asked = new Set(thread.map((qa) => qa.question))
@@ -91,18 +96,28 @@ export function ExplainPanel({
               ),
             )}
           </div>
-          <form
-            className="ap-ask"
-            onSubmit={(e) => {
-              e.preventDefault()
-              submit()
-            }}
-          >
-            <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Ask anything about this…" aria-label={`Ask about ${object.label.replace(/\n/g, ' ')}`} />
-            <button type="submit" disabled={!draft.trim()}>
-              Ask
-            </button>
-          </form>
+          {onVoiceAsk &&
+            (listening ? (
+              <div className="ap-voice-slot" data-voice-slot={card.objectId} />
+            ) : (
+              <button className="ap-voice-ask" data-air-action={compact ? `explain-voice:${card.objectId}` : undefined} onClick={onVoiceAsk}>
+                Ask with your voice
+              </button>
+            ))}
+          {!listening && (
+            <form
+              className="ap-ask"
+              onSubmit={(e) => {
+                e.preventDefault()
+                submit()
+              }}
+            >
+              <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Ask anything about this…" aria-label={`Ask about ${object.label.replace(/\n/g, ' ')}`} />
+              <button type="submit" disabled={!draft.trim()}>
+                Ask
+              </button>
+            </form>
+          )}
         </>
       )}
     </div>

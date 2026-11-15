@@ -406,6 +406,27 @@
   font-size: 0.85em;
   cursor: pointer;
 }
+.ap-voice-ask {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 11px;
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgba(127, 227, 255, 0.45);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.9em;
+  text-align: left;
+  cursor: pointer;
+}
+.ap-voice-ask::before {
+  content: '● ';
+  color: #7fe3ff;
+}
+.ap-voice-slot {
+  margin-top: 10px;
+}
 .ap-ask {
   display: flex;
   gap: 6px;

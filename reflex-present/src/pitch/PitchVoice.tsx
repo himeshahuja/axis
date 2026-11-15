@@ -4,6 +4,7 @@
 // words are in, the stage puts them on a card and closes this (see PitchStage).
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { VoiceProvider } from '../spatial/radial/actions/voice'
 import type { VoiceSession } from '../spatial/radial/RadialActionExecutor'
 import type { SpatialRuntime } from '../spatial/runtime'
@@ -100,7 +101,8 @@ export function PitchVoice({
           }
         },
       },
-      { object, objects: rt.interaction.objects },
+      // A question for Explain only needs the words: Explain answers it, not the Voice reply.
+      { object, objects: rt.interaction.objects, mode: session.ask ? 'transcribe' : undefined },
     )
     return () => {
       provider.stop()
@@ -148,12 +150,15 @@ export function PitchVoice({
   const right = object.x + object.w + 0.015
   const left = right + w > 0.97 ? Math.max(0.03, object.x - w - 0.015) : right
   const top = Math.max(0.2, Math.min(0.66, object.y + 0.02))
+  // A question for Explain is drawn inside the card, in the slot it keeps for it.
+  const slot = session.ask ? document.querySelector<HTMLElement>(`[data-voice-slot="${CSS.escape(object.id)}"]`) : null
+  if (session.ask && !slot) return null
 
-  return (
-    <div className={`pitch-voice is-${phase}`} style={{ left: `${left * 100}%`, top: `${top * 100}%`, width: `${w * 100}%` }} onMouseDown={(e) => e.stopPropagation()}>
+  const panel = (
+    <div className={`pitch-voice is-${phase} ${slot ? 'is-inline' : ''}`} style={slot ? undefined : { left: `${left * 100}%`, top: `${top * 100}%`, width: `${w * 100}%` }} onMouseDown={(e) => e.stopPropagation()}>
       <header>
         <span className="dot" />
-        <strong>{phase === 'thinking' ? 'Thinking' : phase === 'answered' ? 'Answer' : phase === 'error' ? 'Couldn’t hear it' : phase === 'waiting' ? 'Voice' : 'Listening'}</strong>
+        <strong>{phase === 'thinking' ? 'Thinking' : phase === 'answered' ? 'Answer' : phase === 'error' ? 'Couldn’t hear it' : phase === 'waiting' ? (session.ask ? 'Ask' : 'Voice') : 'Listening'}</strong>
         <button className="x" data-air-action="close-voice" onClick={() => rt.radial.executor.closeVoice()} aria-label="Close">
           ×
         </button>
@@ -182,4 +187,5 @@ export function PitchVoice({
       <footer>{provider?.id === 'band-gemini' ? `Band ${BAND_NUMBER} mic → Gemini` : provider ? 'Laptop mic → Google' : ''}</footer>
     </div>
   )
+  return slot ? createPortal(panel, slot) : panel
 }
