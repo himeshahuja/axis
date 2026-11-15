@@ -2,7 +2,7 @@
 
 ## The pitch — `/pitch`
 
-The Axis pitch (about 2:40) as five interactive scenes on the live spatial
+The Axis pitch (about 3:30) as seven interactive scenes on the live spatial
 engine. Open `http://localhost:5173/pitch` on the external display (F for
 fullscreen) and press **P** to open the presenter console
 (`/pitch?view=presenter`) on the laptop; the two stay in sync in the same
@@ -16,7 +16,9 @@ browser. Scenes, objects, beats and speaking notes are data in
 | 02 Product | drag Perception, Intent, Action from the pile into their slots → the pipeline connects | yes, one piece per press |
 | 03 Live | pull the revenue chart into the spotlight; hold it → Explain; hold → Remember (saved on the band), open Memory | spotlight only |
 | 04 Trade-offs | ask the Vexo band "What is the difference between this and conventional interfaces?" → the Axis card appears | yes |
-| 05 Close | grab any piece and let go → it assembles; pull the page across → "The interface is you." | yes |
+| 05 Whiteboard | everything on one board, in any order — grab a card; hold → Explain → Ask with your voice; hold → Voice (the words land on the board); Annotate → draw an arrow; hold → Remember. The row at the bottom lights up as each is shown | no: → goes straight on |
+| 06 Use cases | hold any card → Voice → ask: Now (teaching, whiteboarding), Next (wearable bands: accelerometer, no camera, many people at once), Later (AR glasses) all flip to what they unlock | yes |
+| 07 Close | grab any piece and let go → it assembles; pull the page across → "The interface is you." | yes |
 
 **Next with your hand:** grab empty space in the right quarter of the screen (or anywhere in
 the thin strip at the very right edge) and pull it left by a fifth of the width, then let

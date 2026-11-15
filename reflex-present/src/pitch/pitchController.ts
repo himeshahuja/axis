@@ -210,6 +210,13 @@ export class PitchController {
     return this.scene.beats.some((b) => b.trigger.kind === 'voice_reply' && (!b.trigger.objectId || b.trigger.objectId === objectId))
   }
 
+  /** An annotation arrow was drawn on the current scene. */
+  onArrow(now: number) {
+    if (!this.live(now)) return false
+    const beat = this.scene.beats.find((b) => !this.done.has(b.id) && b.trigger.kind === 'arrow')
+    return beat ? this.completeBeat(now, 'arrow drawn', beat) : false
+  }
+
   /** An object was pointed at long enough, or grabbed (used for highlighting only). */
   onActivate(objectId: string) {
     this.activated.add(objectId)

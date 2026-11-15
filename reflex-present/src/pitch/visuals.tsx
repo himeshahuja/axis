@@ -92,75 +92,119 @@ function Pillar({ o, lit }: { o: PitchObject; lit: boolean }) {
   )
 }
 
-/** Future-directions concepts: the same point-and-ask, aimed at the world instead of a screen. */
+/** Use cases, now to later: each card flips from where it starts to what it unlocks. */
 function FutureCard({ o, transformed }: { o: PitchObject; transformed: boolean }) {
   let front: React.ReactNode = null
   let back: React.ReactNode = null
-  if (o.visual === 'lamp') {
-    const lamp = (level: number) => (
-      <svg viewBox="0 0 100 100" className="pv-lamp" style={{ '--glow': level } as React.CSSProperties}>
-        <circle cx="50" cy="42" r="34" className="glow" />
-        <path d="M30 40 L70 40 L60 18 L40 18 Z" className="shade" />
-        <line x1="50" y1="40" x2="50" y2="82" className="stem" />
-        <line x1="34" y1="84" x2="66" y2="84" className="stem" />
+  if (o.visual === 'teach') {
+    // A whiteboard sketch, drawn by the fingertip; then annotated in front of the class.
+    const board = (done: boolean) => (
+      <svg viewBox="0 0 100 70" className="pv-uc">
+        <rect x="4" y="4" width="92" height="58" className="board" />
+        <path d="M14 14 L14 50 L58 50" className="ink" />
+        <path d={done ? 'M14 46 C24 44 30 36 38 30 S50 18 56 14' : 'M14 46 C24 44 30 36 38 30 S46 22 49 20'} className="ink" />
+        {done ? (
+          <>
+            <circle cx="38" cy="30" r="5" className="mark" />
+            <path d="M44 32 L66 40" className="mark" />
+            <rect x="66" y="35" width="24" height="10" className="tag" />
+            <path d="M70 18 h16 M70 25 h11" className="ink faint" />
+          </>
+        ) : (
+          <>
+            <path d="M70 18 h16 M70 25 h11 M70 32 h14" className="ink faint" />
+            <circle cx="49" cy="20" r="2.6" className="tip" />
+          </>
+        )}
       </svg>
     )
     front = (
       <>
-        {lamp(1)}
-        <p className="what">{o.lines?.[0]} · 100%</p>
+        {board(false)}
+        <p className="what">{o.lines?.[0]}</p>
       </>
     )
     back = (
       <>
-        {lamp(0.3)}
-        <p className="what">{o.lines?.[0]} · dimmed to 30%</p>
+        {board(true)}
+        <ol className="pv-steps">
+          <li>Draw on the board in the air</li>
+          <li>Move diagrams by hand</li>
+          <li>Explain a chart to the class</li>
+        </ol>
       </>
     )
-  } else if (o.visual === 'robot') {
+  } else if (o.visual === 'band') {
+    // One person in the camera's frame; then everyone's band, each with its own cursor on one board.
+    const person = (x: number, cls: string, band?: number) => (
+      <g className={cls} key={x}>
+        <circle cx={x} cy="46" r="5" />
+        <path d={`M${x - 10} 68 Q${x} 54 ${x + 10} 68`} />
+        {band !== undefined && (
+          <>
+            <path d={`M${x + 7} 62 L${x + 12} 50`} />
+            <circle cx={x + 11.2} cy="52.5" r="2" className={`wear t${band}`} />
+          </>
+        )}
+      </g>
+    )
     front = (
       <>
-        <svg viewBox="0 0 100 70" className="pv-floor">
-          <rect x="66" y="40" width="16" height="14" className="box" />
-          <circle cx="16" cy="18" r="6" className="you" />
+        <svg viewBox="0 0 100 70" className="pv-uc">
+          <rect x="30" y="30" width="40" height="38" className="frame" />
+          <rect x="46" y="25" width="8" height="5" className="cam" />
+          {person(14, 'off')}
+          {person(50, 'on')}
+          {person(86, 'off')}
         </svg>
         <p className="what">{o.lines?.[0]}</p>
       </>
     )
     back = (
       <>
-        <svg viewBox="0 0 100 70" className="pv-floor">
-          <path d="M44 60 L74 47 L22 22" className="route" />
-          <rect x="66" y="40" width="16" height="14" className="box" />
-          <circle cx="16" cy="18" r="6" className="you" />
-          <rect x="38" y="55" width="12" height="9" rx="2" className="bot" />
+        <svg viewBox="0 0 100 70" className="pv-uc">
+          <rect x="6" y="4" width="88" height="28" className="screen" />
+          {[
+            [24, 14],
+            [52, 22],
+            [78, 12],
+          ].map(([x, y], i) => (
+            <circle key={i} cx={x} cy={y} r="2.6" className={`tip t${i}`} />
+          ))}
+          {person(18, 'on', 0)}
+          {person(50, 'on', 1)}
+          {person(82, 'on', 2)}
         </svg>
         <ol className="pv-steps">
-          <li>Go to the package</li>
-          <li>Pick it up</li>
-          <li>Bring it to you</li>
+          <li>Accelerometer, not a camera</li>
+          <li>More precise, in any light</li>
+          <li>The whole room at once</li>
         </ol>
       </>
     )
-  } else if (o.visual === 'agent') {
-    const [title, ...tasks] = (o.content?.kind === 'note' ? o.content.text : '').split('\n')
+  } else if (o.visual === 'glasses') {
+    // A pair of glasses; then the street through them, with what you asked for laid over it.
+    const lenses = <path d="M8 22 h36 v22 a8 8 0 0 1 -8 8 h-20 a8 8 0 0 1 -8 -8 Z M56 22 h36 v22 a8 8 0 0 1 -8 8 h-20 a8 8 0 0 1 -8 -8 Z M44 28 Q50 24 56 28 M8 26 L2 22 M92 26 L98 22" className="frame" />
     front = (
-      <div className="pv-board">
-        <strong>{title}</strong>
-        {tasks.map((t) => (
-          <span key={t}>— {t}</span>
-        ))}
-      </div>
+      <>
+        <svg viewBox="0 0 100 70" className="pv-uc">
+          {lenses}
+        </svg>
+        <p className="what">{o.lines?.[0]}</p>
+      </>
     )
     back = (
-      <ul className="pv-tasks">
-        {tasks.map((t) => (
-          <li key={t}>
-            <i /> {t}
-            <em>Your OK?</em>
-          </li>
-        ))}
-      </ul>
+      <>
+        <svg viewBox="0 0 100 70" className="pv-uc">
+          <path d="M10 46 V36 h6 v-6 h6 v16 M28 46 V32 h8 v14 M62 46 V34 h6 v-8 h8 v20 M80 46 V38 h8 v8" className="street" />
+          <path d="M8 46 H44 M56 46 H92" className="street" />
+          <path d="M20 46 Q30 40 36 41 M64 46 Q70 42 76 30" className="route" />
+          <circle cx="76" cy="28" r="2.2" className="tip" />
+          <rect x="14" y="26" width="18" height="6" className="tag" />
+          {lenses}
+        </svg>
+        <p className="what">The world, as you want it.</p>
+      </>
     )
   }
   return (
@@ -179,7 +223,9 @@ function FutureCard({ o, transformed }: { o: PitchObject; transformed: boolean }
           <strong>{o.label}</strong>
         </header>
         <div className="body">{back}</div>
-        <footer>Concept · next: {o.destination}</footer>
+        <footer>
+          {o.index} · {o.destination}
+        </footer>
       </div>
     </div>
   )
@@ -188,9 +234,9 @@ function FutureCard({ o, transformed }: { o: PitchObject; transformed: boolean }
 export function ObjectVisual({ o, lit, transformed = false }: { o: PitchObject; lit: boolean; transformed?: boolean }) {
   const c = o.content
   switch (o.visual) {
-    case 'lamp':
-    case 'robot':
-    case 'agent':
+    case 'teach':
+    case 'band':
+    case 'glasses':
       return <FutureCard o={o} transformed={transformed} />
     case 'window':
       return (

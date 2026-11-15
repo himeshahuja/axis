@@ -6,14 +6,15 @@ const settled = (c: PitchController, t: number) => {
   c.tick(t + TRANSITION_MS + 1)
   return t + TRANSITION_MS + 1
 }
+const at = (id: string) => SCENES.findIndex((s) => s.id === id)
 
 describe('pitch progression', () => {
-  it('has six scenes, about three minutes in total', () => {
-    expect(SCENES.map((s) => s.id)).toEqual(['problem', 'product', 'demo', 'compare', 'future', 'vision'])
-    expect(SCENES.map((s) => s.number)).toEqual(['01', '02', '03', '04', '05', '06'])
+  it('has seven scenes, about three and a half minutes in total', () => {
+    expect(SCENES.map((s) => s.id)).toEqual(['problem', 'product', 'demo', 'compare', 'board', 'future', 'vision'])
+    expect(SCENES.map((s) => s.number)).toEqual(['01', '02', '03', '04', '05', '06', '07'])
     const total = SCENES.reduce((a, s) => a + s.targetSeconds, 0)
     expect(total).toBeGreaterThanOrEqual(160)
-    expect(total).toBeLessThanOrEqual(190)
+    expect(total).toBeLessThanOrEqual(220)
   })
 
   it('a small move of the window does not advance; a real move does, then the scene follows', () => {
@@ -118,14 +119,29 @@ describe('pitch progression', () => {
     expect(c.sceneIndex).toBe(4)
   })
 
-  it('future directions: one request flips all three cards at once', () => {
+  it('whiteboard: each capability lights up when used, in any order; the clicker goes straight on', () => {
     const c = new PitchController(SCENES, 0)
-    c.goto(4, 0)
+    c.goto(at('board'), 0)
     const t = settled(c, 0)
-    expect(SCENES[4].objects.every((o) => o.transformedBy === 't-all')).toBe(true)
-    expect(c.onVoiceReply('f-robot', 'bring this to me', t)).toBe(true)
+    expect(c.onArrow(t)).toBe(true)
+    expect(c.onAction('remember', t)).toBe(true)
+    expect(c.onDrop('b-teach', { x: 0.3, y: 0.4 }, { x: 0.32, y: 0.45 }, objectsFor(SCENES[at('board')], []), 16 / 9, t)).toBe(true)
+    expect(c.onAction('voice', t)).toBe(true)
+    expect([...c.done].sort()).toEqual(['b-arrow', 'b-grab', 'b-remember', 'b-voice'])
+    expect(c.onArrow(t)).toBe(false) // already lit
+    expect(c.takesVoiceFor('b-teach')).toBe(false) // Voice here is the normal Voice: words go on the board
+    expect(c.next(t + 1)).toBe(true) // Explain not shown yet: no fallback, so the clicker moves on
+    expect(c.scene.id).toBe('future')
+  })
+
+  it('use cases: one request flips all three cards at once', () => {
+    const c = new PitchController(SCENES, 0)
+    c.goto(at('future'), 0)
+    const t = settled(c, 0)
+    expect(SCENES[at('future')].objects.every((o) => o.transformedBy === 't-all')).toBe(true)
+    expect(c.onVoiceReply('f-band', 'what does this unlock', t)).toBe(true)
     expect(c.done.has('t-all')).toBe(true)
-    expect(c.onVoiceReply('f-lamp', 'dim this', t)).toBe(false)
+    expect(c.onVoiceReply('f-teach', 'what does this unlock', t)).toBe(false)
     // in a scene without voice beats, speech is just a normal Voice request
     c.goto(2, t + 1000)
     expect(c.takesVoiceFor('revenue')).toBe(false)
@@ -133,7 +149,7 @@ describe('pitch progression', () => {
 
   it('after the pieces line up, the closing screen follows on its own', () => {
     const c = new PitchController(SCENES, 0)
-    c.goto(5, 0)
+    c.goto(at('vision'), 0)
     const t = settled(c, 0)
     c.onDrop('v-note', { x: 0, y: 0 }, { x: 0.01, y: 0 }, [], 16 / 9, t)
     expect(c.pendingBeat?.id).toBe('statement')

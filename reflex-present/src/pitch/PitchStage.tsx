@@ -106,14 +106,15 @@ function clearSpot(card: Rect, near: Rect, avoid: (Rect & { weight?: number })[]
 }
 
 /** One card per recording: a later final transcript replaces its words where it already is. */
-function putSaid(rt: SpatialRuntime, ctl: PitchController, session: number, text: string, objectId: string, panel: Rect | null) {
+/** `keepClear`: the Voice panel and anything the page marks data-keep-clear, in stage fractions. */
+function putSaid(rt: SpatialRuntime, ctl: PitchController, session: number, text: string, objectId: string, keepClear: Rect[]) {
   const ix = rt.interaction
   const card = saidCard(`${SAID}${session}`, text)
   const was = ix.objects.find((o) => o.id === card.id)
-  // Clear of the stage, the Voice panel and anything this request just revealed; an empty drop zone matters less.
+  // Clear of the stage, those rectangles and anything this request just revealed; an empty drop zone matters less.
   const revealed = objectsFor(ctl.scene, ctl.done).filter((o) => !ix.objects.some((x) => x.id === o.id))
   const zones = (ctl.scene.zones ?? []).map((z) => ({ x: z.x, y: z.y, w: z.w, h: z.h, weight: 0.25 }))
-  const avoid = [...ix.objects.filter((o) => o.id !== card.id), ...revealed, ...zones, ...(panel ? [panel] : [])]
+  const avoid = [...ix.objects.filter((o) => o.id !== card.id), ...revealed, ...zones, ...keepClear]
   ix.add({ ...card, ...(was ? { x: was.x, y: was.y } : clearSpot(card, ix.objects.find((o) => o.id === objectId) ?? card, avoid, ix.aspect)) })
 }
 
@@ -123,6 +124,15 @@ function deleteSaid(rt: SpatialRuntime, id: string) {
   if (ex.voice?.objectId === id) ex.closeVoice()
   rt.interaction.remove(id)
 }
+
+/** The whiteboard's row of capabilities, by beat: each lights up once it has been shown. */
+const BOARD_CHECKLIST: [string, string][] = [
+  ['b-grab', 'Grab & move'],
+  ['b-explain', 'Explain · ask by voice'],
+  ['b-voice', 'Voice → on the board'],
+  ['b-arrow', 'Annotate'],
+  ['b-remember', 'Remember on the band'],
+]
 
 // ---- scene copy (the typography layer) ------------------------------------------------------
 function SceneCopy({ scene, done, state, hands = true }: { scene: PitchScene; done: ReadonlySet<string>; state: 'enter' | 'exit'; hands?: boolean }) {
@@ -177,6 +187,25 @@ function SceneCopy({ scene, done, state, hands = true }: { scene: PitchScene; do
           </h1>
         </section>
       )
+    case 'board':
+      return (
+        <section className={cls}>
+          <div className="board-surface" aria-hidden="true" />
+          <p className="kicker">
+            {scene.number} — {scene.kicker}
+          </p>
+          <h1>
+            Everything, on one <span className="hot">board.</span>
+          </h1>
+          <ol className="board-checklist" data-keep-clear>
+            {BOARD_CHECKLIST.map(([id, label]) => (
+              <li key={id} className={done.has(id) ? 'done' : ''}>
+                {label}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )
     case 'future':
       return (
         <section className={cls}>
@@ -184,7 +213,7 @@ function SceneCopy({ scene, done, state, hands = true }: { scene: PitchScene; do
             {scene.number} — {scene.kicker}
           </p>
           <h1>
-            Next: point at <span className="hot">the world.</span> It acts.
+            Classroom first. Then <span className="hot">the world.</span>
           </h1>
         </section>
       )
@@ -502,8 +531,9 @@ export function PitchStage() {
                 if (panel && stage) replyFrom.current = { target, left: panel.left - stage.left, top: panel.top - stage.top, width: panel.width, height: panel.height }
                 ctl.onVoiceReply(objectId, said, performance.now())
               }
-              const box = panel && stage && stage.width > 0 && stage.height > 0 ? { x: (panel.left - stage.left) / stage.width, y: (panel.top - stage.top) / stage.height, w: panel.width / stage.width, h: panel.height / stage.height } : null
-              putSaid(rt, ctl, session.id, said, objectId, box)
+              const toStage = (r: DOMRect) => ({ x: (r.left - stage!.left) / stage!.width, y: (r.top - stage!.top) / stage!.height, w: r.width / stage!.width, h: r.height / stage!.height })
+              const keepClear = stage && stage.width > 0 && stage.height > 0 ? [...(panel ? [panel] : []), ...[...document.querySelectorAll('.pitch-stage [data-keep-clear]')].map((el) => el.getBoundingClientRect())].map(toStage) : []
+              putSaid(rt, ctl, session.id, said, objectId, keepClear)
             },
             onReply: (reply) => {
               const session = rt.radial.executor.voice
@@ -576,7 +606,7 @@ export function PitchStage() {
               .then((key) => setMemToast({ text: `Saved to Vexo band ${BAND_NUMBER} · storage key ${key}`, ok: true, key: Date.now() }))
               .catch((err: unknown) => setMemToast({ text: `Band didn’t save it (${err instanceof Error ? err.message : String(err)}) — kept in this browser`, ok: false, key: Date.now() }))
           } else if (entry) {
-            setMemToast({ text: `Saved in this browser — connect band ${BAND_NUMBER} to save it on the wristband`, ok: false, key: Date.now() })
+            setMemToast({ text: 'Saved', ok: true, key: Date.now() })
           }
         }
         ctl.onAction(last.event.action, now)
@@ -610,7 +640,10 @@ export function PitchStage() {
         }
         if (!pressed) {
           drawing.current = null
-          if (Math.hypot((arrow.x1 - arrow.x0) * ix.aspect, arrow.y1 - arrow.y0) >= ARROW_MIN) arrows.current.set(ctl.sceneIndex, [...(arrows.current.get(ctl.sceneIndex) ?? []), arrow])
+          if (Math.hypot((arrow.x1 - arrow.x0) * ix.aspect, arrow.y1 - arrow.y0) >= ARROW_MIN) {
+            arrows.current.set(ctl.sceneIndex, [...(arrows.current.get(ctl.sceneIndex) ?? []), arrow])
+            ctl.onArrow(now)
+          }
         }
       }
 

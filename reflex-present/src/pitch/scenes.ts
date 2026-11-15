@@ -30,9 +30,9 @@ export type VisualKind =
   | 'glyph-ring'
   | 'glyph-memory'
   | 'glyph-voice'
-  | 'lamp'
-  | 'robot'
-  | 'agent'
+  | 'teach'
+  | 'band'
+  | 'glasses'
 
 export interface PitchObject extends SpatialObject {
   visual: VisualKind
@@ -44,9 +44,9 @@ export interface PitchObject extends SpatialObject {
   lines?: string[]
   /** Not on the canvas until this beat is done. */
   revealedBy?: string
-  /** Future-directions cards: this beat turns the object into its result. */
+  /** Use-case cards: this beat turns the object into its result. */
   transformedBy?: string
-  /** What the result would open in (shown as "Next: …"). */
+  /** Who it is for (shown on the result, after the horizon). */
   destination?: string
 }
 
@@ -75,6 +75,8 @@ export type BeatTrigger =
   | { kind: 'swipe' }
   /** Only reached through the beat before it (a timed follow-up). */
   | { kind: 'follow_up' }
+  /** An annotation arrow is drawn (Annotate, top right; see PitchStage). */
+  | { kind: 'arrow' }
 
 export interface SceneBeat {
   id: string
@@ -89,7 +91,7 @@ export interface SceneBeat {
 }
 
 export interface PitchScene {
-  id: 'problem' | 'product' | 'demo' | 'compare' | 'future' | 'vision'
+  id: 'problem' | 'product' | 'demo' | 'compare' | 'board' | 'future' | 'vision'
   number: string
   kicker: string
   /** Console title. */
@@ -388,72 +390,102 @@ export const SCENES: PitchScene[] = [
     ],
   },
   {
-    id: 'future',
+    id: 'board',
     number: '05',
-    kicker: 'What’s next',
-    title: 'Point at the world. It acts.',
+    kicker: 'Whiteboard',
+    title: 'Everything, on one board',
     targetSeconds: 30,
     radial: true,
     notes: [
-      'Today it’s a screen. Next, the same gesture works on the world around you.',
-      'Point at a lamp, “dim this”. Point at a package, a robot brings it. Point at a plan on the whiteboard, and an agent makes it happen — asking you before anything is sent.',
-      'Hold any card, Voice, ask: all three show what’s next. These are concepts, not shipped features.',
+      'Here is everything at once, on a whiteboard. The row at the bottom lights up as I use each piece.',
+      'Grab a card and move it. Hold one — Explain — and ask it a question out loud.',
+      'Hold one — Voice — and say it: the words land on the board. Annotate, top right: draw an arrow between two ideas.',
+      'Hold one — Remember: it’s saved on the band.',
+    ],
+    objects: [
+      { id: 'b-present', label: 'Present', visual: 'note', color: '#f2f0eb', shape: 'card', index: 'A', x: 0.075, y: 0.3, w: 0.17, h: 0.25, tilt: -2, content: { kind: 'note', text: 'Move slides by hand\nFace the room, not the laptop' } },
+      { id: 'b-teach', label: 'Teach', visual: 'note', color: '#f2f0eb', shape: 'card', index: 'B', x: 0.275, y: 0.36, w: 0.17, h: 0.25, tilt: 1.5, content: { kind: 'note', text: 'Point at the diagram\nAsk it questions out loud' } },
+      { id: 'b-collab', label: 'Collaborate', visual: 'note', color: '#f2f0eb', shape: 'card', index: 'C', x: 0.475, y: 0.3, w: 0.17, h: 0.25, tilt: -1, content: { kind: 'note', text: 'Sketch arrows between ideas\nSave the board to the band' } },
+      { id: 'b-revenue', label: 'Quarterly Revenue', visual: 'chart', color: '#f2f0eb', shape: 'card', index: 'D', x: 0.69, y: 0.29, w: 0.235, h: 0.3, content: { kind: 'chart', unit: '$k', series: REVENUE } },
+    ],
+    // A checklist, not a script: each lights up when it happens, in any order, and the
+    // clicker goes straight on to the next scene (no fallbacks).
+    beats: [
+      { id: 'b-grab', step: 'Grab a card and move it', trigger: { kind: 'any_drop' }, fallback: false },
+      { id: 'b-explain', step: 'Hold a card → Explain → Ask with your voice', trigger: { kind: 'action_complete', action: 'explain' }, fallback: false },
+      { id: 'b-voice', step: 'Hold a card → Voice → say it: the words land on the board', trigger: { kind: 'action_complete', action: 'voice' }, fallback: false },
+      { id: 'b-arrow', step: 'Annotate (top right) → draw an arrow between two cards', trigger: { kind: 'arrow' }, fallback: false },
+      { id: 'b-remember', step: 'Hold a card → Remember: saved on the band', trigger: { kind: 'action_complete', action: 'remember' }, fallback: false },
+    ],
+  },
+  {
+    id: 'future',
+    number: '06',
+    kicker: 'Use cases',
+    title: 'Classroom first. Then the world.',
+    targetSeconds: 30,
+    radial: true,
+    notes: [
+      'Now: teaching and whiteboarding. Stand at the front of the room and draw, move and explain with your hands — any laptop camera, nothing to install.',
+      'Next: wearables. The band’s accelerometer instead of a camera — more precise, no camera needed, and the whole room can use it at once, not one person at a time.',
+      'Later: AR glasses. The same gestures on the world around you — the world, as you want it.',
+      'Hold any card, Voice, ask: all three show what they unlock.',
     ],
     objects: [
       {
-        id: 'f-lamp',
-        label: 'The physical world',
-        visual: 'lamp',
+        id: 'f-teach',
+        label: 'Teaching',
+        visual: 'teach',
         color: '#f2f0eb',
         shape: 'card',
-        index: 'A',
+        index: 'Now',
         x: 0.055,
         y: 0.29,
         w: 0.27,
         h: 0.54,
         transformedBy: 't-all',
-        destination: 'smart-home devices (Matter)',
-        lines: ['Desk lamp', '“Dim this.”'],
-        content: { kind: 'note', text: 'Desk lamp, on at 100%' },
+        destination: 'classrooms & teams',
+        lines: ['Any laptop camera. Nothing to install.', '“Teach facing the room.”'],
+        content: { kind: 'note', text: 'Teaching and whiteboarding: draw, move and explain with your hands, facing the room' },
       },
       {
-        id: 'f-robot',
-        label: 'Robots',
-        visual: 'robot',
+        id: 'f-band',
+        label: 'Wearables',
+        visual: 'band',
         color: '#f2f0eb',
         shape: 'card',
-        index: 'B',
+        index: 'Next',
         x: 0.365,
         y: 0.29,
         w: 0.27,
         h: 0.54,
         transformedBy: 't-all',
-        destination: 'robot fleets',
-        lines: ['Package on the floor', '“Bring this to me.”'],
-        content: { kind: 'note', text: 'A package across the room' },
+        destination: 'motion-sensing bands',
+        lines: ['A camera sees one person, in frame.', '“Everyone, at once.”'],
+        content: { kind: 'note', text: 'Wearable bands: accelerometer instead of a camera\nMore precise, no camera needed\nThe whole room at once' },
       },
       {
-        id: 'f-agent',
-        label: 'Agents',
-        visual: 'agent',
+        id: 'f-glasses',
+        label: 'AR glasses',
+        visual: 'glasses',
         color: '#f2f0eb',
         shape: 'card',
-        index: 'C',
+        index: 'Later',
         x: 0.675,
         y: 0.29,
         w: 0.27,
         h: 0.54,
         transformedBy: 't-all',
-        destination: 'AI agents, with your approval',
-        lines: ['Whiteboard: team offsite, Mar 12', '“Make it happen.”'],
-        content: { kind: 'note', text: 'Team offsite Mar 12\nBook a room\nInvite the team\nOrder lunch' },
+        destination: 'AR glasses & headsets',
+        lines: ['Point and speak, through the glasses.', '“Change what I see.”'],
+        content: { kind: 'note', text: 'AR glasses: the same gestures on the world around you' },
       },
     ],
-    beats: [{ id: 't-all', step: 'Hold any card → Voice → ask it: all three show what’s next', trigger: { kind: 'voice_reply' }, fallback: true }],
+    beats: [{ id: 't-all', step: 'Hold any card → Voice → ask it: all three show what they unlock', trigger: { kind: 'voice_reply' }, fallback: true }],
   },
   {
     id: 'vision',
-    number: '06',
+    number: '07',
     kicker: 'Where this goes',
     title: 'The interface is you',
     targetSeconds: 26,
