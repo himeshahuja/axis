@@ -198,6 +198,7 @@ export function PresentationBoard() {
       if (runtime.radial.capturesInput && runtime.onKey(event)) { event.preventDefault(); return }
       if (event.key === 'ArrowRight') changeSlide(slideIndex + 1)
       else if (event.key === 'ArrowLeft') changeSlide(slideIndex - 1)
+      else if (event.key.toLowerCase() === 'b' && !event.metaKey && !event.ctrlKey) void runtime.radial.connectBand('ble')
       else if (event.key.toLowerCase() === 'c') setShowCamera((value) => !value)
       else if (event.key.toLowerCase() === 'f') void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())
       else if (event.key.toLowerCase() === 'k' && !event.metaKey && !event.ctrlKey) void beginCalibration()

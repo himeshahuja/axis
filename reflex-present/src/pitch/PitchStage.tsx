@@ -455,6 +455,7 @@ export function PitchStage() {
       else if (k === 'k') run('calibrate')
       else if (k === 'c' && !e.metaKey) run('camera')
       else if (k === 'x') run('resetLayout')
+      else if (k === 'b' && !e.metaKey && !e.ctrlKey) void rt.radial.connectBand('ble')
       else if (k === 'v') setShowCamera((v) => !v)
       else if (k === 'm' && !e.metaKey) run('openMenu')
       else if (k === 'p') window.open('/pitch?view=presenter', 'axis-presenter', 'popup,width=1180,height=760')
