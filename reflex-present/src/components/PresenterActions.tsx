@@ -1,12 +1,16 @@
 import { useState } from 'react'
 import type { SpatialRuntime } from '../spatial/runtime'
+import type { SpatialObject } from '../spatial/types'
 import { isMenuOpen } from '../spatial/radial/types'
 import { ExplainPanel, MemoryPanel, SavedToast, VoiceCapturePanel } from '../spatial/radial/ui/ActionPanels'
 import { HoldRing, RadialActionMenu } from '../spatial/radial/ui/RadialActionMenu'
 import '../spatial/radial/ui/radial.css'
 
-/** His Explain / Remember / Voice actions, on the presenter's original stage. */
-export function PresenterActions({ rt }: { rt: SpatialRuntime }) {
+/**
+ * His Explain / Remember / Voice actions, on the presenter's original stage.
+ * With `onPaste`, Voice dictates: what was said is handed over to go on the slide.
+ */
+export function PresenterActions({ rt, onPaste, hoverAction = null }: { rt: SpatialRuntime; onPaste?: (text: string, near: SpatialObject) => void; hoverAction?: string | null }) {
   const [memoryOpen, setMemoryOpen] = useState(false)
   const state = rt.radial.state
   const executor = rt.radial.executor
@@ -19,9 +23,9 @@ export function PresenterActions({ rt }: { rt: SpatialRuntime }) {
     {object && isMenuOpen(state.status) && <RadialActionMenu state={state} object={object} canvas={rt.canvasPx} thresholdDeg={rt.radial.controller.mapper.config.thresholdDeg} maxDeg={rt.radial.controller.mapper.config.maxDeg} closing={false} bandLost={state.status === 'DEVICE_DISCONNECTED'} bandPretend={rt.radial.band?.link === 'sim'} graspMode theme="presenter" onChoose={(a) => rt.radial.choose(a)} />}
     {[...executor.explainCards.values()].map((card) => {
       const target = find(card.objectId)
-      return target ? <ExplainPanel key={card.objectId} card={card} object={target} compact onClose={() => executor.closeExplain(card.objectId)} /> : null
+      return target ? <ExplainPanel key={card.objectId} card={card} object={target} compact hoverAction={hoverAction} thread={executor.explainThreads.get(card.objectId)} onAsk={(q) => executor.ask(card.objectId, q, rt.interaction.objects)} onClose={() => executor.closeExplain(card.objectId)} /> : null
     })}
-    {executor.voice && voiceObject && <VoiceCapturePanel session={executor.voice} object={voiceObject} objects={rt.interaction.objects} providers={rt.radial.voiceProviders} onClose={() => executor.closeVoice()} onConnectBand={() => rt.radial.connectBand('ble')} bandStatus={rt.radial.band?.status} />}
+    {executor.voice && voiceObject && <VoiceCapturePanel session={executor.voice} object={voiceObject} objects={rt.interaction.objects} providers={rt.radial.voiceProviders} onClose={() => executor.closeVoice()} onConnectBand={() => rt.radial.connectBand('ble')} bandStatus={rt.radial.band?.status} onPaste={onPaste ? (text) => onPaste(text, voiceObject) : undefined} />}
     {recentSave && <SavedToast entry={executor.lastSaved!} />}
     {(memoryOpen || executor.memory.list().length > 0) && <MemoryPanel entries={executor.memory.list()} label={executor.memory.label} highlightId={recentSave ? executor.lastSaved!.id : null} open={memoryOpen} onToggle={() => setMemoryOpen((v) => !v)} />}
   </div>

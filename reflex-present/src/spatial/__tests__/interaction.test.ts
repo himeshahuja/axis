@@ -127,3 +127,52 @@ describe('safety', () => {
     expect(pos(e, 'a')).toEqual({ x: 0.1, y: 0.1 })
   })
 })
+
+describe('trash', () => {
+  const trash = { x: 0.85, y: 0.8, w: 0.1, h: 0.15 }
+  const dragAToTrash = (e: InteractionEngine) => {
+    e.handle({ type: 'pointer', pointer: ptr(0, 0.2, 0.2) })
+    e.handle({ type: 'grab', tMs: 1, source: 'camera' })
+    e.handle({ type: 'pointer', pointer: ptr(2, 0.9, 0.88) })
+  }
+
+  it('deletes an object let go over the trash, and undo brings it back where it was', () => {
+    const e = setup()
+    e.trash = trash
+    const trashed: string[] = []
+    e.onTrashed = (o) => trashed.push(o.id)
+    dragAToTrash(e)
+    expect(e.overTrash).toBe(true)
+    e.handle({ type: 'release', tMs: 3, source: 'camera' })
+    expect(e.objects.map((o) => o.id)).toEqual(['b'])
+    expect(trashed).toEqual(['a'])
+    expect(e.grabbedId).toBeNull()
+    expect(e.hoverId).toBeNull()
+
+    e.handle({ type: 'undo', tMs: 4 })
+    expect(pos(e, 'a')).toEqual({ x: 0.1, y: 0.1 })
+  })
+
+  it('keeps objects dropped outside the trash, and does nothing without one', () => {
+    const e = setup()
+    e.trash = trash
+    e.handle({ type: 'pointer', pointer: ptr(0, 0.2, 0.2) })
+    e.handle({ type: 'grab', tMs: 1, source: 'camera' })
+    e.handle({ type: 'pointer', pointer: ptr(2, 0.5, 0.5) })
+    expect(e.overTrash).toBe(false)
+    e.handle({ type: 'release', tMs: 3, source: 'camera' })
+    expect(e.objects).toHaveLength(2)
+
+    const plain = setup()
+    dragAToTrash(plain)
+    plain.handle({ type: 'release', tMs: 3, source: 'camera' })
+    expect(plain.objects).toHaveLength(2)
+  })
+
+  it('adds objects on top', () => {
+    const e = setup()
+    e.add({ id: 'note', label: 'Hello', color: '#000', shape: 'card', x: 0.15, y: 0.15, w: 0.1, h: 0.1 })
+    expect(e.objects.at(-1)?.id).toBe('note')
+    expect(e.hitTest({ x: 0.2, y: 0.2 })?.id).toBe('note')
+  })
+})

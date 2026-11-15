@@ -374,6 +374,72 @@
 }
 
 /* Voice → Gemini reply, heard through the band */
+/* Explain: questions and their answers. */
+.ap-qa + .ap-qa {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(127, 227, 255, 0.12);
+}
+.ap-q {
+  font-size: 0.85em;
+  color: #9fb3d1;
+  margin-bottom: 4px;
+}
+.ap-a {
+  margin: 0 0 4px;
+  font-size: 1.05em;
+  line-height: 1.5;
+}
+.ap-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.ap-suggest button {
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgba(127, 227, 255, 0.3);
+  border-radius: 999px;
+  padding: 6px 11px;
+  font: inherit;
+  font-size: 0.85em;
+  cursor: pointer;
+}
+.ap-ask {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.ap-ask input {
+  flex: 1;
+  min-width: 0;
+  background: #0a1020;
+  color: #e6efff;
+  border: 1px solid #2b3a58;
+  border-radius: 8px;
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 0.9em;
+}
+.ap-ask button {
+  background: #1f6fe0;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+.ap-ask button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ap-pasted {
+  margin-top: 10px;
+  font-weight: 600;
+}
 .ap-reply {
   margin-top: 10px;
   padding: 10px 12px;
