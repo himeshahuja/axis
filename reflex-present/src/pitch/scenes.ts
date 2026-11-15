@@ -23,6 +23,8 @@ export type VisualKind =
   | 'metric'
   | 'diagram'
   | 'note'
+  /** What was said into Voice, put on the stage (PitchStage adds these; no scene does). */
+  | 'transcript'
   | 'contrast'
   | 'glyph-hand'
   | 'glyph-ring'

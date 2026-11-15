@@ -1,6 +1,7 @@
 // Voice in the pitch: a compact bar, not a form. It starts listening through the band at
 // once, shows a live level and the words, and ends hands-free: tap the band, close your
-// hand, or simply stop talking. One small line still says where the sound goes.
+// hand, or simply stop talking. One small line still says where the sound goes. Once the
+// words are in, the stage puts them on a card and closes this (see PitchStage).
 
 import { useEffect, useRef, useState } from 'react'
 import type { VoiceProvider } from '../spatial/radial/actions/voice'
@@ -12,6 +13,8 @@ import { BAND_NUMBER } from '../spatial/wearable/band'
 const BARS = 18
 /** After speech, this long under the room's own noise level counts as "done talking". */
 const QUIET_MS = 1100
+/** However noisy the room, a recording ends (and sends) after this long. */
+const MAX_MS = 15000
 
 type Phase = 'waiting' | 'listening' | 'thinking' | 'answered' | 'error'
 
@@ -107,6 +110,13 @@ export function PitchVoice({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.id, provider?.id])
 
+  useEffect(() => {
+    if (phase !== 'listening') return
+    const id = window.setTimeout(finish, MAX_MS)
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase])
+
   // Tap the band to send: the band's own tap gesture, no screen needed.
   const band = rt.radial.band?.band as unknown as { on?: (t: string, fn: () => void) => () => void; configure?: (o: Record<string, unknown>) => Promise<unknown> } | undefined
   useEffect(() => {
@@ -144,7 +154,7 @@ export function PitchVoice({
       <header>
         <span className="dot" />
         <strong>{phase === 'thinking' ? 'Thinking' : phase === 'answered' ? 'Answer' : phase === 'error' ? 'Couldn’t hear it' : phase === 'waiting' ? 'Voice' : 'Listening'}</strong>
-        <button className="x" onClick={() => rt.radial.executor.closeVoice()} aria-label="Close">
+        <button className="x" data-air-action="close-voice" onClick={() => rt.radial.executor.closeVoice()} aria-label="Close">
           ×
         </button>
       </header>
