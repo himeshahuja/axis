@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { currentRoute } from './base'
 import { PresentationBoard } from './components/PresentationBoard'
 import { sampleSlide } from './data/sampleDeck'
 import { execute } from './engine/actions'
@@ -18,7 +19,7 @@ interface LogEntry {
 function App() {
   // The command prototype remains available at /command-demo; the default is
   // the presenter surface used for the hackathon demo.
-  return window.location.pathname === '/command-demo' ? <CommandDemo /> : <PresentationBoard />
+  return currentRoute() === '/command-demo' ? <CommandDemo /> : <PresentationBoard />
 }
 
 function CommandDemo() {

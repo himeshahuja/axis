@@ -17,6 +17,8 @@ export default defineConfig(({ mode }) => {
     transcribeModel: process.env.GEMINI_TRANSCRIBE_MODEL || env.GEMINI_TRANSCRIBE_MODEL || undefined,
   })
   return {
+    // '/' locally; the GitHub Pages workflow builds with BASE_PATH=/axis/.
+    base: process.env.BASE_PATH || '/',
     plugins: [react(), geminiVoicePlugin(gemini), geminiAgentPlugin(gemini)],
     resolve: {
       alias: { 'vexo-kit': kitJs, 'vexo-speech': kitSpeech },

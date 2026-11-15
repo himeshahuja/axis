@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { at } from '../../base'
 import { CALIBRATION_TARGETS } from '../calibration'
 import { ACCURACY_TARGETS, exposeForDev, SpatialRuntime, useRuntime } from '../runtime'
 import { CameraPreview } from './CameraPreview'
@@ -87,7 +88,7 @@ export function SpatialTest() {
           <BandControls rt={rt} />
           <div className="group" style={{ opacity: 0.6, display: 'block', lineHeight: 1.6 }}>
             Pinch-hold 0.6s = actions menu (M) · rotate wrist / ← → / wheel · release to run · Pinch / Space grab·release · open palm / Esc cancel · ⌘Z undo · R recenter · H HUD · D camera · F fullscreen ·{' '}
-            <a href="/spatial-debug" style={{ color: '#5b8dee' }}>
+            <a href={at('/spatial-debug')} style={{ color: '#5b8dee' }}>
               debug view
             </a>
           </div>

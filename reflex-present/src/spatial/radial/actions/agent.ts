@@ -18,8 +18,8 @@ export async function askAgent(req: AgentRequest, signal?: AbortSignal): Promise
     if (signal?.aborted) throw e
     throw new GeminiError('Could not reach the agent on the dev server.', 0)
   }
-  // A static host without the dev server answers 404 (or HTML): treat it as no server.
-  if (r.status === 404) throw new GeminiError('The agent endpoint is not running (start the app with npm run dev).', 0)
+  // A static host without the dev server (GitHub Pages) answers 404 or 405: treat it as no server.
+  if (r.status === 404 || r.status === 405) throw new GeminiError('The agent endpoint is not running (start the app with npm run dev).', 0)
   const j = (await r.json().catch(() => ({}))) as Partial<AgentResult> & { error?: string }
   if (!r.ok) throw new GeminiError(j.error ?? `The agent answered status ${r.status}.`, r.status)
   if (typeof j.reply !== 'string') throw new GeminiError('The agent sent no reply.', r.status)

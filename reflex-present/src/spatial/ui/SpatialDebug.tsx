@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { at } from '../../base'
 import { exposeForDev, SpatialRuntime, useRuntime } from '../runtime'
 import { CameraPreview } from './CameraPreview'
 import { Controls, fmtStat, StatusRows } from './Controls'
@@ -50,7 +51,7 @@ export function SpatialDebug() {
     <div className="sp-debug">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h2 style={{ margin: '0 0 12px', fontFamily: 'system-ui' }}>Reflex Spatial — sensor diagnostics</h2>
-        <a href="/spatial-test" style={{ color: '#5b8dee' }}>
+        <a href={at('/spatial-test')} style={{ color: '#5b8dee' }}>
           test view →
         </a>
       </div>

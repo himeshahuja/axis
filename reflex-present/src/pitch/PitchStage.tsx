@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { at } from '../base'
 import { PresenterActions } from '../components/PresenterActions'
 import { isFigure } from '../spatial/radial/figures'
 import { FigureView } from '../spatial/radial/ui/AgentArtifacts'
@@ -457,7 +458,7 @@ export function PitchStage() {
       else if (k === 'x') run('resetLayout')
       else if (k === 'v') setShowCamera((v) => !v)
       else if (k === 'm' && !e.metaKey) run('openMenu')
-      else if (k === 'p') window.open('/pitch?view=presenter', 'axis-presenter', 'popup,width=1180,height=760')
+      else if (k === 'p') window.open(at('/pitch?view=presenter'), 'axis-presenter', 'popup,width=1180,height=760')
       else if (k === 'f') void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())
       else if (!rt.onKey(e)) return
       e.preventDefault()

@@ -1,9 +1,10 @@
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision'
+import { at } from '../../base'
 import type { CameraObservation, Handedness } from '../types'
 import { computeHandFeatures, type HandFeatures } from './handGeometry'
 
-const LOCAL_WASM = '/mediapipe/wasm'
-const LOCAL_MODEL = '/mediapipe/hand_landmarker.task'
+const LOCAL_WASM = at('/mediapipe/wasm')
+const LOCAL_MODEL = at('/mediapipe/hand_landmarker.task')
 const REMOTE_WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3/wasm'
 const REMOTE_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { at } from '../base'
 import { demoIdentity, presentationDeck } from '../data/presentationDeck'
 import { defaultProfile, type CalibrationProfile } from '../spatial/calibration'
 import type { Zone } from '../spatial/interaction'
@@ -352,7 +353,7 @@ export function PresentationBoard() {
             <button className={hoverControl === 'band-bluetooth' ? 'proximity-active' : undefined} data-air-action="band-bluetooth" onClick={() => triggerAirControl('band-bluetooth')}>Connect Vexo over Bluetooth</button>
           </> : <button className={hoverControl === 'band-disconnect' ? 'proximity-active' : undefined} data-air-action="band-disconnect" onClick={() => triggerAirControl('band-disconnect')}>Disconnect Vexo</button>}
           <hr />
-          <a href="/marketing/creative-brief.md" download>Creative brief ↗</a><a href="/marketing/concept-board.png" download>Concept art ↗</a>
+          <a href={at('/marketing/creative-brief.md')} download>Creative brief ↗</a><a href={at('/marketing/concept-board.png')} download>Concept art ↗</a>
         </div>}
         <section className="presentation-copy">
           <p>{slide.eyebrow}</p>

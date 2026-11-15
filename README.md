@@ -20,6 +20,16 @@ before it sends anything.
 | **Vexo band** | optional — everything also works with the mouse, the keyboard and a pretend band. This repo is set up for **band 75** (Vexo-HACK-75) |
 | **Gemini API key** | optional, needed for spoken questions and AI answers. Get one at [Google AI Studio](https://aistudio.google.com/apikey) |
 
+## Try it online
+
+**https://himeshahuja.github.io/axis/** has every page below (for example
+[`/pitch`](https://himeshahuja.github.io/axis/pitch/) and
+[`/site`](https://himeshahuja.github.io/axis/site/)), rebuilt on each push to
+`pinch-and-drag`. Hand tracking, the band (over Bluetooth or USB) and Explain's computed
+summaries work there, and so does band → Deepgram voice with your own Deepgram key.
+Everything that goes through Gemini (band → Gemini voice and the AI answers) needs the
+key that only the local dev server holds, so run it yourself for those.
+
 ## Start it
 
 ```bash

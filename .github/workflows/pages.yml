@@ -1,0 +1,58 @@
+# Builds reflex-present and publishes it to GitHub Pages at https://himeshahuja.github.io/axis/
+# on every push to pinch-and-drag. Pages has no server, so the Gemini endpoints (and the key)
+# stay on the laptop: the hosted app answers with its local summaries instead.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [pinch-and-drag]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: reflex-present
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: reflex-present/package-lock.json
+      - id: pages
+        uses: actions/configure-pages@v5
+      - run: npm ci
+      # The site lives under the repository's name (/axis/), read from Pages so a rename can't break it.
+      - run: npm run build
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}/
+      # Each route gets its own copy of the page so a direct link loads; 404.html catches the rest.
+      - run: |
+          for route in pitch site spatial-test spatial-debug command-demo; do
+            mkdir -p "dist/$route" && cp dist/index.html "dist/$route/index.html"
+          done
+          cp dist/index.html dist/404.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: reflex-present/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

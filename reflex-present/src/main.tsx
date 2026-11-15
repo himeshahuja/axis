@@ -1,6 +1,7 @@
 import { lazy, StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import { currentRoute } from './base.ts'
 import { SpatialDebug } from './spatial/ui/SpatialDebug.tsx'
 import { SpatialTest } from './spatial/ui/SpatialTest.tsx'
 
@@ -13,7 +14,7 @@ const App = lazy(() => import('./App.tsx'))
 // The pitch is its own route and bundle, so its styles never reach the other pages.
 const PitchPage = lazy(() => import('./pitch/PitchPage.tsx').then((m) => ({ default: m.PitchPage })))
 
-const path = window.location.pathname.replace(/\/+$/, '')
+const path = currentRoute()
 const Page = path === '/spatial-test' ? SpatialTest : path === '/spatial-debug' ? SpatialDebug : path === '/site' ? SitePage : path === '/pitch' ? PitchPage : App
 
 createRoot(document.getElementById('root')!).render(
