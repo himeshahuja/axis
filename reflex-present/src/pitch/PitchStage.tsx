@@ -81,7 +81,7 @@ const covered = (a: Rect, b: Rect) => Math.max(0, Math.min(a.x + a.w, b.x + b.w)
 function saidCard(id: string, text: string): PitchObject {
   // About 28 characters a line at this width (the type scales with the card).
   const lines = Math.max(1, Math.ceil(text.length / 28))
-  return { id, label: text, visual: 'transcript', color: '#f2f0eb', shape: 'card', x: 0, y: 0, w: 0.22, h: Math.min(0.34, 0.07 + lines * 0.031), content: { kind: 'note', text } }
+  return { id, label: text, visual: 'transcript', color: '#f2f0eb', shape: 'card', x: 0, y: 0, w: 0.22, h: Math.min(0.36, 0.09 + lines * 0.031), content: { kind: 'note', text } }
 }
 
 /**
@@ -124,6 +124,9 @@ function deleteSaid(rt: SpatialRuntime, id: string) {
   if (ex.voice?.objectId === id) ex.closeVoice()
   rt.interaction.remove(id)
 }
+
+/** The Memory drawer lists this many, newest first, so it never needs scrolling (a hand can't scroll). */
+const MEMORY_ROWS = 6
 
 /** The whiteboard's row of capabilities, by beat: each lights up once it has been shown. */
 const BOARD_CHECKLIST: [string, string][] = [
@@ -526,10 +529,12 @@ export function PitchStage() {
               if (session.ask) return rt.radial.executor.ask(objectId, said, rt.interaction.objects)
               const panel = document.querySelector('.pitch-voice')?.getBoundingClientRect()
               const stage = stageRef.current?.getBoundingClientRect()
+              // Where speaking is the scene's cue, the card it reveals is the answer: no Said card there.
               if (ctl.takesVoiceFor(objectId)) {
                 const target = ctl.scene.id === 'compare' ? 'c-axis' : objectId
                 if (panel && stage) replyFrom.current = { target, left: panel.left - stage.left, top: panel.top - stage.top, width: panel.width, height: panel.height }
                 ctl.onVoiceReply(objectId, said, performance.now())
+                return
               }
               const toStage = (r: DOMRect) => ({ x: (r.left - stage!.left) / stage!.width, y: (r.top - stage!.top) / stage!.height, w: r.width / stage!.width, h: r.height / stage!.height })
               const keepClear = stage && stage.width > 0 && stage.height > 0 ? [...(panel ? [panel] : []), ...[...document.querySelectorAll('.pitch-stage [data-keep-clear]')].map((el) => el.getBoundingClientRect())].map(toStage) : []
@@ -921,8 +926,8 @@ export function PitchStage() {
             <b>{memToast.ok ? '✓' : '•'}</b> {memToast.text}
           </div>
         )}
-        {/* top right: annotate (every scene) and memory (scenes with actions) */}
-        {!calibrating && (
+        {/* top right: annotate and memory; the title and closing slides stay clear unless annotating (A) */}
+        {!calibrating && (annotating || (scene.id !== 'problem' && scene.id !== 'vision')) && (
           <div className="pitch-topright">
             {annotating && sceneArrows.length > 0 && (
               <>
@@ -952,12 +957,10 @@ export function PitchStage() {
                 Close
               </button>
             </header>
-            <p className={`src ${memRows?.from === 'band' ? 'ok' : ''}`}>
-              {memRows?.from === 'band' ? `Saved on Vexo band ${BAND_NUMBER} — read back from the wristband just now` : `In this browser only — band ${BAND_NUMBER} is not connected`}
-            </p>
+            {memRows?.from === 'band' && <p className="src ok">Saved on Vexo band {BAND_NUMBER}</p>}
             {memRows && memRows.rows.length === 0 && <p className="empty">Nothing remembered yet. Hold an object and choose Remember.</p>}
             <ul>
-              {memRows?.rows.map((r) => (
+              {memRows?.rows.slice(0, MEMORY_ROWS).map((r) => (
                 <li key={r.key}>
                   <strong>{r.title}</strong>
                   <span>
@@ -968,6 +971,7 @@ export function PitchStage() {
                 </li>
               ))}
             </ul>
+            {memRows && memRows.rows.length > MEMORY_ROWS && <p className="more">+{memRows.rows.length - MEMORY_ROWS} earlier</p>}
             {memRows?.from === 'band' && (
               <button
                 className={`pitch-chrome-btn ${clearArmed ? 'is-armed' : ''}`}
