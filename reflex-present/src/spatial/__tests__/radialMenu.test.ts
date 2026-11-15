@@ -249,6 +249,19 @@ describe('actions', () => {
     expect(ex.explainCards.size).toBe(1)
   })
 
+  it('asks an open Explain card by voice without closing it, and closing the card ends that recording', () => {
+    const ex = new RadialActionExecutor(new LocalMemoryStore('', false), () => {})
+    ex.askByVoice('revenue', objects)
+    expect(ex.voice).toBeNull() // no card open: nothing to ask
+    ex.execute({ id: 1, action: 'explain', objectId: 'revenue', tMs: 0, selectionSource: 'click' }, objects)
+    ex.askByVoice('revenue', objects)
+    expect(ex.voice).toMatchObject({ objectId: 'revenue', ask: true })
+    expect(ex.voice!.id).toBeLessThan(0) // never collides with a radial event id
+    expect(ex.explainCards.has('revenue')).toBe(true)
+    ex.closeExplain('revenue')
+    expect(ex.voice).toBeNull()
+  })
+
   it('answers questions from the data when no AI is connected', () => {
     expect(localAnswer(chart, 'What is the trend?')).toBe('From Q1 to Q4 it went from 120 $k to 210 $k, +90 $k (+75.0%), rising in 3 of 3 steps.')
     expect(localAnswer(chart, 'Where is the peak?')).toBe('The highest point is Q4 at 210 $k.')

@@ -93,8 +93,149 @@ function Pillar({ o, lit }: { o: PitchObject; lit: boolean }) {
   )
 }
 
-/** Future-directions concepts: the same point-and-ask, aimed at the world instead of a screen. */
-// ---- slide 05: roadmap illustrations (line art in the pitch's own style) ----------------------
+/** Use cases, now to later: each card flips from where it starts to what it unlocks. */
+function FutureCard({ o, transformed }: { o: PitchObject; transformed: boolean }) {
+  let front: React.ReactNode = null
+  let back: React.ReactNode = null
+  if (o.visual === 'teach') {
+    // A whiteboard sketch, drawn by the fingertip; then annotated in front of the class.
+    const board = (done: boolean) => (
+      <svg viewBox="0 0 100 70" className="pv-uc">
+        <rect x="4" y="4" width="92" height="58" className="board" />
+        <path d="M14 14 L14 50 L58 50" className="ink" />
+        <path d={done ? 'M14 46 C24 44 30 36 38 30 S50 18 56 14' : 'M14 46 C24 44 30 36 38 30 S46 22 49 20'} className="ink" />
+        {done ? (
+          <>
+            <circle cx="38" cy="30" r="5" className="mark" />
+            <path d="M44 32 L66 40" className="mark" />
+            <rect x="66" y="35" width="24" height="10" className="tag" />
+            <path d="M70 18 h16 M70 25 h11" className="ink faint" />
+          </>
+        ) : (
+          <>
+            <path d="M70 18 h16 M70 25 h11 M70 32 h14" className="ink faint" />
+            <circle cx="49" cy="20" r="2.6" className="tip" />
+          </>
+        )}
+      </svg>
+    )
+    front = (
+      <>
+        {board(false)}
+        <p className="what">{o.lines?.[0]}</p>
+      </>
+    )
+    back = (
+      <>
+        {board(true)}
+        <ol className="pv-steps">
+          <li>Draw on the board in the air</li>
+          <li>Move diagrams by hand</li>
+          <li>Explain a chart to the class</li>
+        </ol>
+      </>
+    )
+  } else if (o.visual === 'band') {
+    // One person in the camera's frame; then everyone's band, each with its own cursor on one board.
+    const person = (x: number, cls: string, band?: number) => (
+      <g className={cls} key={x}>
+        <circle cx={x} cy="46" r="5" />
+        <path d={`M${x - 10} 68 Q${x} 54 ${x + 10} 68`} />
+        {band !== undefined && (
+          <>
+            <path d={`M${x + 7} 62 L${x + 12} 50`} />
+            <circle cx={x + 11.2} cy="52.5" r="2" className={`wear t${band}`} />
+          </>
+        )}
+      </g>
+    )
+    front = (
+      <>
+        <svg viewBox="0 0 100 70" className="pv-uc">
+          <rect x="30" y="30" width="40" height="38" className="frame" />
+          <rect x="46" y="25" width="8" height="5" className="cam" />
+          {person(14, 'off')}
+          {person(50, 'on')}
+          {person(86, 'off')}
+        </svg>
+        <p className="what">{o.lines?.[0]}</p>
+      </>
+    )
+    back = (
+      <>
+        <svg viewBox="0 0 100 70" className="pv-uc">
+          <rect x="6" y="4" width="88" height="28" className="screen" />
+          {[
+            [24, 14],
+            [52, 22],
+            [78, 12],
+          ].map(([x, y], i) => (
+            <circle key={i} cx={x} cy={y} r="2.6" className={`tip t${i}`} />
+          ))}
+          {person(18, 'on', 0)}
+          {person(50, 'on', 1)}
+          {person(82, 'on', 2)}
+        </svg>
+        <ol className="pv-steps">
+          <li>Accelerometer, not a camera</li>
+          <li>More precise, in any light</li>
+          <li>The whole room at once</li>
+        </ol>
+      </>
+    )
+  } else if (o.visual === 'glasses') {
+    // A pair of glasses; then the street through them, with what you asked for laid over it.
+    const lenses = <path d="M8 22 h36 v22 a8 8 0 0 1 -8 8 h-20 a8 8 0 0 1 -8 -8 Z M56 22 h36 v22 a8 8 0 0 1 -8 8 h-20 a8 8 0 0 1 -8 -8 Z M44 28 Q50 24 56 28 M8 26 L2 22 M92 26 L98 22" className="frame" />
+    front = (
+      <>
+        <svg viewBox="0 0 100 70" className="pv-uc">
+          {lenses}
+        </svg>
+        <p className="what">{o.lines?.[0]}</p>
+      </>
+    )
+    back = (
+      <>
+        <svg viewBox="0 0 100 70" className="pv-uc">
+          <path d="M10 46 V36 h6 v-6 h6 v16 M28 46 V32 h8 v14 M62 46 V34 h6 v-8 h8 v20 M80 46 V38 h8 v8" className="street" />
+          <path d="M8 46 H44 M56 46 H92" className="street" />
+          <path d="M20 46 Q30 40 36 41 M64 46 Q70 42 76 30" className="route" />
+          <circle cx="76" cy="28" r="2.2" className="tip" />
+          <rect x="14" y="26" width="18" height="6" className="tag" />
+          {lenses}
+        </svg>
+        <p className="what">The world, as you want it.</p>
+      </>
+    )
+  }
+  return (
+    <div className={`pv-future ${transformed ? 'is-done' : ''}`}>
+      <div className="face front">
+        <header>
+          <span className="idx">{o.index}</span>
+          <strong>
+            {o.id === 'c-axis' && <AxisMark className="inline" />}
+            {o.label}
+          </strong>
+        </header>
+        <div className="body">{front}</div>
+        <footer>{o.lines?.[1]}</footer>
+      </div>
+      <div className="face back">
+        <header>
+          <span className="idx">{o.index}</span>
+          <strong>{o.label}</strong>
+        </header>
+        <div className="body">{back}</div>
+        <footer>
+          {o.index} · {o.destination}
+        </footer>
+      </div>
+    </div>
+  )
+}
+
+// ---- use-cases slide: roadmap illustrations (line art in the pitch's own style) ----------------------
 /** A person: head and shoulders at (x, y) = head centre; `arm` raises a hand towards a point. */
 function Person({ x, y, dim = false, arm, band = false, glasses = false }: { x: number; y: number; dim?: boolean; arm?: [number, number]; band?: boolean; glasses?: boolean }) {
   // the hand stops 9 units along the line from the shoulder towards the target
@@ -148,7 +289,7 @@ const Chip = ({ x, y, w = 14, lines = 2, hot = false }: { x: number; y: number; 
   </g>
 )
 
-/** Slide 05 scenes: today on the front (`after` false), with Axis on the back. */
+/** Use-cases slide scenes: today on the front (`after` false), with Axis on the back. */
 function HorizonArt({ art, after }: { art: 'now' | 'team' | 'world'; after: boolean }) {
   if (art === 'now') {
     const me: [number, number] = [60, 22]
@@ -270,7 +411,7 @@ function HorizonArt({ art, after }: { art: 'now' | 'team' | 'world'; after: bool
   )
 }
 
-function FutureCard({ o, transformed }: { o: PitchObject; transformed: boolean }) {
+function HorizonCard({ o, transformed }: { o: PitchObject; transformed: boolean }) {
   const h = o.horizon
   if (!h) return null
   const head = (
@@ -315,6 +456,10 @@ export function ObjectVisual({ o, lit, transformed = false }: { o: PitchObject; 
   const c = o.content
   switch (o.visual) {
     case 'horizon':
+      return <HorizonCard o={o} transformed={transformed} />
+    case 'teach':
+    case 'band':
+    case 'glasses':
       return <FutureCard o={o} transformed={transformed} />
     case 'window':
       return (
@@ -437,10 +582,7 @@ export function ObjectVisual({ o, lit, transformed = false }: { o: PitchObject; 
       return (
         <div className={`pv-contrast ${o.id === 'c-axis' ? 'ours' : 'theirs'}`}>
           <span className="idx">{o.index}</span>
-          <strong>
-            {o.id === 'c-axis' && <AxisMark className="inline" />}
-            {o.label}
-          </strong>
+          <strong>{o.label}</strong>
           <ul>
             {(o.lines ?? []).map((l) => (
               <li key={l}>{l}</li>

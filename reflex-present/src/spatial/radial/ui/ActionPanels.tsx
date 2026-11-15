@@ -3,9 +3,13 @@ import type { SpatialObject } from '../../types'
 import { BAND_NUMBER } from '../../wearable/band'
 import { askAction, suggestedQuestions } from '../actions/explain'
 import type { MemoryEntry } from '../actions/memory'
+import { LaptopGeminiProvider } from '../actions/laptopMic'
 import { askGemini, BandGeminiProvider, forgetDeepgramKey, hasDeepgramKey, setDeepgramKey, type VoiceProvider, type VoiceProviderId } from '../actions/voice'
 import { previewVoiceCommand, type VoiceCommandPreview } from '../actions/voiceCommand'
 import type { ExplainCard, ExplainQA, VoiceSession } from '../RadialActionExecutor'
+import { hasVisual } from '../actions/agent'
+import { AgentArtifacts } from './AgentArtifacts'
+import { ExplainMic } from './ExplainMic'
 
 const pct = (v: number) => `${v * 100}%`
 
@@ -27,6 +31,10 @@ export function ExplainPanel({
   thread = [],
   onAsk,
   hoverAction = null,
+  onVoiceAsk,
+  listening = false,
+  voiceProviders,
+  objects = [],
 }: {
   card: ExplainCard
   object: SpatialObject
@@ -38,6 +46,13 @@ export function ExplainPanel({
   onAsk?: (question: string) => void
   /** The air control the hand cursor is on, to highlight it. */
   hoverAction?: string | null
+  /** Ask by speaking: the host records and asks; while `listening` it draws its microphone into the card's voice slot. */
+  onVoiceAsk?: () => void
+  listening?: boolean
+  /** Ask by speaking inside the card itself (hosts without their own voice bar). */
+  voiceProviders?: VoiceProvider[]
+  /** Everything on the slide, for the voice request's context. */
+  objects?: SpatialObject[]
 }) {
   const [draft, setDraft] = useState('')
   const asked = new Set(thread.map((qa) => qa.question))
@@ -47,7 +62,7 @@ export function ExplainPanel({
     setDraft('')
   }
   return (
-    <div className="ap-card ap-explain" style={beside(object, 0.24)} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+    <div className={`ap-card ap-explain ${thread.some((qa) => hasVisual(qa.answer?.artifacts)) ? 'ap-has-figure' : ''}`} data-explain-card={card.objectId} style={beside(object, 0.24)} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
       <div className="ap-head">
         <span className="ap-dot" style={{ background: object.color }} />
         <strong>Explain · {object.label}</strong>
@@ -70,11 +85,12 @@ export function ExplainPanel({
       {thread.map((qa) => (
         <div key={qa.id} className="ap-qa">
           <div className="ap-q">{qa.question}</div>
-          {qa.status === 'thinking' && <div className="ap-muted">Thinking…</div>}
+          {qa.status === 'thinking' && <div className="ap-muted">Looking at it and thinking…</div>}
           {qa.status === 'error' && <div className="ap-error">{qa.message}</div>}
           {qa.answer && (
             <>
               <p className="ap-a">{qa.answer.text}</p>
+              <AgentArtifacts artifacts={qa.answer.artifacts} />
               <div className="ap-muted ap-small">{qa.answer.label}</div>
             </>
           )}
@@ -91,18 +107,29 @@ export function ExplainPanel({
               ),
             )}
           </div>
-          <form
-            className="ap-ask"
-            onSubmit={(e) => {
-              e.preventDefault()
-              submit()
-            }}
-          >
-            <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Ask anything about this…" aria-label={`Ask about ${object.label.replace(/\n/g, ' ')}`} />
-            <button type="submit" disabled={!draft.trim()}>
-              Ask
-            </button>
-          </form>
+          {!onVoiceAsk && voiceProviders && onAsk && <ExplainMic providers={voiceProviders} object={object} objects={objects} onQuestion={onAsk} airAction={compact ? `explain-mic:${card.objectId}` : undefined} />}
+          {onVoiceAsk &&
+            (listening ? (
+              <div className="ap-voice-slot" data-voice-slot={card.objectId} />
+            ) : (
+              <button className="ap-voice-ask" data-air-action={compact ? `explain-voice:${card.objectId}` : undefined} onClick={onVoiceAsk}>
+                Ask with your voice
+              </button>
+            ))}
+          {!listening && (
+            <form
+              className="ap-ask"
+              onSubmit={(e) => {
+                e.preventDefault()
+                submit()
+              }}
+            >
+              <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Ask anything about this…" aria-label={`Ask about ${object.label.replace(/\n/g, ' ')}`} />
+              <button type="submit" disabled={!draft.trim()}>
+                Ask
+              </button>
+            </form>
+          )}
         </>
       )}
     </div>
@@ -182,6 +209,8 @@ export function VoiceCapturePanel({
     const band = providers.find((p) => p.id === 'band-gemini')
     const laptop = providers.find((p) => p.id === 'browser' && !p.unavailable())
     if (dictate && laptop && (!band || band.unavailable())) return laptop.id
+    const laptopGemini = providers.find((p) => p.id === 'laptop-gemini' && !p.unavailable())
+    if (laptopGemini && band?.unavailable()) return laptopGemini.id
     return band ? band.id : providers[0].id
   })
   const [phase, setPhase] = useState<'idle' | 'listening' | 'thinking'>('idle')
@@ -196,7 +225,9 @@ export function VoiceCapturePanel({
   const [, force] = useState(0)
   const active = useRef<VoiceProvider | null>(null)
   const provider = providers.find((p) => p.id === providerId)!
-  const gemini = provider instanceof BandGeminiProvider ? provider : null
+  // Providers that record, then send one WAV to Gemini (band or laptop microphone).
+  const gemini = provider instanceof BandGeminiProvider || provider instanceof LaptopGeminiProvider ? provider : null
+  const micName = provider instanceof LaptopGeminiProvider ? 'Laptop mic' : `Band ${BAND_NUMBER}`
   // The same dev-server endpoint answers words from any provider (browser speech, Deepgram, typed).
   const answerer = providers.find((p): p is BandGeminiProvider => p instanceof BandGeminiProvider) ?? null
   const canAnswer = !!answerer?.status?.configured
@@ -379,9 +410,9 @@ export function VoiceCapturePanel({
       )}
 
       <div className="ap-notice">
-        {dictate && gemini ? 'Records the Vexo band’s microphone, which hears everyone near it (its light turns solid blue). When you stop or go quiet, the recording goes to Google Gemini through this laptop to be transcribed.' : provider.notice}
+        {dictate && gemini instanceof BandGeminiProvider ? 'Records the Vexo band’s microphone, which hears everyone near it (its light turns solid blue). When you stop or go quiet, the recording goes to Google Gemini through this laptop to be transcribed.' : provider.notice}
       </div>
-      {gemini?.pretend && <div className="ap-warnline">Pretend band: its microphone plays the kit’s sample recording, not your voice.</div>}
+      {gemini instanceof BandGeminiProvider && gemini.pretend && <div className="ap-warnline">Pretend band: its microphone plays the kit’s sample recording, not your voice.</div>}
 
       {providerId === 'typed' ? (
         <input
@@ -404,7 +435,7 @@ export function VoiceCapturePanel({
           {phase === 'listening' ? (
             <>
               <button className="ap-btn ap-btn-stop" onClick={() => gemini.finish()}>
-                <span className="ap-pulse" /> Band {BAND_NUMBER} listening — {dictate ? 'done, paste' : 'done'}
+                <span className="ap-pulse" /> {micName} listening — {dictate ? 'done, paste' : 'done'}
               </button>
               <span className="ap-level" aria-label="Band microphone level">
                 <span style={{ width: `${Math.round(level * 100)}%` }} />
@@ -417,7 +448,7 @@ export function VoiceCapturePanel({
             <span className="ap-muted">{dictate ? 'Gemini is transcribing…' : 'Gemini is transcribing and answering…'}</span>
           ) : (
             <button className="ap-btn" disabled={!!why} onClick={start}>
-              {dictate ? `Record with band ${BAND_NUMBER}` : reply ? 'Speak again' : `Speak into band ${BAND_NUMBER}`}
+              {gemini instanceof LaptopGeminiProvider ? (dictate ? 'Record with the laptop mic' : reply ? 'Speak again' : 'Speak into the laptop mic') : dictate ? `Record with band ${BAND_NUMBER}` : reply ? 'Speak again' : `Speak into band ${BAND_NUMBER}`}
             </button>
           )}
           {why && phase === 'idle' && <span className="ap-muted">{why}</span>}
@@ -472,7 +503,7 @@ export function VoiceCapturePanel({
       {asking && <div className="ap-muted">Gemini is answering…</div>}
       {reply && (
         <div className="ap-reply" role="status">
-          <div className="ap-muted ap-small">Gemini{reply.model ? ` · ${reply.model}` : ''} · {gemini ? `heard through band ${BAND_NUMBER}` : providerId === 'typed' ? 'typed' : 'from the transcript'}</div>
+          <div className="ap-muted ap-small">Gemini{reply.model ? ` · ${reply.model}` : ''} · {gemini instanceof LaptopGeminiProvider ? 'heard through the laptop mic' : gemini ? `heard through band ${BAND_NUMBER}` : providerId === 'typed' ? 'typed' : 'from the transcript'}</div>
           <div className="ap-reply-text">{reply.text}</div>
         </div>
       )}

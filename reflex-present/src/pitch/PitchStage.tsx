@@ -37,6 +37,11 @@ const mmss = (ms: number) => {
 
 /** Hands are less exact than a mouse: a control outside the cards answers this far (stage widths) from itself. */
 const MAGNET = 0.03
+/**
+ * How strongly hand tilt moves the actions menu's highlight (the engine's default is 1).
+ * At 1.6 about 16° of tilt reaches Remember or Voice instead of 25°.
+ */
+const MENU_TILT_SENSITIVITY = 1.6
 
 /** The on-stage control a closed hand at this point would press. */
 function airControlAt(stage: HTMLElement, x: number, y: number): HTMLElement | null {
@@ -62,6 +67,12 @@ function airControlAt(stage: HTMLElement, x: number, y: number): HTMLElement | n
   return best
 }
 
+// ---- annotations: arrows drawn on a scene (Annotate, top right) -----------------------------------
+/** An arrow in stage fractions, from where the press began to where it ended. */
+type Arrow = { x0: number; y0: number; x1: number; y1: number }
+/** Shorter than this (stage heights, aspect-corrected) is a tap, not an arrow. */
+const ARROW_MIN = 0.03
+
 // ---- what was said: each Voice recording leaves its words on the stage as a card ---------------
 type Rect = { x: number; y: number; w: number; h: number }
 const SAID = 'said-'
@@ -71,7 +82,7 @@ const covered = (a: Rect, b: Rect) => Math.max(0, Math.min(a.x + a.w, b.x + b.w)
 function saidCard(id: string, text: string): PitchObject {
   // About 28 characters a line at this width (the type scales with the card).
   const lines = Math.max(1, Math.ceil(text.length / 28))
-  return { id, label: text, visual: 'transcript', color: '#f2f0eb', shape: 'card', x: 0, y: 0, w: 0.22, h: Math.min(0.34, 0.07 + lines * 0.031), content: { kind: 'note', text } }
+  return { id, label: text, visual: 'transcript', color: '#f2f0eb', shape: 'card', x: 0, y: 0, w: 0.22, h: Math.min(0.36, 0.09 + lines * 0.031), content: { kind: 'note', text } }
 }
 
 /**
@@ -96,14 +107,15 @@ function clearSpot(card: Rect, near: Rect, avoid: (Rect & { weight?: number })[]
 }
 
 /** One card per recording: a later final transcript replaces its words where it already is. */
-function putSaid(rt: SpatialRuntime, ctl: PitchController, session: number, text: string, objectId: string, panel: Rect | null) {
+/** `keepClear`: the Voice panel and anything the page marks data-keep-clear, in stage fractions. */
+function putSaid(rt: SpatialRuntime, ctl: PitchController, session: number, text: string, objectId: string, keepClear: Rect[]) {
   const ix = rt.interaction
   const card = saidCard(`${SAID}${session}`, text)
   const was = ix.objects.find((o) => o.id === card.id)
-  // Clear of the stage, the Voice panel and anything this request just revealed; an empty drop zone matters less.
+  // Clear of the stage, those rectangles and anything this request just revealed; an empty drop zone matters less.
   const revealed = objectsFor(ctl.scene, ctl.done).filter((o) => !ix.objects.some((x) => x.id === o.id))
   const zones = (ctl.scene.zones ?? []).map((z) => ({ x: z.x, y: z.y, w: z.w, h: z.h, weight: 0.25 }))
-  const avoid = [...ix.objects.filter((o) => o.id !== card.id), ...revealed, ...zones, ...(panel ? [panel] : [])]
+  const avoid = [...ix.objects.filter((o) => o.id !== card.id), ...revealed, ...zones, ...keepClear]
   ix.add({ ...card, ...(was ? { x: was.x, y: was.y } : clearSpot(card, ix.objects.find((o) => o.id === objectId) ?? card, avoid, ix.aspect)) })
 }
 
@@ -113,6 +125,18 @@ function deleteSaid(rt: SpatialRuntime, id: string) {
   if (ex.voice?.objectId === id) ex.closeVoice()
   rt.interaction.remove(id)
 }
+
+/** The Memory drawer lists this many, newest first, so it never needs scrolling (a hand can't scroll). */
+const MEMORY_ROWS = 6
+
+/** The whiteboard's row of capabilities, by beat: each lights up once it has been shown. */
+const BOARD_CHECKLIST: [string, string][] = [
+  ['b-grab', 'Grab & move'],
+  ['b-explain', 'Explain · ask by voice'],
+  ['b-voice', 'Voice → on the board'],
+  ['b-arrow', 'Annotate'],
+  ['b-remember', 'Remember on the band'],
+]
 
 // ---- scene copy (the typography layer) ------------------------------------------------------
 function SceneCopy({ scene, done, state, hands = true }: { scene: PitchScene; done: ReadonlySet<string>; state: 'enter' | 'exit'; hands?: boolean }) {
@@ -168,6 +192,25 @@ function SceneCopy({ scene, done, state, hands = true }: { scene: PitchScene; do
           <h1>
             Operate the controls, or <span className="hot">say what you mean.</span>
           </h1>
+        </section>
+      )
+    case 'board':
+      return (
+        <section className={cls}>
+          <div className="board-surface" aria-hidden="true" />
+          <p className="kicker">
+            {scene.number} — {scene.kicker}
+          </p>
+          <h1>
+            Everything, on one <span className="hot">board.</span>
+          </h1>
+          <ol className="board-checklist" data-keep-clear>
+            {BOARD_CHECKLIST.map(([id, label]) => (
+              <li key={id} className={done.has(id) ? 'done' : ''}>
+                {label}
+              </li>
+            ))}
+          </ol>
         </section>
       )
     case 'future':
@@ -241,6 +284,13 @@ export function PitchStage() {
   const swipe = useRef<{ startX: number; x: number; dir: SwipeDir } | null>(null)
   /** The on-stage control under the hand (lit with .is-air-hover). */
   const airHover = useRef<HTMLElement | null>(null)
+  // Annotate: while on, a press draws an arrow instead of grabbing. Arrows stay with their scene.
+  const [annotating, setAnnotating] = useState(false)
+  const annotatingRef = useRef(annotating)
+  annotatingRef.current = annotating
+  const arrows = useRef(new Map<number, Arrow[]>())
+  /** The arrow being drawn: it follows the pointer until the press ends. */
+  const drawing = useRef<Arrow | null>(null)
   const commandRef = useRef<(c: StageCommand) => void>(() => {})
   // Memory on the band.
   const [memOpen, setMemOpen] = useState(false)
@@ -273,6 +323,7 @@ export function PitchStage() {
     rt.autoRangeCapture = true
     // A camera cursor wobbles more than a mouse while the hand is held closed: allow it.
     rt.radial.controller.config.holdMaxMove = 0.05
+    rt.radial.controller.mapper.config.sensitivity = MENU_TILT_SENSITIVITY
     void rt.startCamera().then(() => rt.updateProfile({ mirrorX: mirror.current }))
     const off = ctl.onChange((c) => {
       if (c.kind !== 'scene') return
@@ -284,6 +335,9 @@ export function PitchStage() {
         rt.radial.executor.closeVoice()
       }
       dwell.current = { id: null, since: 0 }
+      // A new scene starts with its cards grabbable again.
+      setAnnotating(false)
+      drawing.current = null
       setExiting(c.from)
       window.setTimeout(() => setExiting((v) => (v === c.from ? null : v)), TRANSITION_MS + 150)
     })
@@ -320,6 +374,7 @@ export function PitchStage() {
       else if (c.cmd === 'reset') {
         ctl.reset(now)
         setHandsShown(false)
+        arrows.current.clear()
       }
       else if (c.cmd === 'resetLayout') ctl.resetLayout()
       else if (c.cmd === 'toggleGestures') rt.cameraGesturesEnabled = !rt.cameraGesturesEnabled
@@ -353,8 +408,13 @@ export function PitchStage() {
       if (b.width <= 0 || b.height <= 0) return false
       const control = airControlAt(stageRef.current, b.left + p.x * b.width, b.top + p.y * b.height)
       const action = control?.dataset.airAction
-      // The edge strips belong to the swipe: don't let the grab land on a nearby object.
-      if (!control || !action) return atEdge(p)
+      if (!control || !action) {
+        // The edge strips belong to the swipe: don't let the grab land on a nearby object.
+        if (!annotatingRef.current) return atEdge(p)
+        // Annotating: the press starts an arrow instead of grabbing (the frame loop finishes it).
+        drawing.current = { x0: p.x, y0: p.y, x1: p.x, y1: p.y }
+        return true
+      }
       if (action === 'reveal-hands') setHandsShown(true)
       else if (action === 'next') command({ type: 'cmd', cmd: 'next' })
       else if (action === 'memory') setMemOpen((v) => !v)
@@ -389,6 +449,7 @@ export function PitchStage() {
       else if (k === 'd' && !e.metaKey) run('toggleMode')
       else if (k === 'g') run('toggleGestures')
       else if (k === 'h') run('toggleMirror')
+      else if (k === 'a' && !e.metaKey) setAnnotating((v) => !v)
       else if (k === 'k') run('calibrate')
       else if (k === 'c' && !e.metaKey) run('camera')
       else if (k === 'x') run('resetLayout')
@@ -456,7 +517,7 @@ export function PitchStage() {
   useEffect(() => {
     const restore: (() => void)[] = []
     /** The last recording the model answered (its panel stays open to show the answer). */
-    let answered = -1
+    let answered: number | null = null
     for (const p of rt.radial.voiceProviders) {
       const original = p.start.bind(p)
       p.start = (cb: VoiceCallbacks, ctx?: VoiceContext) =>
@@ -474,15 +535,20 @@ export function PitchStage() {
               }, 700)
               if (/^\(no speech/i.test(said)) return
               const objectId = session.objectId
+              // A question spoken on an Explain card is asked there: the card shows it and its answer.
+              if (session.ask) return rt.radial.executor.ask(objectId, said, rt.interaction.objects)
               const panel = document.querySelector('.pitch-voice')?.getBoundingClientRect()
               const stage = stageRef.current?.getBoundingClientRect()
+              // Where speaking is the scene's cue, the card it reveals is the answer: no Said card there.
               if (ctl.takesVoiceFor(objectId)) {
                 const target = ctl.scene.id === 'compare' ? 'c-axis' : objectId
                 if (panel && stage) replyFrom.current = { target, left: panel.left - stage.left, top: panel.top - stage.top, width: panel.width, height: panel.height }
                 ctl.onVoiceReply(objectId, said, performance.now())
+                return
               }
-              const box = panel && stage && stage.width > 0 && stage.height > 0 ? { x: (panel.left - stage.left) / stage.width, y: (panel.top - stage.top) / stage.height, w: panel.width / stage.width, h: panel.height / stage.height } : null
-              putSaid(rt, ctl, session.id, said, objectId, box)
+              const toStage = (r: DOMRect) => ({ x: (r.left - stage!.left) / stage!.width, y: (r.top - stage!.top) / stage!.height, w: r.width / stage!.width, h: r.height / stage!.height })
+              const keepClear = stage && stage.width > 0 && stage.height > 0 ? [...(panel ? [panel] : []), ...[...document.querySelectorAll('.pitch-stage [data-keep-clear]')].map((el) => el.getBoundingClientRect())].map(toStage) : []
+              putSaid(rt, ctl, session.id, said, objectId, keepClear)
             },
             onReply: (reply) => {
               const session = rt.radial.executor.voice
@@ -555,7 +621,7 @@ export function PitchStage() {
               .then((key) => setMemToast({ text: `Saved to Vexo band ${BAND_NUMBER} · storage key ${key}`, ok: true, key: Date.now() }))
               .catch((err: unknown) => setMemToast({ text: `Band didn’t save it (${err instanceof Error ? err.message : String(err)}) — kept in this browser`, ok: false, key: Date.now() }))
           } else if (entry) {
-            setMemToast({ text: `Saved in this browser — connect band ${BAND_NUMBER} to save it on the wristband`, ok: false, key: Date.now() })
+            setMemToast({ text: 'Saved', ok: true, key: Date.now() })
           }
         }
         ctl.onAction(last.event.action, now)
@@ -569,7 +635,7 @@ export function PitchStage() {
       // stage to the left, is "next"; the same from the left quarter pulled right is "back".
       const pressed = mousePressed.current || (rt.detector.engaged && rt.pointer.source !== 'mouse')
       const pt = rt.pointer
-      const dir = pressed && !wasPressed.current && pt.valid ? swipeStart(pt, ix.hitTest(pt)) : null
+      const dir = pressed && !wasPressed.current && pt.valid && !annotatingRef.current ? swipeStart(pt, ix.hitTest(pt)) : null
       if (dir && !ix.grabbedId && !rt.radial.controller.isOpen && rt.calibration.kind === 'none') {
         swipe.current = { startX: pt.x, x: pt.x, dir }
       }
@@ -579,6 +645,22 @@ export function PitchStage() {
         swipe.current = null
       }
       wasPressed.current = pressed
+
+      // An arrow being drawn follows the pointer, and stays on the scene when the press ends.
+      const arrow = drawing.current
+      if (arrow) {
+        if (pt.valid) {
+          arrow.x1 = pt.x
+          arrow.y1 = pt.y
+        }
+        if (!pressed) {
+          drawing.current = null
+          if (Math.hypot((arrow.x1 - arrow.x0) * ix.aspect, arrow.y1 - arrow.y0) >= ARROW_MIN) {
+            arrows.current.set(ctl.sceneIndex, [...(arrows.current.get(ctl.sceneIndex) ?? []), arrow])
+            ctl.onArrow(now)
+          }
+        }
+      }
 
       // The control a closed hand would press lights up first, so pressing one is never a guess.
       const stageEl = stageRef.current
@@ -704,6 +786,8 @@ export function PitchStage() {
   const closing = scene.id === 'vision' && done.has('statement')
   const assembled = scene.id === 'vision' && done.has('assemble')
   const sceneElapsed = now - ctl.sceneEnteredAt
+  const sceneArrows = arrows.current.get(ctl.sceneIndex) ?? []
+  const shownArrows = drawing.current ? [...sceneArrows, drawing.current] : sceneArrows
   const status = !rt.cameraGesturesEnabled
     ? 'Gestures paused · mouse and keys active'
     : rt.tracker.status === 'error'
@@ -718,7 +802,7 @@ export function PitchStage() {
     <div className="pitch-root" data-mode={mode}>
       <div
         ref={stageRef}
-        className={`pitch-stage scene-${scene.id} ${ctl.phase === 'transition' ? 'in-transition' : ''} ${closing ? 'is-closing' : ''} ${assembled ? 'is-assembled' : ''}`}
+        className={`pitch-stage scene-${scene.id} ${ctl.phase === 'transition' ? 'in-transition' : ''} ${closing ? 'is-closing' : ''} ${assembled ? 'is-assembled' : ''} ${annotating ? 'is-annotating' : ''}`}
         onMouseMove={(e) => {
           const s = toStage(e)
           rt.onMouseMove(s.x, s.y)
@@ -804,6 +888,18 @@ export function PitchStage() {
           />
         )}
         {ghost && <MemoryGhost key={ghost.key} o={ghost.o} stage={rt.canvasPx} />}
+        {shownArrows.length > 0 && (
+          <svg className="pitch-arrows" viewBox={`0 0 ${rt.canvasPx.w} ${rt.canvasPx.h}`} aria-hidden="true">
+            <defs>
+              <marker id="pitch-arrowhead" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" />
+              </marker>
+            </defs>
+            {shownArrows.map((a, i) => (
+              <line key={i} className={a === drawing.current ? 'is-drawing' : ''} x1={a.x0 * rt.canvasPx.w} y1={a.y0 * rt.canvasPx.h} x2={a.x1 * rt.canvasPx.w} y2={a.y1 * rt.canvasPx.h} strokeWidth={Math.max(3, rt.canvasPx.w * 0.0035)} markerEnd="url(#pitch-arrowhead)" />
+            ))}
+          </svg>
+        )}
 
         {/* chrome: deliberately sparse */}
         <div className="pitch-chrome">
@@ -827,7 +923,7 @@ export function PitchStage() {
         {!calibrating && (() => {
           const sw = swipe.current
           const pull = sw ? swipePull(sw) : 0
-          const near = !sw && p.valid && !ix.grabbedId && !radialOpen ? swipeStart(p, ix.hitTest(p)) : null
+          const near = !sw && p.valid && !ix.grabbedId && !radialOpen && !annotating ? swipeStart(p, ix.hitTest(p)) : null
           const dir = sw?.dir ?? near
           if (!dir || (dir === 'previous' && ctl.sceneIndex === 0) || (dir === 'next' && ctl.sceneIndex === ctl.scenes.length - 1)) return null
           return (
@@ -842,10 +938,28 @@ export function PitchStage() {
             <b>{memToast.ok ? '✓' : '•'}</b> {memToast.text}
           </div>
         )}
-        {scene.radial && (
-          <button className="pitch-chrome-btn pitch-memtab" data-air-action="memory" onClick={() => setMemOpen((v) => !v)}>
-            Memory <span>{memRows?.from === 'band' && bandReady ? memRows.rows.length : new Set(rt.radial.executor.memory.list().map((e) => e.title)).size}</span>
-          </button>
+        {/* top right: annotate and memory; the title and closing slides stay clear unless annotating (A) */}
+        {!calibrating && (annotating || (scene.id !== 'problem' && scene.id !== 'vision')) && (
+          <div className="pitch-topright">
+            {annotating && sceneArrows.length > 0 && (
+              <>
+                <button className="pitch-chrome-btn" data-air-action="annotate-undo" onClick={() => arrows.current.set(ctl.sceneIndex, sceneArrows.slice(0, -1))}>
+                  Undo arrow
+                </button>
+                <button className="pitch-chrome-btn" data-air-action="annotate-clear" onClick={() => arrows.current.delete(ctl.sceneIndex)}>
+                  Clear
+                </button>
+              </>
+            )}
+            <button className={`pitch-chrome-btn pitch-annotate ${annotating ? 'is-on' : ''}`} data-air-action="annotate" aria-pressed={annotating} onClick={() => setAnnotating((v) => !v)}>
+              {annotating ? 'Done' : 'Annotate'}
+            </button>
+            {scene.radial && (
+              <button className="pitch-chrome-btn pitch-memtab" data-air-action="memory" onClick={() => setMemOpen((v) => !v)}>
+                Memory <span>{memRows?.from === 'band' && bandReady ? memRows.rows.length : new Set(rt.radial.executor.memory.list().map((e) => e.title)).size}</span>
+              </button>
+            )}
+          </div>
         )}
         {memOpen && (
           <aside className="pitch-memory" onMouseUp={(e) => e.stopPropagation()}>
@@ -855,12 +969,10 @@ export function PitchStage() {
                 Close
               </button>
             </header>
-            <p className={`src ${memRows?.from === 'band' ? 'ok' : ''}`}>
-              {memRows?.from === 'band' ? `Saved on Vexo band ${BAND_NUMBER} — read back from the wristband just now` : `In this browser only — band ${BAND_NUMBER} is not connected`}
-            </p>
+            {memRows?.from === 'band' && <p className="src ok">Saved on Vexo band {BAND_NUMBER}</p>}
             {memRows && memRows.rows.length === 0 && <p className="empty">Nothing remembered yet. Hold an object and choose Remember.</p>}
             <ul>
-              {memRows?.rows.map((r) => (
+              {memRows?.rows.slice(0, MEMORY_ROWS).map((r) => (
                 <li key={r.key}>
                   <strong>{r.title}</strong>
                   <span>
@@ -871,6 +983,7 @@ export function PitchStage() {
                 </li>
               ))}
             </ul>
+            {memRows && memRows.rows.length > MEMORY_ROWS && <p className="more">+{memRows.rows.length - MEMORY_ROWS} earlier</p>}
             {memRows?.from === 'band' && (
               <button
                 className={`pitch-chrome-btn ${clearArmed ? 'is-armed' : ''}`}
@@ -898,6 +1011,7 @@ export function PitchStage() {
                 <circle cx="50" cy="50" r="44" className="fill" style={{ strokeDashoffset: `${276.5 * (1 - Math.min(1, holdP))}` }} />
               </svg>
             )}
+            {annotating && sceneArrows.length === 0 && !drawing.current && <span className="tip">Close your hand and drag to draw an arrow</span>}
           </div>
         )}
 
@@ -1017,7 +1131,7 @@ function Rehearsal({ rt, ctl, onCommand }: { rt: SpatialRuntime; ctl: PitchContr
         <button className="pitch-chrome-btn" onClick={() => onCommand({ type: 'cmd', cmd: 'toggleMirror' })}>Mirror {rt.profile.mirrorX ? 'on' : 'off'}</button>
         <button className="pitch-chrome-btn" onClick={() => onCommand({ type: 'cmd', cmd: 'reset' })}>Restart</button>
       </div>
-      <p className="keys">→ next · ⇧→ skip · ← back · Home restart · M actions · G gestures · H mirror · K calibrate · C camera · X layout · ⌘Z undo · P console · D hide</p>
+      <p className="keys">→ next · ⇧→ skip · ← back · Home restart · M actions · A annotate · G gestures · H mirror · K calibrate · C camera · X layout · ⌘Z undo · P console · D hide</p>
     </aside>
   )
 }

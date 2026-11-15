@@ -2,7 +2,7 @@
 
 ## The pitch — `/pitch`
 
-The Axis pitch (about 2:40) as five interactive scenes on the live spatial
+The Axis pitch (about 3:30) as seven interactive scenes on the live spatial
 engine. Open `http://localhost:5173/pitch` on the external display (F for
 fullscreen) and press **P** to open the presenter console
 (`/pitch?view=presenter`) on the laptop; the two stay in sync in the same
@@ -16,7 +16,9 @@ browser. Scenes, objects, beats and speaking notes are data in
 | 02 Product | drag Perception, Intent, Action from the pile into their slots → the pipeline connects | yes, one piece per press |
 | 03 Live | pull the revenue chart into the spotlight; hold it → Explain; hold → Remember (saved on the band), open Memory | spotlight only |
 | 04 Trade-offs | ask the Vexo band "What is the difference between this and conventional interfaces?" → the Axis card appears | yes |
-| 05 Close | grab any piece and let go → it assembles; pull the page across → "The interface is you." | yes |
+| 05 Whiteboard | everything on one board, in any order — grab a card; hold → Explain → Ask with your voice; hold → Voice (the words land on the board); Annotate → draw an arrow; hold → Remember. The row at the bottom lights up as each is shown | no: → goes straight on |
+| 06 Use cases | hold any card → Voice → ask: Now (teaching, whiteboarding), Next (wearable bands: accelerometer, no camera, many people at once), Later (AR glasses) all flip to what they unlock | yes |
+| 07 Close | grab any piece and let go → it assembles; pull the page across → "The interface is you." | yes |
 
 **Next with your hand:** grab empty space in the right quarter of the screen (or anywhere in
 the thin strip at the very right edge) and pull it left by a fifth of the width, then let
@@ -172,8 +174,9 @@ click work as fallbacks; **M** opens the menu on the hovered object.
 - Fallbacks, in order: camera hand tilt (an approximation, labelled) → keys /
   wheel / click. The debug simulator overrides everything and is labelled
   SIMULATOR wherever it shows.
-- Explain is a deterministic local summary (no AI service exists here; the kit
-  keeps model keys out of web pages). Remember saves locally (Vexo has no memory
+- Explain opens with a deterministic local summary. Questions asked on the card
+  (typed, a suggested chip, or by voice) go to the **Explain agent** below.
+  Remember saves locally (Vexo has no memory
   API; its key-value store is not private). Voice uses the band mic → Deepgram
   (team key typed into the page, memory only), the browser's speech
   recognition, or typed text, and shows a command preview bound to the object;
@@ -186,9 +189,34 @@ click work as fallbacks; **M** opens the menu on the hovered object.
   up in the Voice panel. The key stays on the laptop — put
   `GEMINI_API_KEY=...` in `reflex-present/.env` (gitignored; optional
   `GEMINI_MODEL`, default `gemini-3.8-flash`) and restart `npm run dev`. It is
-  never sent to the page. If the band isn't connected the panel says so; it
-  does not fall back to the laptop mic. The pretend band's mic plays the kit's
-  sample recording and is labelled that way.
+  never sent to the page. Without a band, the laptop microphone goes the same
+  way (`laptop-gemini`, [`actions/laptopMic.ts`](src/spatial/radial/actions/laptopMic.ts));
+  a recording with no speech in it is not sent (Gemini invents words for
+  silence). Transcription uses `gemini-3.5-flash-lite` (~1 s; override with
+  `GEMINI_TRANSCRIBE_MODEL`). The pretend band's mic plays the kit's sample
+  recording and is labelled that way.
+
+### Explain agent (`server/agent/`)
+
+A question on an Explain card → `POST /api/agent` → Gemini (`GEMINI_MODEL`,
+default `gemini-3.8-flash`) with the selected object's data, **a screenshot of
+it** ([`actions/snapshot.ts`](src/spatial/radial/actions/snapshot.ts): the
+stage rendered without overlays, cropped to the object) and these tools, in a
+loop of at most 5 model calls ([`server/agent/loop.ts`](server/agent/loop.ts)):
+
+| Tool | Runs | Shows on the card |
+| --- | --- | --- |
+| `plot_graph` | here: checks the Desmos LaTeX | interactive Desmos graph |
+| `make_chart` | here: checks the points | bar / line / area / pie chart (recharts) |
+| `read_slide_object` | here: another object's data | — |
+| Python (Gemini code execution) | Google's sandbox (sympy, numpy, matplotlib), never this laptop | the code, its output, any plot |
+
+Anything else is a plain multimodal answer. Ask by voice from the card ("Ask
+with your voice": band mic, else laptop mic → Gemini transcript → the agent).
+Add a tool in [`server/agent/tools.ts`](server/agent/tools.ts): a declaration,
+a runner that validates the model's arguments, and (for something to draw) an
+artifact type in `agentTypes.ts` plus its renderer in `ui/AgentArtifacts.tsx`.
+Desmos uses its public demo key; set `VITE_DESMOS_API_KEY` for your own.
 
 ## Known gaps
 

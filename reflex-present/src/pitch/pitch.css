@@ -321,7 +321,7 @@
   bottom: 10.5%;
   transform: translateX(-50%);
   white-space: nowrap;
-  color: var(--dim);
+  color: var(--mute);
 }
 
 /* 06 */
@@ -561,12 +561,12 @@
 
 /* 06: everything recedes behind the closing line */
 .is-closing .pitch-obj {
-  opacity: 0.05;
+  opacity: 0;
   filter: blur(4px);
   transform: scale(0.92);
 }
 /* the final frame is the line and nothing else */
-.is-closing .pitch-chrome > :not(.status) {
+.is-closing .pitch-chrome > * {
   opacity: 0;
   transition: opacity 800ms var(--ease);
 }
@@ -690,7 +690,7 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 4.2cqw;
+  gap: 3.4cqw;
   padding: 0 4.5cqw;
   background: #141414;
   border: 1px solid var(--line2);
@@ -931,7 +931,7 @@
   margin-bottom: 4cqh;
 }
 .pv-chart header .idx {
-  font-size: 2.4cqw;
+  font-size: max(2.4cqw, 10px);
 }
 .pv-chart header strong {
   font-family: var(--display);
@@ -942,8 +942,8 @@
   margin-left: auto;
   font-style: normal;
   font-family: var(--mono);
-  font-size: 2.4cqw;
-  color: var(--dim);
+  font-size: max(2.4cqw, 10px);
+  color: var(--mute);
 }
 .pv-chart .pv-bars {
   flex: 1;
@@ -951,7 +951,7 @@
 }
 .pv-chart .pv-bars .v,
 .pv-chart .pv-bars .l {
-  font-size: 2.6cqw;
+  font-size: max(2.6cqw, 11px);
 }
 
 .pv-metric {
@@ -1312,10 +1312,8 @@
   letter-spacing: 0.4em;
   color: var(--mute);
 }
-.scene-product .pitch-chrome .brand,
-.scene-demo .pitch-chrome .brand,
-.scene-utility .pitch-chrome .brand,
-.scene-compare .pitch-chrome .brand {
+/* every scene's top right now holds Annotate (and Memory), so the small mark steps aside */
+.pitch-stage .pitch-chrome .brand {
   opacity: 0;
 }
 .pitch-chrome .count {
@@ -1494,7 +1492,7 @@
   letter-spacing: 0.14em;
 }
 .pitch-stage .ap-card {
-  background: rgba(12, 12, 12, 0.97);
+  background: rgb(12, 12, 12);
   border: 1px solid rgba(255, 90, 31, 0.5);
   border-radius: 0;
   font-family: var(--sans);
@@ -1981,12 +1979,158 @@
 .pitch-stage .ap-saved {
   display: none;
 }
-.pitch-memtab {
+/* top right: Annotate on every scene, Memory beside it where the actions are on */
+.pitch-topright {
   position: absolute;
   z-index: 42;
-  background: #0b0b0b;
   right: 5.5%;
-  top: 5.6%;
+  top: 2.4%;
+  max-width: 50%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.6cqw;
+  pointer-events: none;
+}
+.pitch-topright .pitch-chrome-btn {
+  background: #0b0b0b;
+}
+.pitch-annotate.is-on {
+  color: var(--hot);
+  border-color: var(--hot);
+}
+
+/* 05 whiteboard: the board, and the row that lights up as each capability is shown */
+.copy-board {
+  inset: 0;
+}
+.copy-board .kicker {
+  position: absolute;
+  left: 5.5%;
+  top: 7%;
+}
+.copy-board h1 {
+  position: absolute;
+  left: 5.5%;
+  top: 11%;
+  width: 72%;
+  font-size: 3.7cqw;
+}
+.copy-board .board-surface {
+  position: absolute;
+  left: 4%;
+  top: 25%;
+  width: 92%;
+  height: 64%;
+  box-sizing: border-box;
+  border: 1px solid var(--line2);
+  border-radius: 0.6cqw;
+  background:
+    radial-gradient(circle, rgba(242, 240, 235, 0.08) 0.09cqw, transparent 0.1cqw) 0 0 / 1.6cqw 1.6cqw,
+    rgba(242, 240, 235, 0.035);
+}
+.copy-board .board-checklist {
+  position: absolute;
+  left: 5.5%;
+  top: 19%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  gap: 0.8cqw;
+}
+.copy-board .board-checklist li {
+  padding: 0.55cqw 1cqw;
+  border: 1px solid var(--line2);
+  background: rgba(10, 10, 10, 0.6);
+  font-family: var(--mono);
+  font-size: 0.8cqw;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mute);
+  transition:
+    color 300ms,
+    border-color 300ms,
+    background 300ms;
+}
+.copy-board .board-checklist li::before {
+  content: '○ ';
+}
+.copy-board .board-checklist li.done {
+  color: var(--hot);
+  border-color: var(--hot);
+  background: rgba(255, 90, 31, 0.08);
+}
+.copy-board .board-checklist li.done::before {
+  content: '● ';
+}
+
+/* Explain in the pitch: ask by voice or with the suggested questions (no typing box on a
+   stage run by hand), in the pitch's square style */
+.pitch-stage .ap-ask {
+  display: none;
+}
+.pitch-stage .ap-suggest button {
+  border-radius: 0;
+  border-color: rgba(255, 90, 31, 0.45);
+}
+.pitch-stage .ap-suggest button:hover {
+  border-color: var(--hot);
+  color: var(--hot);
+  background: transparent;
+}
+/* only the newest answer shows (earlier ones stay in the thread), so a card with a chart
+   still ends above the bottom chrome */
+.pitch-stage .ap-explain .ap-qa:has(+ .ap-qa) {
+  display: none;
+}
+.pitch-stage .ap-explain .ap-q {
+  color: var(--hot);
+}
+.pitch-stage .ap-explain .ap-muted {
+  color: var(--mute);
+}
+
+/* annotation arrows: above the cards, under the panels and the cursor */
+.pitch-arrows {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 6;
+  overflow: visible;
+  pointer-events: none;
+}
+.pitch-arrows line {
+  stroke: var(--hot);
+  stroke-linecap: round;
+}
+.pitch-arrows line.is-drawing {
+  opacity: 0.7;
+}
+.pitch-arrows marker path {
+  fill: var(--hot);
+}
+.pitch-stage.is-annotating .pitch-cursor {
+  border-color: var(--hot);
+  mix-blend-mode: normal;
+}
+/* how to draw, beside the cursor until the first arrow */
+.pitch-cursor .tip {
+  position: absolute;
+  left: 140%;
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  padding: 0.35cqw 0.6cqw;
+  background: rgba(10, 10, 10, 0.92);
+  border: 1px solid var(--line2);
+  font-family: var(--mono);
+  font-size: 0.72cqw;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink);
 }
 .pitch-memtab span {
   color: var(--hot);
@@ -1996,13 +2140,13 @@
   position: absolute;
   z-index: 46;
   right: 5.5%;
-  top: 21%;
+  top: 9.5%;
   width: 27%;
-  max-height: 64%;
+  max-height: 80%;
   overflow-y: auto;
   box-sizing: border-box;
   padding: 1.4cqw;
-  background: rgba(10, 10, 10, 0.97);
+  background: rgb(10, 10, 10);
   border: 1px solid rgba(255, 90, 31, 0.5);
   cursor: default;
   animation: copy-in 500ms var(--ease-out) both;
@@ -2028,6 +2172,14 @@
 .pitch-memory .src.ok {
   color: var(--hot);
 }
+.pitch-memory .more {
+  margin: -0.4cqw 0 1cqw;
+  font-family: var(--mono);
+  font-size: 0.72cqw;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
 .pitch-memory .empty {
   color: var(--mute);
   font-size: 0.95cqw;
@@ -2038,11 +2190,12 @@
   padding: 0;
 }
 .pitch-memory li {
-  padding: 0.8cqw 0;
+  padding: 0.6cqw 0;
   border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: 0.25cqw;
+  line-height: 1.3;
 }
 .pitch-memory li strong {
   font-size: 1.05cqw;
@@ -2059,15 +2212,19 @@
   margin: 0;
   font-size: 0.9cqw;
   color: var(--mute);
+  /* one line each, so the newest entries all fit without scrolling */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .pitch-memtoast {
   position: absolute;
   z-index: 46;
   left: 50%;
-  top: 6%;
+  top: 2.4%;
   transform: translateX(-50%);
   padding: 0.8cqw 1.4cqw;
-  background: rgba(10, 10, 10, 0.97);
+  background: rgb(10, 10, 10);
   border: 1px solid var(--line2);
   font-size: 1cqw;
   white-space: nowrap;
@@ -2195,7 +2352,7 @@
   font-size: 3.6cqw;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--dim);
+  color: var(--mute);
 }
 .pv-future .back footer {
   color: var(--hot);
@@ -2272,6 +2429,106 @@
   margin: -2.4cqh 0 0;
   font-size: 4.4cqw;
   font-weight: 500;
+  color: var(--mute);
+}
+/* ---- 05 use cases ---------------------------------------------------------------------------- */
+.pv-uc {
+  width: 100%;
+  display: block;
+  overflow: visible;
+}
+.pv-uc .board {
+  fill: var(--ink);
+}
+.pv-uc .screen {
+  fill: rgba(242, 240, 235, 0.04);
+  stroke: var(--line2);
+  stroke-width: 0.6;
+}
+.pv-uc .ink {
+  fill: none;
+  stroke: #161616;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pv-uc .ink.faint {
+  stroke: rgba(22, 22, 22, 0.35);
+}
+.pv-uc .tip {
+  fill: var(--hot);
+}
+.pv-uc .t1 {
+  fill: var(--ink);
+}
+.pv-uc .t2 {
+  fill: #ffc45c;
+}
+/* on the result side the picture gives way to the list under it */
+.pv-future .back .pv-uc {
+  flex: 1 1 0;
+  min-height: 0;
+}
+.pv-uc .mark,
+.pv-uc .route {
+  fill: none;
+  stroke: var(--hot);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+.pv-uc .route {
+  stroke-dasharray: 3 2.5;
+}
+.pv-uc .tag {
+  fill: var(--hot-soft);
+  stroke: var(--hot);
+  stroke-width: 0.8;
+}
+.pv-uc .frame {
+  fill: none;
+  stroke: var(--mute);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+.pv-uc rect.frame {
+  stroke-dasharray: 2.5 2;
+}
+.pv-uc .cam {
+  fill: var(--mute);
+}
+.pv-uc g path {
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.pv-uc g circle {
+  fill: none;
+  stroke-width: 1.6;
+}
+.pv-uc g.on {
+  stroke: var(--ink);
+}
+.pv-uc g.off {
+  stroke: var(--dim);
+}
+.pv-uc g .wear {
+  stroke: none;
+}
+.pv-uc g .wear.t0 {
+  fill: var(--hot);
+}
+.pv-uc .street {
+  fill: none;
+  stroke: rgba(242, 240, 235, 0.3);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+.pv-future .what {
+  margin: 3cqh 0 0;
+  min-height: 2.7em;
+  text-align: center;
+  font-size: 5cqw;
+  line-height: 1.35;
   color: var(--mute);
 }
 .pv-future .body {
@@ -2435,6 +2692,18 @@
 .pv-future .front footer {
   color: var(--mute);
 }
+.pv-steps {
+  margin: 3cqh 0 0;
+  padding-left: 7cqw;
+  font-size: 5cqw;
+  line-height: 1.6;
+  color: var(--ink);
+}
+/* the three flip at the same moment */
+.pv-future .face {
+  transition-duration: 1100ms;
+  transition-delay: 0ms;
+}
 
 /* ---- the pitch's own Voice bar --------------------------------------------------------------- */
 .pitch-voice {
@@ -2479,6 +2748,23 @@
   color: var(--mute);
   font-size: 1.4cqw;
   cursor: pointer;
+}
+/* asking Explain by voice: the same bar, inside the card */
+.pitch-voice.is-inline {
+  position: static;
+  width: auto;
+  box-shadow: none;
+}
+.pitch-stage .ap-voice-ask {
+  border-radius: 0;
+  border-color: rgba(255, 90, 31, 0.5);
+  font-family: var(--mono);
+  font-size: 0.8cqw;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.pitch-stage .ap-voice-ask::before {
+  color: var(--hot);
 }
 .pitch-voice .meter {
   display: flex;

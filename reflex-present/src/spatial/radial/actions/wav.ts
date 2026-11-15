@@ -33,3 +33,19 @@ export function rms(samples: Float32Array): number {
   for (const x of samples) sum += x * x
   return samples.length ? Math.sqrt(sum / samples.length) : 0
 }
+
+/** Downsamples mono audio by averaging each output sample's span (enough for speech). */
+export function resample(input: Float32Array, from: number, to: number): Float32Array {
+  if (from === to || from <= 0 || to <= 0) return input
+  const ratio = from / to
+  const n = Math.floor(input.length / ratio)
+  const out = new Float32Array(n)
+  for (let i = 0; i < n; i++) {
+    const start = Math.floor(i * ratio)
+    const end = Math.min(input.length, Math.max(start + 1, Math.floor((i + 1) * ratio)))
+    let sum = 0
+    for (let j = start; j < end; j++) sum += input[j]
+    out[i] = sum / (end - start)
+  }
+  return out
+}

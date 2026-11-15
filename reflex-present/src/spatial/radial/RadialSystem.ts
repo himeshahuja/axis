@@ -8,6 +8,7 @@ import { BAND_NUMBER } from '../wearable/band'
 import { VexoBandAdapter, type BandLink } from '../wearable/vexoBandAdapter'
 import { LocalMemoryStore } from './actions/memory'
 import { BandDeepgramProvider, BandGeminiProvider, BrowserSpeechProvider, TypedProvider, type VoiceProvider } from './actions/voice'
+import { LaptopGeminiProvider } from './actions/laptopMic'
 import { RadialActionExecutor } from './RadialActionExecutor'
 import { RadialMenuController, type RadialContext, type RadialOutput } from './RadialMenuController'
 import {
@@ -64,8 +65,9 @@ export class RadialSystem {
     this.onOpened = onOpened
     this.executor = new RadialActionExecutor(new LocalMemoryStore(), notify)
     this.vexo.setCalibration(loadGyroCalibration(BAND_NUMBER))
-    // The band's microphone → Gemini comes first: Voice uses the band by default.
-    this.voiceProviders = [new BandGeminiProvider(() => this.band, notify), new BandDeepgramProvider(() => this.band), new BrowserSpeechProvider(), new TypedProvider()]
+    // The band's microphone → Gemini comes first: Voice uses the band by default. Without a
+    // band, this computer's microphone → Gemini is the next best (same model, no browser speech).
+    this.voiceProviders = [new BandGeminiProvider(() => this.band, notify), new LaptopGeminiProvider(notify), new BandDeepgramProvider(() => this.band), new BrowserSpeechProvider(), new TypedProvider()]
   }
 
   get state() {

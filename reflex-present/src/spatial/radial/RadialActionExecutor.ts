@@ -22,6 +22,8 @@ export interface VoiceSession {
   objectId: string
   objectTitle: string
   startedAtMs: number
+  /** A question for the object's open Explain card, spoken instead of typed (see askByVoice). */
+  ask?: boolean
 }
 
 export interface ExecutionRecord {
@@ -45,6 +47,8 @@ export class RadialActionExecutor {
   provider: ExplanationProvider
   private done = new Set<number>()
   private qaSeq = 0
+  /** Spoken-question sessions count down from -1, apart from radial event ids. */
+  private askSeq = 0
   private qaAbort = new Map<string, AbortController>()
   private onChange: () => void
   private now: () => number
@@ -106,7 +110,8 @@ export class RadialActionExecutor {
     const earlier = (this.explainThreads.get(objectId) ?? []).filter((x) => x.status !== 'thinking')
     this.explainThreads.set(objectId, [...earlier, item].slice(-3))
     this.onChange()
-    this.answer(q, obj, objects, abort.signal)
+    const history = earlier.filter((x) => x.answer?.source === 'ai').map((x) => ({ question: x.question, answer: x.answer!.text }))
+    this.answer(q, obj, objects, abort.signal, history)
       .then((answer) => {
         item.status = 'done'
         item.answer = answer
@@ -129,12 +134,24 @@ export class RadialActionExecutor {
     if (question) this.ask(objectId, question, objects)
   }
 
+  /**
+   * Opens Voice to ask a question on an open Explain card. Unlike the Voice action the
+   * card stays: the host hands what was said to ask().
+   */
+  askByVoice(objectId: string, objects: SpatialObject[]) {
+    const obj = objects.find((o) => o.id === objectId)
+    if (!obj || !this.explainCards.has(objectId)) return
+    this.voice = { id: --this.askSeq, objectId, objectTitle: obj.label, startedAtMs: this.now(), ask: true }
+    this.onChange()
+  }
+
   closeExplain(objectId: string) {
     this.dropExplain(objectId)
     this.onChange()
   }
 
   private dropExplain(objectId: string) {
+    if (this.voice?.ask && this.voice.objectId === objectId) this.voice = null
     this.explainCards.delete(objectId)
     this.qaAbort.get(objectId)?.abort()
     this.qaAbort.delete(objectId)

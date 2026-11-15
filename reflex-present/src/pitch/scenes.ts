@@ -30,7 +30,10 @@ export type VisualKind =
   | 'glyph-ring'
   | 'glyph-memory'
   | 'glyph-voice'
-  /** Slide 05: one stage of the roadmap (see `horizon`). */
+  | 'teach'
+  | 'band'
+  | 'glasses'
+  /** Use-cases slide: one stage of the roadmap (see `horizon`). */
   | 'horizon'
 
 /** A roadmap card: today's limit on the front, how Axis gets past it on the back. */
@@ -48,6 +51,7 @@ export interface Horizon {
   status: string
 }
 
+
 export interface PitchObject extends SpatialObject {
   visual: VisualKind
   /** Small editorial index shown on the object. */
@@ -58,11 +62,11 @@ export interface PitchObject extends SpatialObject {
   lines?: string[]
   /** Not on the canvas until this beat is done. */
   revealedBy?: string
-  /** Future-directions cards: this beat turns the object into its result. */
+  /** Use-case cards: this beat turns the object into its result. */
   transformedBy?: string
-  /** What the result would open in (shown as "Next: …"). */
+  /** Who it is for (shown on the result, after the horizon). */
   destination?: string
-  /** Slide 05 roadmap cards. */
+  /** Use-cases slide roadmap cards. */
   horizon?: Horizon
 }
 
@@ -91,6 +95,8 @@ export type BeatTrigger =
   | { kind: 'swipe' }
   /** Only reached through the beat before it (a timed follow-up). */
   | { kind: 'follow_up' }
+  /** An annotation arrow is drawn (Annotate, top right; see PitchStage). */
+  | { kind: 'arrow' }
 
 export interface SceneBeat {
   id: string
@@ -105,7 +111,7 @@ export interface SceneBeat {
 }
 
 export interface PitchScene {
-  id: 'problem' | 'product' | 'demo' | 'compare' | 'future' | 'vision'
+  id: 'problem' | 'product' | 'demo' | 'compare' | 'board' | 'future' | 'vision'
   number: string
   kicker: string
   /** Console title. */
@@ -218,6 +224,8 @@ const pillar = (id: string, index: string, label: string, line: string, x: numbe
   h: SLOT_H,
   tilt,
   lines: [line],
+  // What Explain and Remember read when the piece is held.
+  content: { kind: 'note', text: line },
 })
 
 export const SCENES: PitchScene[] = [
@@ -227,7 +235,7 @@ export const SCENES: PitchScene[] = [
     kicker: 'The problem',
     title: 'We think with our hands',
     targetSeconds: 28,
-    radial: false,
+    radial: true,
     notes: [
       'When we present, teach or collaborate, we already talk with our hands.',
       'But the computer can’t see any of it. So we walk back to the laptop, find the mouse, dig through menus.',
@@ -246,8 +254,8 @@ export const SCENES: PitchScene[] = [
         h: 0.5,
         content: { kind: 'note', text: 'A conventional application window' },
       },
-      { id: 'p-cursor', label: 'Cursor', visual: 'cursor', color: '#f2f0eb', shape: 'card', x: 0.5, y: 0.53, w: 0.055, h: 0.11, tilt: -8 },
-      { id: 'p-toolbar', label: 'File  Edit  Insert  Format  Arrange  View', visual: 'toolbar', color: '#f2f0eb', shape: 'card', x: 0.575, y: 0.72, w: 0.36, h: 0.085 },
+      { id: 'p-cursor', label: 'Cursor', visual: 'cursor', color: '#f2f0eb', shape: 'card', x: 0.5, y: 0.53, w: 0.055, h: 0.11, tilt: -8, content: { kind: 'note', text: 'A mouse pointer' } },
+      { id: 'p-toolbar', label: 'File  Edit  Insert  Format  Arrange  View', visual: 'toolbar', color: '#f2f0eb', shape: 'card', x: 0.575, y: 0.72, w: 0.36, h: 0.085, content: { kind: 'note', text: 'Application menus: File, Edit, Insert, Format, Arrange, View' } },
     ],
     beats: [
       {
@@ -265,7 +273,7 @@ export const SCENES: PitchScene[] = [
     kicker: 'Introducing',
     title: `${PRODUCT}: point, hold, act`,
     targetSeconds: 22,
-    radial: false,
+    radial: true,
     notes: [
       `So we built ${PRODUCT}: a spatial workspace that understands what you point at and what you want to do with it.`,
       'Let me build it for you. Perception: the camera follows your hand.',
@@ -402,8 +410,37 @@ export const SCENES: PitchScene[] = [
     ],
   },
   {
-    id: 'future',
+    id: 'board',
     number: '05',
+    kicker: 'Whiteboard',
+    title: 'Everything, on one board',
+    targetSeconds: 30,
+    radial: true,
+    notes: [
+      'Here is everything at once, on a whiteboard. The row at the bottom lights up as I use each piece.',
+      'Grab a card and move it. Hold one — Explain — and ask it a question out loud.',
+      'Hold one — Voice — and say it: the words land on the board. Annotate, top right: draw an arrow between two ideas.',
+      'Hold one — Remember: it’s saved on the band.',
+    ],
+    objects: [
+      { id: 'b-present', label: 'Present', visual: 'note', color: '#f2f0eb', shape: 'card', index: 'A', x: 0.075, y: 0.3, w: 0.17, h: 0.25, tilt: -2, content: { kind: 'note', text: 'Move slides by hand\nFace the room, not the laptop' } },
+      { id: 'b-teach', label: 'Teach', visual: 'note', color: '#f2f0eb', shape: 'card', index: 'B', x: 0.275, y: 0.36, w: 0.17, h: 0.25, tilt: 1.5, content: { kind: 'note', text: 'Point at the diagram\nAsk it questions out loud' } },
+      { id: 'b-collab', label: 'Collaborate', visual: 'note', color: '#f2f0eb', shape: 'card', index: 'C', x: 0.475, y: 0.3, w: 0.17, h: 0.25, tilt: -1, content: { kind: 'note', text: 'Sketch arrows between ideas\nSave the board to the band' } },
+      { id: 'b-revenue', label: 'Quarterly Revenue', visual: 'chart', color: '#f2f0eb', shape: 'card', index: 'D', x: 0.69, y: 0.29, w: 0.235, h: 0.3, content: { kind: 'chart', unit: '$k', series: REVENUE } },
+    ],
+    // A checklist, not a script: each lights up when it happens, in any order, and the
+    // clicker goes straight on to the next scene (no fallbacks).
+    beats: [
+      { id: 'b-grab', step: 'Grab a card and move it', trigger: { kind: 'any_drop' }, fallback: false },
+      { id: 'b-explain', step: 'Hold a card → Explain → Ask with your voice', trigger: { kind: 'action_complete', action: 'explain' }, fallback: false },
+      { id: 'b-voice', step: 'Hold a card → Voice → say it: the words land on the board', trigger: { kind: 'action_complete', action: 'voice' }, fallback: false },
+      { id: 'b-arrow', step: 'Annotate (top right) → draw an arrow between two cards', trigger: { kind: 'arrow' }, fallback: false },
+      { id: 'b-remember', step: 'Hold a card → Remember: saved on the band', trigger: { kind: 'action_complete', action: 'remember' }, fallback: false },
+    ],
+  },
+  {
+    id: 'future',
+    number: '06',
     kicker: 'What’s next',
     title: 'One presenter. A team. Everywhere.',
     targetSeconds: 30,
@@ -484,7 +521,7 @@ export const SCENES: PitchScene[] = [
   },
   {
     id: 'vision',
-    number: '06',
+    number: '07',
     kicker: 'Where this goes',
     title: 'The interface is you',
     targetSeconds: 26,

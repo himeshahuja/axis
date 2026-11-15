@@ -1,0 +1,99 @@
+/* What the Explain agent draws inside its card (AgentArtifacts) and the in-card microphone. */
+
+.ag-artifacts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 6px;
+}
+.ag-figure {
+  margin: 0;
+}
+.ag-title {
+  font-size: 0.8em;
+  opacity: 0.75;
+  margin-bottom: 4px;
+}
+.ag-desmos {
+  width: 100%;
+  height: clamp(180px, 26cqh, 300px);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+}
+.ag-chart {
+  width: 100%;
+  height: clamp(160px, 24cqh, 260px);
+}
+.ag-exprs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 4px;
+  font-size: 0.78em;
+}
+.ag-exprs code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.ag-image {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+  background: #fff;
+}
+.ag-code summary {
+  cursor: pointer;
+  font-size: 0.78em;
+  opacity: 0.7;
+}
+.ag-code pre {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  max-height: 180px;
+  overflow: auto;
+  border-radius: 6px;
+  background: #0006;
+  font: 0.72em/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+}
+.ag-code .ag-out {
+  background: #edca7c14;
+}
+
+/* A card with a graph or chart gets wider so the figure is readable. */
+.ap-card.ap-has-figure,
+.presenter-actions .ap-card.ap-has-figure,
+.pitch-stage .ap-card.ap-has-figure {
+  width: min(520px, 46%) !important;
+}
+
+.ag-mic {
+  margin-top: 10px;
+}
+.ag-mic.is-listening {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ag-mic-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #e9a58e;
+  color: #24231f;
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+.ag-mic-words {
+  flex-basis: 100%;
+  font-size: 0.9em;
+  font-style: italic;
+}
+.ag-mic .ap-small {
+  flex-basis: 100%;
+}

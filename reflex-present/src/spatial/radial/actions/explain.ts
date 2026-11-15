@@ -1,10 +1,13 @@
 // Explain: describes an object from its own data with a deterministic local
-// summary, labelled as such. Questions about the object go to Gemini through the
-// dev server (the key never reaches the page); when no Gemini key or server is
-// available, a local answer is built from the same data and says so.
+// summary, labelled as such. Questions about the object go to the agent on the dev
+// server (server/agent/: Gemini with the object's data, a screenshot of it and tools
+// that graph, chart and calculate; the key never reaches the page). When no Gemini key
+// or server is available, a local answer is built from the same data and says so.
 
 import type { SpatialObject } from '../../types'
-import { askGemini, GeminiError } from './gemini'
+import { askAgent, describeSteps, toAgentObject, type AgentArtifact, type AgentStep } from './agent'
+import { GeminiError } from './gemini'
+import { snapshotObject } from './snapshot'
 
 export interface Explanation {
   objectId: string
@@ -91,6 +94,16 @@ export interface Answer {
   source: 'ai' | 'local'
   /** Where the answer came from, shown under it. */
   label: string
+  /** What the agent drew (graph, chart, Python output, plot). */
+  artifacts?: AgentArtifact[]
+  /** The tools it used, in order. */
+  steps?: AgentStep[]
+}
+
+/** An earlier question on the same card, so a follow-up can say "and the lowest?". */
+export interface AnsweredTurn {
+  question: string
+  answer: string
 }
 
 /** One-tap questions for a card, so a hand can ask without a keyboard. */
@@ -171,13 +184,24 @@ export function localAnswer(obj: SpatialObject, question: string): string {
 }
 
 /**
- * Answers a question about one object: Gemini when the dev server has a key, otherwise
- * a local answer from the object's data, labelled as such.
+ * Answers a question about one object with the agent (a screenshot of the object goes with
+ * it) when the dev server has a key, otherwise with a local answer from the object's data,
+ * labelled as such.
  */
-export async function answerQuestion(question: string, obj: SpatialObject, objects: SpatialObject[], signal?: AbortSignal): Promise<Answer> {
+export async function answerQuestion(question: string, obj: SpatialObject, objects: SpatialObject[], signal?: AbortSignal, history: AnsweredTurn[] = []): Promise<Answer> {
   try {
-    const a = await askGemini({ text: question }, { object: obj, objects }, signal, 'explain')
-    return { question, text: cleanAnswer(a.reply), source: 'ai', label: `Gemini${a.model ? ` · ${a.model}` : ''}` }
+    const image = await snapshotObject(obj)
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    const r = await askAgent({ question, object: toAgentObject(obj), others: objects.filter((o) => o.id !== obj.id).map(toAgentObject), image: image ?? undefined, history }, signal)
+    const used = describeSteps(r.steps)
+    return {
+      question,
+      text: cleanAnswer(r.reply),
+      source: 'ai',
+      label: ['Gemini', r.model, used, image ? 'saw the object' : ''].filter(Boolean).join(' · '),
+      artifacts: r.artifacts,
+      steps: r.steps,
+    }
   } catch (e) {
     // No key on this laptop (503) or no dev server (0): answer from the card's own data.
     if (e instanceof GeminiError && (e.status === 503 || e.status === 0)) {

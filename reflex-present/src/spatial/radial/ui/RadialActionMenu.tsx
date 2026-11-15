@@ -92,7 +92,9 @@ function PresenterRadial({ state, object, canvas, maxDeg, closing, bandLost, onC
   // room for the names outside the ring
   const padX = R * 0.62
   const padTop = R * 0.36
-  const cx = Math.max(R + padX, Math.min(canvas.w - R - padX, (object.x + object.w / 2) * canvas.w))
+  // A margin past the outside labels, so "Remember" and "Voice" are never cut by a projector's overscan.
+  const edge = R * 0.15
+  const cx = Math.max(R + padX + edge, Math.min(canvas.w - R - padX - edge, (object.x + object.w / 2) * canvas.w))
   const cy = Math.max(R + padTop, Math.min(canvas.h - R - 12, (object.y + object.h / 2) * canvas.h))
   const lost = state.status === 'TRACKING_LOST'
   const confirming = state.status === 'CONFIRMING' || state.status === 'CONFIRMED'
