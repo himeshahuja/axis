@@ -20,7 +20,7 @@ import { encodeWav, rms, toBase64 } from './wav'
 
 export { askGemini, GeminiError, type GeminiAnswer } from './gemini'
 
-export type VoiceProviderId = 'band-gemini' | 'band' | 'browser' | 'typed'
+export type VoiceProviderId = 'band-gemini' | 'laptop-gemini' | 'band' | 'browser' | 'typed'
 
 export interface VoiceCallbacks {
   onText(text: string, final: boolean): void

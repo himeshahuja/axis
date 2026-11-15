@@ -1,6 +1,7 @@
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
+import { geminiAgentPlugin } from './server/agent/plugin.ts'
 import { geminiVoicePlugin } from './server/geminiVoice.ts'
 
 const kitJs = fileURLToPath(new URL('../vexo-open-kit/js/src', import.meta.url))
@@ -10,9 +11,13 @@ const kitSpeech = fileURLToPath(new URL('../vexo-open-kit/dashboard/speech', imp
 export default defineConfig(({ mode }) => {
   // Server side only: GEMINI_* has no VITE_ prefix, so Vite never puts it into the page.
   const env = loadEnv(mode, process.cwd(), 'GEMINI_')
-  const gemini = () => ({ key: process.env.GEMINI_API_KEY || env.GEMINI_API_KEY, model: process.env.GEMINI_MODEL || env.GEMINI_MODEL || undefined })
+  const gemini = () => ({
+    key: process.env.GEMINI_API_KEY || env.GEMINI_API_KEY,
+    model: process.env.GEMINI_MODEL || env.GEMINI_MODEL || undefined,
+    transcribeModel: process.env.GEMINI_TRANSCRIBE_MODEL || env.GEMINI_TRANSCRIBE_MODEL || undefined,
+  })
   return {
-    plugins: [react(), geminiVoicePlugin(gemini)],
+    plugins: [react(), geminiVoicePlugin(gemini), geminiAgentPlugin(gemini)],
     resolve: {
       alias: { 'vexo-kit': kitJs, 'vexo-speech': kitSpeech },
     },

@@ -52,3 +52,18 @@ export async function askGemini(said: { audio: string } | { text: string }, ctx?
   if (mode !== 'transcribe' && typeof j.reply !== 'string') throw new GeminiError(j.error ?? 'The Gemini endpoint sent no reply.', r.status)
   return { transcript: j.transcript ?? '', reply: j.reply ?? '', model: j.model ?? '' }
 }
+
+export interface GeminiStatus {
+  configured: boolean
+  model: string
+  /** The dev server could not be reached. */
+  offline?: boolean
+}
+
+/** Whether the dev server has a Gemini key (the key itself never comes back). */
+export function fetchGeminiStatus(): Promise<GeminiStatus> {
+  if (typeof fetch !== 'function' || typeof location === 'undefined') return Promise.resolve({ configured: false, model: '', offline: true })
+  return fetch('/api/voice/gemini/status')
+    .then((r) => (r.ok ? (r.json() as Promise<GeminiStatus>) : Promise.reject(new Error(String(r.status)))))
+    .catch(() => ({ configured: false, model: '', offline: true }))
+}

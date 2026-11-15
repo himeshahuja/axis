@@ -24,10 +24,10 @@ export function PresenterActions({ rt, onPaste, hoverAction = null, ownVoice = f
     {object && isMenuOpen(state.status) && <RadialActionMenu state={state} object={object} canvas={rt.canvasPx} thresholdDeg={rt.radial.controller.mapper.config.thresholdDeg} maxDeg={rt.radial.controller.mapper.config.maxDeg} closing={false} bandLost={state.status === 'DEVICE_DISCONNECTED'} bandPretend={rt.radial.band?.link === 'sim'} graspMode theme="presenter" onChoose={(a) => rt.radial.choose(a)} onCancel={() => rt.radial.cancel()} />}
     {[...executor.explainCards.values()].map((card) => {
       const target = find(card.objectId)
-      // Asking by voice needs a host that draws the microphone into the card (ownVoice: the pitch).
+      // The pitch draws its own microphone into the card (ownVoice); elsewhere the card records itself.
       const voiceAsk = ownVoice ? () => executor.askByVoice(card.objectId, rt.interaction.objects) : undefined
       const listening = !!executor.voice?.ask && executor.voice.objectId === card.objectId
-      return target ? <ExplainPanel key={card.objectId} card={card} object={target} compact hoverAction={hoverAction} thread={executor.explainThreads.get(card.objectId)} onAsk={(q) => executor.ask(card.objectId, q, rt.interaction.objects)} onVoiceAsk={voiceAsk} listening={listening} onClose={() => executor.closeExplain(card.objectId)} /> : null
+      return target ? <ExplainPanel key={card.objectId} card={card} object={target} compact hoverAction={hoverAction} thread={executor.explainThreads.get(card.objectId)} onAsk={(q) => executor.ask(card.objectId, q, rt.interaction.objects)} onVoiceAsk={voiceAsk} listening={listening} voiceProviders={rt.radial.voiceProviders} objects={rt.interaction.objects} onClose={() => executor.closeExplain(card.objectId)} /> : null
     })}
     {!ownVoice && executor.voice && voiceObject && <VoiceCapturePanel session={executor.voice} object={voiceObject} objects={rt.interaction.objects} providers={rt.radial.voiceProviders} onClose={() => executor.closeVoice()} onConnectBand={() => rt.radial.connectBand('ble')} bandStatus={rt.radial.band?.status} onPaste={onPaste ? (text) => onPaste(text, voiceObject) : undefined} />}
     {recentSave && <SavedToast entry={executor.lastSaved!} />}

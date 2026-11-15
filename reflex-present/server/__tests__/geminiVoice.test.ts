@@ -25,6 +25,8 @@ describe('Gemini voice endpoint helpers', () => {
     expect(explain.systemInstruction.parts[0].text).toContain('no markdown')
     const transcribe = buildGeminiRequest({ mode: 'transcribe', audio: 'UklGRg==' })
     expect(transcribe.systemInstruction.parts[0].text).toContain('Do not answer it')
+    // Only the audio: context text would end up in the transcript.
+    expect(buildGeminiRequest({ mode: 'transcribe', audio: 'UklGRg==', object: { label: 'Revenue' } }).contents[0].parts).toEqual([{ inlineData: { mimeType: 'audio/wav', data: 'UklGRg==' } }])
     expect(buildGeminiRequest({ text: 'hi' }).systemInstruction.parts[0].text).toContain('voice assistant')
   })
 

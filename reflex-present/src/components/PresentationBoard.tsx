@@ -259,6 +259,7 @@ export function PresentationBoard() {
       const ask = parseAskAction(action)
       if (ask) runtime.radial.executor.askSuggested(ask.objectId, ask.index, runtime.interaction.objects)
     }
+    else if (action.startsWith('explain-mic:')) stageRef.current?.querySelector<HTMLElement>(`[data-air-action="${CSS.escape(action)}"]`)?.click()
     if (action !== 'tools' && action !== 'band-connect') setShowTools(false)
   }, [runtime, beginCalibration, slideIndex])
 

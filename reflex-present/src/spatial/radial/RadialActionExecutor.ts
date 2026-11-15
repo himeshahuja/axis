@@ -110,7 +110,8 @@ export class RadialActionExecutor {
     const earlier = (this.explainThreads.get(objectId) ?? []).filter((x) => x.status !== 'thinking')
     this.explainThreads.set(objectId, [...earlier, item].slice(-3))
     this.onChange()
-    this.answer(q, obj, objects, abort.signal)
+    const history = earlier.filter((x) => x.answer?.source === 'ai').map((x) => ({ question: x.question, answer: x.answer!.text }))
+    this.answer(q, obj, objects, abort.signal, history)
       .then((answer) => {
         item.status = 'done'
         item.answer = answer
