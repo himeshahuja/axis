@@ -260,6 +260,21 @@ export function VoiceCapturePanel({
   const canAnswer = !!answerer?.status?.configured
   const why = provider.unavailable()
   const [asking, setAsking] = useState(false)
+  // If the Vexo band disconnects (or was never connected) while a band provider is selected,
+  // fall back to this computer's microphone automatically. Checked on every render and on a short
+  // poll, since a Bluetooth drop doesn't re-render the panel by itself.
+  useEffect(() => {
+    const check = () => {
+      if (!providerId.startsWith('band')) return
+      const p = providers.find((x) => x.id === providerId)
+      if (!p?.unavailable()) return
+      const laptop = providers.find((x) => x.id === 'laptop-gemini' && !x.unavailable()) ?? providers.find((x) => x.id === 'browser' && !x.unavailable())
+      if (laptop) setProviderId(laptop.id)
+    }
+    check()
+    const t = window.setInterval(check, 1000)
+    return () => window.clearInterval(t)
+  }, [providerId, providers, bandStatus])
   const askAbort = useRef<AbortController | null>(null)
   const askTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const finalRef = useRef('')
