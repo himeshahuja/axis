@@ -1,0 +1,311 @@
+{
+ "markers": {
+  "fps": 30,
+  "duration": 1640,
+  "freeze": 112,
+  "reveal": 195,
+  "point": 203,
+  "lock": 291,
+  "grab": 390,
+  "radial": 615,
+  "radialOpen": 651,
+  "act": 900,
+  "voice": 1000,
+  "next": 1200,
+  "close": 1350,
+  "fold": 1402,
+  "gone": 1438,
+  "line": 1444,
+  "reveal2": 1550
+ },
+ "envelopes": {
+  "drag": {
+   "start": 460,
+   "end": 540
+  },
+  "voice": {
+   "start": 1034,
+   "end": 1072
+  }
+ },
+ "cues": [
+  {
+   "frame": 18,
+   "sound": "mouse-click-a",
+   "gain": 0.75,
+   "note": "cursor click"
+  },
+  {
+   "frame": 34,
+   "sound": "mouse-click-b",
+   "gain": 0.85,
+   "note": "cursor click"
+  },
+  {
+   "frame": 50,
+   "sound": "mouse-click-a",
+   "gain": 0.95,
+   "note": "cursor click"
+  },
+  {
+   "frame": 66,
+   "sound": "mouse-click-b",
+   "gain": 0.75,
+   "note": "cursor click"
+  },
+  {
+   "frame": 80,
+   "sound": "mouse-click-a",
+   "gain": 0.85,
+   "note": "cursor click"
+  },
+  {
+   "frame": 112,
+   "sound": "freeze-hit",
+   "gain": 0.9,
+   "note": "\"OUR COMPUTERS DON'T.\" — the pile freezes"
+  },
+  {
+   "frame": 203,
+   "sound": "point-in",
+   "gain": 0.55,
+   "note": "orange point appears"
+  },
+  {
+   "frame": 261,
+   "sound": "field-swell",
+   "gain": 0.55,
+   "note": "field unfolds (swell peaks mid-unfold)"
+  },
+  {
+   "frame": 267,
+   "sound": "crossbar",
+   "gain": 0.6,
+   "note": "point stretches into the crossbar"
+  },
+  {
+   "frame": 275,
+   "sound": "scanlines",
+   "gain": 0.45,
+   "note": "scan lines slide in"
+  },
+  {
+   "frame": 291,
+   "sound": "lock",
+   "gain": 0.85,
+   "note": "brackets lock on"
+  },
+  {
+   "frame": 307,
+   "sound": "tone-explain",
+   "gain": 0.45,
+   "note": "POINT."
+  },
+  {
+   "frame": 316,
+   "sound": "tone-remember",
+   "gain": 0.45,
+   "note": "HOLD."
+  },
+  {
+   "frame": 325,
+   "sound": "confirm",
+   "gain": 0.5,
+   "note": "ACT."
+  },
+  {
+   "frame": 390,
+   "sound": "transition",
+   "gain": 0.5,
+   "note": "cut to the canvas"
+  },
+  {
+   "frame": 459,
+   "sound": "ui-click",
+   "gain": 0.9,
+   "note": "pinch closes → grab"
+  },
+  {
+   "frame": 462,
+   "sound": "drag",
+   "gain": 0.5,
+   "note": "carry (level follows hand speed)",
+   "envelope": "drag"
+  },
+  {
+   "frame": 542,
+   "sound": "snap",
+   "gain": 0.85,
+   "note": "drop → magnetic lock-in"
+  },
+  {
+   "frame": 615,
+   "sound": "transition",
+   "gain": 0.45,
+   "note": "cut"
+  },
+  {
+   "frame": 632,
+   "sound": "ui-click",
+   "gain": 0.85,
+   "note": "pinch"
+  },
+  {
+   "frame": 633,
+   "sound": "hold",
+   "gain": 0.5,
+   "note": "hold ring fills (600 ms)"
+  },
+  {
+   "frame": 651,
+   "sound": "radial-open",
+   "gain": 0.9,
+   "note": "menu opens: three sectors"
+  },
+  {
+   "frame": 676,
+   "sound": "tone-remember",
+   "gain": 0.7,
+   "note": "highlight → remember"
+  },
+  {
+   "frame": 716,
+   "sound": "tone-explain",
+   "gain": 0.7,
+   "note": "highlight → explain"
+  },
+  {
+   "frame": 721,
+   "sound": "tone-voice",
+   "gain": 0.7,
+   "note": "highlight → voice"
+  },
+  {
+   "frame": 760,
+   "sound": "tone-explain",
+   "gain": 0.7,
+   "note": "highlight → explain"
+  },
+  {
+   "frame": 783,
+   "sound": "confirm",
+   "gain": 0.85,
+   "note": "release on Explain → confirm"
+  },
+  {
+   "frame": 793,
+   "sound": "panel",
+   "gain": 0.45,
+   "note": "Explain card unfolds"
+  },
+  {
+   "frame": 900,
+   "sound": "transition",
+   "gain": 0.4,
+   "note": "cut"
+  },
+  {
+   "frame": 902,
+   "sound": "radial-open-short",
+   "gain": 0.7,
+   "note": "menu (Remember)"
+  },
+  {
+   "frame": 926,
+   "sound": "confirm",
+   "gain": 0.8,
+   "note": "confirm Remember"
+  },
+  {
+   "frame": 956,
+   "sound": "memory",
+   "gain": 0.85,
+   "note": "chart contracts into the collection (hit = lands)"
+  },
+  {
+   "frame": 1002,
+   "sound": "radial-open-short",
+   "gain": 0.7,
+   "note": "menu (Voice)"
+  },
+  {
+   "frame": 1022,
+   "sound": "confirm",
+   "gain": 0.8,
+   "note": "confirm Voice"
+  },
+  {
+   "frame": 1026,
+   "sound": "voice-on",
+   "gain": 0.7,
+   "note": "band mic activates"
+  },
+  {
+   "frame": 1030,
+   "sound": "voice-texture",
+   "gain": 0.4,
+   "note": "waveform texture (follows the bars)",
+   "envelope": "voice"
+  },
+  {
+   "frame": 1092,
+   "sound": "snap",
+   "gain": 0.7,
+   "note": "comparison docks on the same scale"
+  },
+  {
+   "frame": 1106,
+   "sound": "tone-remember",
+   "gain": 0.35,
+   "note": "guides align"
+  },
+  {
+   "frame": 1200,
+   "sound": "transition",
+   "gain": 0.5,
+   "note": "cut"
+  },
+  {
+   "frame": 1216,
+   "sound": "card-tap",
+   "gain": 1,
+   "note": "card 1"
+  },
+  {
+   "frame": 1224,
+   "sound": "card-tap",
+   "gain": 1,
+   "note": "card 2"
+  },
+  {
+   "frame": 1232,
+   "sound": "card-tap",
+   "gain": 1,
+   "note": "card 3"
+  },
+  {
+   "frame": 1372,
+   "sound": "assemble",
+   "gain": 0.6,
+   "note": "pieces gather (hit = they settle)"
+  },
+  {
+   "frame": 1438,
+   "sound": "fold",
+   "gain": 0.42,
+   "note": "everything folds into the point (hit = point gone)"
+  },
+  {
+   "frame": 1438,
+   "sound": "point-out",
+   "gain": 0.6,
+   "note": "point goes out → silence"
+  },
+  {
+   "frame": 1550,
+   "sound": "reveal-impact",
+   "gain": 1,
+   "note": "logo reveal: impact, tail, then silence"
+  }
+ ]
+}

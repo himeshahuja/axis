@@ -29,3 +29,4 @@ public/mediapipe
 # Gemini key for the Voice action (server side only)
 .env
 .env.*
+!.env.example

@@ -1,0 +1,142 @@
+{
+ "mouse-click-a": {
+  "file": "audio/sfx/mouse-click-a.wav",
+  "hitFrames": 1,
+  "frames": 4
+ },
+ "mouse-click-b": {
+  "file": "audio/sfx/mouse-click-b.wav",
+  "hitFrames": 1,
+  "frames": 4
+ },
+ "freeze-hit": {
+  "file": "audio/sfx/freeze-hit.wav",
+  "hitFrames": 3,
+  "frames": 40
+ },
+ "point-in": {
+  "file": "audio/sfx/point-in.wav",
+  "hitFrames": 1,
+  "frames": 123
+ },
+ "field-swell": {
+  "file": "audio/sfx/field-swell.wav",
+  "hitFrames": 66,
+  "frames": 104
+ },
+ "crossbar": {
+  "file": "audio/sfx/crossbar.wav",
+  "hitFrames": 1,
+  "frames": 52
+ },
+ "scanlines": {
+  "file": "audio/sfx/scanlines.wav",
+  "hitFrames": 4,
+  "frames": 23
+ },
+ "lock": {
+  "file": "audio/sfx/lock.wav",
+  "hitFrames": 3,
+  "frames": 25
+ },
+ "snap": {
+  "file": "audio/sfx/snap.wav",
+  "hitFrames": 3,
+  "frames": 28
+ },
+ "tone-explain": {
+  "file": "audio/sfx/tone-explain.wav",
+  "hitFrames": 1,
+  "frames": 32
+ },
+ "tone-remember": {
+  "file": "audio/sfx/tone-remember.wav",
+  "hitFrames": 1,
+  "frames": 30
+ },
+ "tone-voice": {
+  "file": "audio/sfx/tone-voice.wav",
+  "hitFrames": 1,
+  "frames": 32
+ },
+ "ui-click": {
+  "file": "audio/sfx/ui-click.wav",
+  "hitFrames": 1,
+  "frames": 11
+ },
+ "drag": {
+  "file": "audio/sfx/drag.wav",
+  "hitFrames": 0,
+  "frames": 89
+ },
+ "hold": {
+  "file": "audio/sfx/hold.wav",
+  "hitFrames": 0,
+  "frames": 23
+ },
+ "radial-open": {
+  "file": "audio/sfx/radial-open.wav",
+  "hitFrames": 11,
+  "frames": 51
+ },
+ "radial-open-short": {
+  "file": "audio/sfx/radial-open-short.wav",
+  "hitFrames": 1,
+  "frames": 34
+ },
+ "confirm": {
+  "file": "audio/sfx/confirm.wav",
+  "hitFrames": 1,
+  "frames": 56
+ },
+ "panel": {
+  "file": "audio/sfx/panel.wav",
+  "hitFrames": 0,
+  "frames": 30
+ },
+ "memory": {
+  "file": "audio/sfx/memory.wav",
+  "hitFrames": 23,
+  "frames": 89
+ },
+ "voice-on": {
+  "file": "audio/sfx/voice-on.wav",
+  "hitFrames": 1,
+  "frames": 64
+ },
+ "voice-texture": {
+  "file": "audio/sfx/voice-texture.wav",
+  "hitFrames": 0,
+  "frames": 60
+ },
+ "transition": {
+  "file": "audio/sfx/transition.wav",
+  "hitFrames": 19,
+  "frames": 53
+ },
+ "card-tap": {
+  "file": "audio/sfx/card-tap.wav",
+  "hitFrames": 1,
+  "frames": 12
+ },
+ "assemble": {
+  "file": "audio/sfx/assemble.wav",
+  "hitFrames": 22,
+  "frames": 60
+ },
+ "fold": {
+  "file": "audio/sfx/fold.wav",
+  "hitFrames": 36,
+  "frames": 37
+ },
+ "point-out": {
+  "file": "audio/sfx/point-out.wav",
+  "hitFrames": 0,
+  "frames": 54
+ },
+ "reveal-impact": {
+  "file": "audio/sfx/reveal-impact.wav",
+  "hitFrames": 1,
+  "frames": 90
+ }
+}

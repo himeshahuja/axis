@@ -1,0 +1,221 @@
+{
+  "note": "Every recorded sound in the film. All are from Freesound and licensed CC0 1.0 (public domain dedication): no attribution is required, but each is credited here and in README.md. Files are Freesound's HQ previews, fetched by scripts/fetch-sounds.py into audio/sources/freesound/.",
+  "sounds": [
+    {
+      "id": 534104,
+      "title": "mouse-click-double-00.flac",
+      "user": "pbimal",
+      "role": "scene 1 cursor clicks (split into two single clicks)",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/pbimal/sounds/534104/",
+      "file": "audio/sources/freesound/534104.ogg"
+    },
+    {
+      "id": 766639,
+      "title": "Keyboard_Tactile_8",
+      "user": "StavSounds",
+      "role": "selection click transient",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/StavSounds/sounds/766639/",
+      "file": "audio/sources/freesound/766639.ogg"
+    },
+    {
+      "id": 378085,
+      "title": "mechanical key hard.wav",
+      "user": "bigmonmulgrew",
+      "role": "selection click body layer",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/bigmonmulgrew/sounds/378085/",
+      "file": "audio/sources/freesound/378085.ogg"
+    },
+    {
+      "id": 144194,
+      "title": "knob click 1.wav",
+      "user": "lolamadeus",
+      "role": "radial detent in the sector tones; card taps",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/lolamadeus/sounds/144194/",
+      "file": "audio/sources/freesound/144194.ogg"
+    },
+    {
+      "id": 857285,
+      "title": "fidget toy",
+      "user": "dyingSatyr",
+      "role": "magnetic snap / lock transient",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/dyingSatyr/sounds/857285/",
+      "file": "audio/sources/freesound/857285.ogg"
+    },
+    {
+      "id": 481789,
+      "title": "Metallic latch release.wav",
+      "user": "Crinkem",
+      "role": "lock: metal catch layer",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/Crinkem/sounds/481789/",
+      "file": "audio/sources/freesound/481789.ogg"
+    },
+    {
+      "id": 339437,
+      "title": "super low bass hit kick drum wAv",
+      "user": "phluidbox",
+      "role": "low-frequency body for snap, lock, freeze",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/phluidbox/sounds/339437/",
+      "file": "audio/sources/freesound/339437.ogg"
+    },
+    {
+      "id": 553077,
+      "title": "Foley_Mechanism_Camera_Button_Mono_H5.wav",
+      "user": "Nox_Sound",
+      "role": "radial menu mechanical expansion",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/Nox_Sound/sounds/553077/",
+      "file": "audio/sources/freesound/553077.ogg"
+    },
+    {
+      "id": 875419,
+      "title": "MOTRSrvo_Robotic Servo Short Arm Movement",
+      "user": "harrisonlace",
+      "role": "radial menu servo layer (filtered, short)",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/harrisonlace/sounds/875419/",
+      "file": "audio/sources/freesound/875419.ogg"
+    },
+    {
+      "id": 198385,
+      "title": "ANI - Cocktail Glass - Hard 1a",
+      "user": "ani_music",
+      "role": "radial shimmer (pitched, reversed swell)",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/ani_music/sounds/198385/",
+      "file": "audio/sources/freesound/198385.ogg"
+    },
+    {
+      "id": 198401,
+      "title": "ANI - Wine Glass - Hard",
+      "user": "ani_music",
+      "role": "sector tones and confirmation (pitched)",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/ani_music/sounds/198401/",
+      "file": "audio/sources/freesound/198401.ogg"
+    },
+    {
+      "id": 464302,
+      "title": "PaperSlide.wav",
+      "user": "eyesonlegs",
+      "role": "Explain card unfold; memory storage slide",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/eyesonlegs/sounds/464302/",
+      "file": "audio/sources/freesound/464302.ogg"
+    },
+    {
+      "id": 862316,
+      "title": "Close Book 2",
+      "user": "qubodup",
+      "role": "memory storage: soft close",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/qubodup/sounds/862316/",
+      "file": "audio/sources/freesound/862316.ogg"
+    },
+    {
+      "id": 493505,
+      "title": "Clothes Rustling Movement 13_22",
+      "user": "Joao_Janz",
+      "role": "drag movement texture",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/Joao_Janz/sounds/493505/",
+      "file": "audio/sources/freesound/493505.ogg"
+    },
+    {
+      "id": 391551,
+      "title": "Movement.wav",
+      "user": "2create",
+      "role": "drag movement texture (low layer)",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/2create/sounds/391551/",
+      "file": "audio/sources/freesound/391551.ogg"
+    },
+    {
+      "id": 738232,
+      "title": "Canon Powershot A480 AiAF - Button click",
+      "user": "JIM46_PLAYER.TXT",
+      "role": "voice activation click",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/JIM46_PLAYER.TXT/sounds/738232/",
+      "file": "audio/sources/freesound/738232.ogg"
+    },
+    {
+      "id": 263895,
+      "title": "Sub Rush 2",
+      "user": "JarredGibb",
+      "role": "scene transitions: low swell",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/JarredGibb/sounds/263895/",
+      "file": "audio/sources/freesound/263895.ogg"
+    },
+    {
+      "id": 263892,
+      "title": "Sub Rush 1",
+      "user": "JarredGibb",
+      "role": "fold into the point",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/JarredGibb/sounds/263892/",
+      "file": "audio/sources/freesound/263892.ogg"
+    },
+    {
+      "id": 157245,
+      "title": "boom.wav",
+      "user": "Snapper4298",
+      "role": "freeze hit; final impact sub layer",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/Snapper4298/sounds/157245/",
+      "file": "audio/sources/freesound/157245.ogg"
+    },
+    {
+      "id": 736851,
+      "title": "One hit (sonar inspired)",
+      "user": "xkeril",
+      "role": "orange point arrival",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/xkeril/sounds/736851/",
+      "file": "audio/sources/freesound/736851.ogg"
+    },
+    {
+      "id": 665093,
+      "title": "Deep impact",
+      "user": "tgerginov",
+      "role": "final reveal impact",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/tgerginov/sounds/665093/",
+      "file": "audio/sources/freesound/665093.ogg"
+    },
+    {
+      "id": 201571,
+      "title": "JM_FX_Boom 01a.wav",
+      "user": "Julien_Matthey",
+      "role": "final reveal impact body",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/Julien_Matthey/sounds/201571/",
+      "file": "audio/sources/freesound/201571.ogg"
+    },
+    {
+      "id": 736850,
+      "title": "Stab reverb hit (minimal)",
+      "user": "xkeril",
+      "role": "final reveal tonal top",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/xkeril/sounds/736850/",
+      "file": "audio/sources/freesound/736850.ogg"
+    },
+    {
+      "id": 856174,
+      "title": "Subterranean Deep Sub-Bass Rumble Drop",
+      "user": "brktkrgll",
+      "role": "field unfold swell (reversed)",
+      "license": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "url": "https://freesound.org/people/brktkrgll/sounds/856174/",
+      "file": "audio/sources/freesound/856174.ogg"
+    }
+  ]
+}

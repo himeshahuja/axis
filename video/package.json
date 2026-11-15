@@ -1,0 +1,31 @@
+{
+  "name": "axis-launch-film",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Axis \u2014 VexoHacks 2026 launch film (Remotion)",
+  "scripts": {
+    "cues": "node scripts/export-cues.mjs",
+    "fetch": "python3 -I scripts/fetch-sounds.py",
+    "audio": "npm run cues --silent && python3 -I scripts/build-audio.py",
+    "studio": "remotion studio src/index.ts",
+    "preview": "npm run audio && remotion render src/index.ts AxisLaunch out/preview/axis-preview.mp4 --scale=0.5 --crf=26 && bash scripts/contact-sheet.sh out/preview/axis-preview.mp4 45",
+    "picture": "remotion render src/index.ts AxisLaunch out/preview/picture.mp4 --codec=h264 --crf=14 --muted",
+    "mix": "remotion render src/index.ts AxisLaunch out/preview/mix.wav --codec=wav",
+    "stems": "remotion render src/index.ts AxisLaunch out/preview/stem-score.wav --codec=wav --props='{\"stem\":\"score\"}' && remotion render src/index.ts AxisLaunch out/preview/stem-sfx.wav --codec=wav --props='{\"stem\":\"sfx\"}'",
+    "render": "npm run audio && npm run picture && npm run mix && bash scripts/finalize.sh out/preview/picture.mp4 out/preview/mix.wav out/axis-launch-film.mp4",
+    "stills": "bash scripts/contact-sheet.sh out/axis-launch-film.mp4 45 out/preview/final-contact-sheet.png",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource-variable/dm-sans": "^5.2.5",
+    "@fontsource/gravitas-one": "^5.2.5",
+    "@remotion/cli": "4.0.543",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "remotion": "4.0.543"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "typescript": "^5.9.3"
+  }
+}
