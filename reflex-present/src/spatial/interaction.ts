@@ -93,6 +93,14 @@ export class InteractionEngine {
     this.changed()
   }
 
+  /** Takes an object off the canvas (no undo). One that is being held stays. */
+  remove(id: string) {
+    if (this.grabbedId === id) return
+    this.objects = this.objects.filter((x) => x.id !== id)
+    if (this.hoverId === id) this.hoverId = null
+    this.changed()
+  }
+
   /** True while a grabbed object is held over the trash. */
   get overTrash() {
     const p = this.pointer

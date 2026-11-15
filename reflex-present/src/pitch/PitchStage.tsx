@@ -34,6 +34,85 @@ const mmss = (ms: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
+/** Hands are less exact than a mouse: a control outside the cards answers this far (stage widths) from itself. */
+const MAGNET = 0.03
+
+/** The on-stage control a closed hand at this point would press. */
+function airControlAt(stage: HTMLElement, x: number, y: number): HTMLElement | null {
+  // Look down through empty layers (the objects layer covers the copy) to the first object or
+  // control: an object on top wins, so grabbing a card never presses a button beneath it.
+  const first = document.elementsFromPoint(x, y).find((el) => stage.contains(el) && el.closest('[data-air-action], .pitch-obj'))
+  const exact = first?.closest<HTMLElement>('[data-air-action]')
+  if (exact && stage.contains(exact)) return exact
+  if (first?.closest('.pitch-obj')) return null
+  let best: HTMLElement | null = null
+  let reach = MAGNET * stage.getBoundingClientRect().width
+  for (const el of stage.querySelectorAll<HTMLElement>('[data-air-action]')) {
+    // A card's own button needs a direct hit: just beside it, the hand is grabbing the card.
+    if (el.closest('.pitch-obj')) continue
+    const r = el.getBoundingClientRect()
+    if (r.width === 0) continue
+    const d = Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom))
+    if (d <= reach) {
+      best = el
+      reach = d
+    }
+  }
+  return best
+}
+
+// ---- what was said: each Voice recording leaves its words on the stage as a card ---------------
+type Rect = { x: number; y: number; w: number; h: number }
+const SAID = 'said-'
+const isSaid = (o: SpatialObject) => o.id.startsWith(SAID)
+const covered = (a: Rect, b: Rect) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y))
+
+function saidCard(id: string, text: string): PitchObject {
+  // About 28 characters a line at this width (the type scales with the card).
+  const lines = Math.max(1, Math.ceil(text.length / 28))
+  return { id, label: text, visual: 'transcript', color: '#f2f0eb', shape: 'card', x: 0, y: 0, w: 0.22, h: Math.min(0.34, 0.07 + lines * 0.031), content: { kind: 'note', text } }
+}
+
+/**
+ * Where a card goes, below the headline and above the chrome: covering little of `avoid`
+ * (weighted) and staying near `near`. Covering a whole object costs as much as two stage
+ * heights of distance, so a free spot wins unless it is far away.
+ */
+function clearSpot(card: Rect, near: Rect, avoid: (Rect & { weight?: number })[], aspect: number) {
+  const pad = 0.012
+  const blocks = avoid.map((r) => ({ x: r.x - pad, y: r.y - pad, w: r.w + 2 * pad, h: r.h + 2 * pad, weight: r.weight ?? 1 }))
+  let best = { x: near.x, y: near.y, score: Infinity }
+  for (let y = 0.22; y <= 0.9 - card.h; y += 0.01) {
+    for (let x = 0.02; x <= 0.98 - card.w; x += 0.01) {
+      const r = { x, y, w: card.w, h: card.h }
+      const cover = blocks.reduce((s, b) => s + covered(r, b) * b.weight, 0) / (card.w * card.h)
+      const dist = Math.hypot((x + card.w / 2 - near.x - near.w / 2) * aspect, y + card.h / 2 - near.y - near.h / 2)
+      const score = cover + dist / 2
+      if (score < best.score) best = { x, y, score }
+    }
+  }
+  return { x: best.x, y: best.y }
+}
+
+/** One card per recording: a later final transcript replaces its words where it already is. */
+function putSaid(rt: SpatialRuntime, ctl: PitchController, session: number, text: string, objectId: string, panel: Rect | null) {
+  const ix = rt.interaction
+  const card = saidCard(`${SAID}${session}`, text)
+  const was = ix.objects.find((o) => o.id === card.id)
+  // Clear of the stage, the Voice panel and anything this request just revealed; an empty drop zone matters less.
+  const revealed = objectsFor(ctl.scene, ctl.done).filter((o) => !ix.objects.some((x) => x.id === o.id))
+  const zones = (ctl.scene.zones ?? []).map((z) => ({ x: z.x, y: z.y, w: z.w, h: z.h, weight: 0.25 }))
+  const avoid = [...ix.objects.filter((o) => o.id !== card.id), ...revealed, ...zones, ...(panel ? [panel] : [])]
+  ix.add({ ...card, ...(was ? { x: was.x, y: was.y } : clearSpot(card, ix.objects.find((o) => o.id === objectId) ?? card, avoid, ix.aspect)) })
+}
+
+function deleteSaid(rt: SpatialRuntime, id: string) {
+  const ex = rt.radial.executor
+  if (ex.explainCards.has(id)) ex.closeExplain(id)
+  if (ex.voice?.objectId === id) ex.closeVoice()
+  rt.interaction.remove(id)
+}
+
 // ---- scene copy (the typography layer) ------------------------------------------------------
 function SceneCopy({ scene, done, state, hands = true }: { scene: PitchScene; done: ReadonlySet<string>; state: 'enter' | 'exit'; hands?: boolean }) {
   const cls = `pitch-copy copy-${scene.id} is-${state}`
@@ -138,7 +217,10 @@ export function PitchStage() {
   const [exiting, setExiting] = useState<number | null>(null)
   const [ghost, setGhost] = useState<{ o: SpatialObject; key: string } | null>(null)
   const [showCamera, setShowCamera] = useState(false)
+  /** Mirror the camera (on by default); kept when the camera restarts. */
+  const mirror = useRef(true)
   const applied = useRef(-1)
+  const appliedScene = useRef(-1)
   const seenMoves = useRef(new WeakSet<object>())
   const dwell = useRef<{ id: string | null; since: number }>({ id: null, since: 0 })
   const lastAction = useRef<number | null>(null)
@@ -147,6 +229,8 @@ export function PitchStage() {
   const mousePressed = useRef(false)
   const wasPressed = useRef(false)
   const swipe = useRef<{ startX: number; x: number; dir: SwipeDir } | null>(null)
+  /** The on-stage control under the hand (lit with .is-air-hover). */
+  const airHover = useRef<HTMLElement | null>(null)
   const commandRef = useRef<(c: StageCommand) => void>(() => {})
   // Memory on the band.
   const [memOpen, setMemOpen] = useState(false)
@@ -179,7 +263,7 @@ export function PitchStage() {
     rt.autoRangeCapture = true
     // A camera cursor wobbles more than a mouse while the hand is held closed: allow it.
     rt.radial.controller.config.holdMaxMove = 0.05
-    void rt.startCamera().then(() => rt.updateProfile({ mirrorX: true }))
+    void rt.startCamera().then(() => rt.updateProfile({ mirrorX: mirror.current }))
     const off = ctl.onChange((c) => {
       if (c.kind !== 'scene') return
       const next = ctl.scenes[c.to]
@@ -229,9 +313,12 @@ export function PitchStage() {
       }
       else if (c.cmd === 'resetLayout') ctl.resetLayout()
       else if (c.cmd === 'toggleGestures') rt.cameraGesturesEnabled = !rt.cameraGesturesEnabled
-      else if (c.cmd === 'camera') {
+      else if (c.cmd === 'toggleMirror') {
+        mirror.current = !rt.profile.mirrorX
+        rt.updateProfile({ mirrorX: mirror.current })
+      } else if (c.cmd === 'camera') {
         if (rt.tracker.status === 'running' || rt.tracker.status === 'loading') rt.stopCamera()
-        else void rt.startCamera().then(() => rt.updateProfile({ mirrorX: true }))
+        else void rt.startCamera().then(() => rt.updateProfile({ mirrorX: mirror.current }))
       } else if (c.cmd === 'calibrate') void calibrate()
       else if (c.cmd === 'toggleMode') setMode((m) => (m === 'presentation' ? 'rehearsal' : 'presentation'))
       else if (c.cmd === 'recenter') rt.recenter()
@@ -254,13 +341,10 @@ export function PitchStage() {
       if (!p.valid || !stageRef.current || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return false
       const b = stageRef.current.getBoundingClientRect()
       if (b.width <= 0 || b.height <= 0) return false
-      // Look down through empty layers (the objects layer covers the copy) to the first object or
-      // air control; an object on top always wins, so grabbing never presses a button beneath it.
-      const under = document.elementsFromPoint(b.left + p.x * b.width, b.top + p.y * b.height)
-      const first = under.find((el) => el.closest('[data-air-action], .pitch-obj'))
-      const action = first?.closest('.pitch-obj') ? undefined : first?.closest<HTMLElement>('[data-air-action]')?.dataset.airAction
+      const control = airControlAt(stageRef.current, b.left + p.x * b.width, b.top + p.y * b.height)
+      const action = control?.dataset.airAction
       // The edge strips belong to the swipe: don't let the grab land on a nearby object.
-      if (!action) return atEdge(p)
+      if (!control || !action) return atEdge(p)
       if (action === 'reveal-hands') setHandsShown(true)
       else if (action === 'next') command({ type: 'cmd', cmd: 'next' })
       else if (action === 'memory') setMemOpen((v) => !v)
@@ -268,7 +352,7 @@ export function PitchStage() {
       else if (action.startsWith('explain-ask:')) {
         const ask = parseAskAction(action)
         if (ask) rt.radial.executor.askSuggested(ask.objectId, ask.index, rt.interaction.objects)
-      } else return false
+      } else control.click() // any other on-stage button: a closed hand does what a click does
       return true
     }
     return () => {
@@ -294,6 +378,7 @@ export function PitchStage() {
       else if (e.key === 'Home') run('reset')
       else if (k === 'd' && !e.metaKey) run('toggleMode')
       else if (k === 'g') run('toggleGestures')
+      else if (k === 'h') run('toggleMirror')
       else if (k === 'k') run('calibrate')
       else if (k === 'c' && !e.metaKey) run('camera')
       else if (k === 'x') run('resetLayout')
@@ -330,6 +415,7 @@ export function PitchStage() {
     handTracked: !!rt.latestFeatures,
     band: rt.radial.band ? `${rt.radial.band.status}${rt.radial.band.link === 'sim' ? ' (pretend)' : ''}` : 'not connected',
     gesturesEnabled: rt.cameraGesturesEnabled,
+    mirrored: rt.profile.mirrorX,
     gestureMode: rt.detector.mode,
     mode,
     radialStatus: rt.radial.state.status,
@@ -355,9 +441,12 @@ export function PitchStage() {
   // ---- Voice in the pitch: a spoken request on a scene's object *is* the cue ------------------
   // Wrap each voice provider once: when a final transcript arrives for an object the current
   // scene is waiting on, the scene answers (Axis card, graph, chart, tasks) instead of the
-  // model's reply, and the Voice panel steps aside.
+  // model's reply. Either way the words go on the stage, and once they are in, the Voice panel
+  // closes by itself — unless the model's reply is there to read.
   useEffect(() => {
     const restore: (() => void)[] = []
+    /** The last recording the model answered (its panel stays open to show the answer). */
+    let answered = -1
     for (const p of rt.radial.voiceProviders) {
       const original = p.start.bind(p)
       p.start = (cb: VoiceCallbacks, ctx?: VoiceContext) =>
@@ -366,18 +455,29 @@ export function PitchStage() {
             ...cb,
             onText: (text, final) => {
               cb.onText(text, final)
-              const objectId = rt.radial.executor.voice?.objectId
+              const session = rt.radial.executor.voice
               const said = text.trim()
-              if (!final || !objectId || !said || /^\(no speech/i.test(said) || !ctl.takesVoiceFor(objectId)) return
+              if (!final || !session || !said) return
+              // A reply arrives right after the words, so this decides once both are in.
+              window.setTimeout(() => {
+                if (rt.radial.executor.voice?.id === session.id && answered !== session.id) rt.radial.executor.closeVoice()
+              }, 700)
+              if (/^\(no speech/i.test(said)) return
+              const objectId = session.objectId
               const panel = document.querySelector('.pitch-voice')?.getBoundingClientRect()
               const stage = stageRef.current?.getBoundingClientRect()
-              const target = ctl.scene.id === 'compare' ? 'c-axis' : objectId
-              if (panel && stage) replyFrom.current = { target, left: panel.left - stage.left, top: panel.top - stage.top, width: panel.width, height: panel.height }
-              if (ctl.onVoiceReply(objectId, said, performance.now())) window.setTimeout(() => rt.radial.executor.closeVoice(), 700)
+              if (ctl.takesVoiceFor(objectId)) {
+                const target = ctl.scene.id === 'compare' ? 'c-axis' : objectId
+                if (panel && stage) replyFrom.current = { target, left: panel.left - stage.left, top: panel.top - stage.top, width: panel.width, height: panel.height }
+                ctl.onVoiceReply(objectId, said, performance.now())
+              }
+              const box = panel && stage && stage.width > 0 && stage.height > 0 ? { x: (panel.left - stage.left) / stage.width, y: (panel.top - stage.top) / stage.height, w: panel.width / stage.width, h: panel.height / stage.height } : null
+              putSaid(rt, ctl, session.id, said, objectId, box)
             },
             onReply: (reply) => {
-              const objectId = rt.radial.executor.voice?.objectId
-              if (objectId && ctl.takesVoiceFor(objectId)) return // the scene's card is the reply
+              const session = rt.radial.executor.voice
+              if (session && ctl.takesVoiceFor(session.objectId)) return // the scene's card is the reply
+              if (session) answered = session.id
               cb.onReply?.(reply)
             },
           },
@@ -406,7 +506,10 @@ export function PitchStage() {
       const ix = rt.interaction
       if (ctl.layoutVersion !== applied.current) {
         applied.current = ctl.layoutVersion
-        rt.setObjects(objectsFor(ctl.scene, ctl.done))
+        // What was said stays through the scene's own re-layouts; a new scene starts without it.
+        const said = ctl.sceneIndex === appliedScene.current ? ix.objects.filter(isSaid) : []
+        appliedScene.current = ctl.sceneIndex
+        rt.setObjects([...objectsFor(ctl.scene, ctl.done), ...said])
       }
       const move = ix.undoStack.at(-1)
       if (move && !seenMoves.current.has(move)) {
@@ -466,6 +569,19 @@ export function PitchStage() {
         swipe.current = null
       }
       wasPressed.current = pressed
+
+      // The control a closed hand would press lights up first, so pressing one is never a guess.
+      const stageEl = stageRef.current
+      let control: HTMLElement | null = null
+      if (stageEl && pt.valid && pt.source !== 'mouse' && rt.cameraGesturesEnabled && !voiceRecording.current && !ix.grabbedId && !rt.radial.controller.isOpen && rt.calibration.kind === 'none') {
+        const b = stageEl.getBoundingClientRect()
+        control = airControlAt(stageEl, b.left + pt.x * b.width, b.top + pt.y * b.height)
+      }
+      if (control !== airHover.current) {
+        airHover.current?.classList.remove('is-air-hover')
+        control?.classList.add('is-air-hover')
+        airHover.current = control
+      }
 
       // The background field follows the hand as it follows a mouse.
       const p = rt.pointer
@@ -534,6 +650,14 @@ export function PitchStage() {
     return () => window.clearTimeout(id)
   }, [memToast])
 
+  // "Clear from band" waits a few seconds for its second press, then forgets the first.
+  const [clearArmed, setClearArmed] = useState(false)
+  useEffect(() => {
+    if (!clearArmed) return
+    const id = window.setTimeout(() => setClearArmed(false), 4000)
+    return () => window.clearTimeout(id)
+  }, [clearArmed])
+
   useEffect(() => {
     if (!ghost) return
     const id = window.setTimeout(() => setGhost(null), 1000)
@@ -547,7 +671,9 @@ export function PitchStage() {
   // Render in the scene's own order: the engine puts a grabbed object last (to hit-test it
   // first), and moving its DOM node would restart its entrance animation (it vanished).
   const sceneOrder = new Map(scene.objects.map((o, i) => [o.id, i]))
-  const orderedObjects = [...(ix.objects as PitchObject[])].sort((a, b) => (sceneOrder.get(a.id) ?? 0) - (sceneOrder.get(b.id) ?? 0))
+  // Said cards come after the scene's own, oldest first (their ids count recordings).
+  const rank = (o: SpatialObject) => sceneOrder.get(o.id) ?? (isSaid(o) ? sceneOrder.size + (Number(o.id.slice(SAID.length)) || 0) : 0)
+  const orderedObjects = [...(ix.objects as PitchObject[])].sort((a, b) => rank(a) - rank(b))
   const grabbedObj = ix.grabbedId ? ix.objects.find((o) => o.id === ix.grabbedId) : null
   const overZone = (z: { x: number; y: number; w: number; h: number }) => {
     if (!grabbedObj) return false
@@ -588,7 +714,7 @@ export function PitchStage() {
           rt.onMouseMove(s.x, s.y)
         }}
         onMouseDown={(e) => {
-          if ((e.target as HTMLElement).closest('.pitch-chrome-btn, .pitch-rehearsal, .pitch-calibrate, .pitch-memory')) return
+          if ((e.target as HTMLElement).closest('.pitch-chrome-btn, .pitch-rehearsal, .pitch-calibrate, .pitch-memory, .pitch-said-x')) return
           const s = toStage(e)
           mousePressed.current = true
           rt.onMouseButton(true, s.x, s.y)
@@ -638,6 +764,11 @@ export function PitchStage() {
                 style={{ left: pct(o.x), top: pct(o.y), width: pct(o.w), height: pct(o.h), '--tilt': `${assembled ? 0 : (o.tilt ?? 0)}deg`, '--i': i, ...morph } as unknown as React.CSSProperties}
               >
                 <ObjectVisual o={o} lit={lit} transformed={!!o.transformedBy && done.has(o.transformedBy)} />
+                {isSaid(o) && (
+                  <button className="pitch-said-x" data-air-action={`delete-said:${o.id}`} onClick={() => deleteSaid(rt, o.id)} aria-label="Delete">
+                    ×
+                  </button>
+                )}
               </div>
             )
           })}
@@ -730,13 +861,18 @@ export function PitchStage() {
             </ul>
             {memRows?.from === 'band' && (
               <button
-                className="pitch-chrome-btn"
+                className={`pitch-chrome-btn ${clearArmed ? 'is-armed' : ''}`}
+                data-air-action="clear-band"
                 onClick={() => {
                   const store = rt.radial.band?.connected ? storageOf(rt.radial.band.band) : null
-                  if (store && window.confirm(`Delete the pitch’s memory entries from band ${BAND_NUMBER}? This cannot be undone.`)) void clearBand(store).then(() => setMemRows({ rows: [], from: 'band', at: Date.now() }))
+                  if (!store) return
+                  // Press twice rather than a browser dialog, which a hand can't answer.
+                  if (!clearArmed) return setClearArmed(true)
+                  setClearArmed(false)
+                  void clearBand(store).then(() => setMemRows({ rows: [], from: 'band', at: Date.now() }))
                 }}
               >
-                Clear from band…
+                {clearArmed ? `Press again: delete from band ${BAND_NUMBER} (can’t be undone)` : 'Clear from band…'}
               </button>
             )}
           </aside>
@@ -866,9 +1002,10 @@ function Rehearsal({ rt, ctl, onCommand }: { rt: SpatialRuntime; ctl: PitchContr
         <button className="pitch-chrome-btn" onClick={() => onCommand({ type: 'cmd', cmd: 'next' })}>Next →</button>
         <button className="pitch-chrome-btn" onClick={() => onCommand({ type: 'cmd', cmd: 'resetLayout' })}>Reset layout</button>
         <button className="pitch-chrome-btn" onClick={() => onCommand({ type: 'cmd', cmd: 'calibrate' })}>Calibrate</button>
+        <button className="pitch-chrome-btn" onClick={() => onCommand({ type: 'cmd', cmd: 'toggleMirror' })}>Mirror {rt.profile.mirrorX ? 'on' : 'off'}</button>
         <button className="pitch-chrome-btn" onClick={() => onCommand({ type: 'cmd', cmd: 'reset' })}>Restart</button>
       </div>
-      <p className="keys">→ next · ⇧→ skip · ← back · Home restart · M actions · G gestures · K calibrate · C camera · X layout · ⌘Z undo · P console · D hide</p>
+      <p className="keys">→ next · ⇧→ skip · ← back · Home restart · M actions · G gestures · H mirror · K calibrate · C camera · X layout · ⌘Z undo · P console · D hide</p>
     </aside>
   )
 }

@@ -111,6 +111,7 @@ export function PresenterConsole() {
             <button onClick={() => run('toggleGestures')}>{st?.gesturesEnabled === false ? 'Resume gestures' : 'Pause gestures'}</button>
             <button onClick={() => run('camera')}>{st?.camera === 'running' ? 'Stop camera' : 'Reconnect camera'}</button>
             <button onClick={() => run('calibrate')}>Recalibrate</button>
+            <button onClick={() => run('toggleMirror')}>{st?.mirrored === false ? 'Mirror camera' : 'Unmirror camera'}</button>
             <button onClick={() => run('recenter')}>Recenter</button>
             <button onClick={() => run('toggleMode')}>{st?.mode === 'rehearsal' ? 'Hide rehearsal' : 'Show rehearsal'}</button>
             <button

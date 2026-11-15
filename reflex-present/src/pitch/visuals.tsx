@@ -302,6 +302,13 @@ export function ObjectVisual({ o, lit, transformed = false }: { o: PitchObject; 
           </ul>
         </div>
       ) : null
+    case 'transcript':
+      return (
+        <div className="pv-transcript">
+          <span className="idx">Said</span>
+          <p>{c?.kind === 'note' ? c.text : o.label}</p>
+        </div>
+      )
     case 'contrast':
       return (
         <div className={`pv-contrast ${o.id === 'c-axis' ? 'ours' : 'theirs'}`}>
