@@ -2266,117 +2266,174 @@
   min-height: 22cqh;
   box-shadow: 0 2cqw 4cqw rgba(0, 0, 0, 0.4);
 }
-.pv-tasks {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3cqh;
-}
-.pv-tasks li {
-  display: flex;
-  align-items: center;
-  gap: 3cqw;
-  font-size: 5.6cqw;
-  padding: 2.6cqh 3cqw;
-  border: 1px solid var(--line);
-}
-.pv-tasks i {
-  width: 4cqw;
-  height: 4cqw;
-  border: 0.4cqw solid var(--mute);
-  flex: none;
-}
-.pv-tasks em {
-  margin-left: auto;
-  font-style: normal;
-  font-family: var(--mono);
-  font-size: 3.4cqw;
-  color: var(--hot);
-  text-transform: uppercase;
-}
 
-/* ---- 05 concepts ------------------------------------------------------------------------------ */
-.pv-lamp {
-  width: 70%;
-  margin: 0 auto;
-  display: block;
-}
-.pv-lamp .glow {
-  fill: rgba(255, 196, 92, calc(0.42 * var(--glow, 1)));
-  filter: blur(6px);
-  transition: fill 1200ms var(--ease);
-}
-.pv-lamp .shade {
-  fill: rgba(242, 240, 235, calc(0.35 + 0.6 * var(--glow, 1)));
-}
-.pv-lamp .stem {
-  stroke: var(--mute);
-  stroke-width: 2.5;
-  stroke-linecap: round;
-}
-.pv-future .what {
-  margin: 3cqh 0 0;
-  text-align: center;
-  font-size: 5cqw;
+/* ---- 05: roadmap cards: mostly picture, a few words ------------------------------------------ */
+.pv-future .hz-title {
+  margin: -2.4cqh 0 0;
+  font-size: 4.4cqw;
+  font-weight: 500;
   color: var(--mute);
 }
-.pv-future .back .what {
-  color: var(--hot);
+.pv-future .body {
+  justify-content: center;
+  padding: 2cqh 0;
 }
-.pv-floor {
+.pv-hz {
   width: 100%;
-  border: 1px solid var(--line);
-  background:
-    repeating-linear-gradient(0deg, transparent 0 9px, rgba(242, 240, 235, 0.04) 9px 10px),
-    repeating-linear-gradient(90deg, transparent 0 9px, rgba(242, 240, 235, 0.04) 9px 10px);
+  height: 100%;
+  min-height: 0;
+  overflow: visible;
 }
-.pv-floor .box {
-  fill: #c9a26b;
+.pv-hz .screen,
+.pv-hz .laptop {
+  fill: rgba(242, 240, 235, 0.03);
+  stroke: var(--mute);
+  stroke-width: 0.6;
 }
-.pv-floor .you {
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 1.6;
+.pv-hz .bar {
+  fill: rgba(242, 240, 235, 0.22);
 }
-.pv-floor .bot {
+.pv-hz .bar.hot {
   fill: var(--hot);
 }
-.pv-floor .route {
+.pv-hz .person circle,
+.pv-hz .person path,
+.pv-hz .arm {
   fill: none;
+  stroke: var(--ink);
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+.pv-hz .person.dim {
+  opacity: 0.28;
+}
+.pv-hz .glasses {
   stroke: var(--hot);
   stroke-width: 1.4;
-  stroke-dasharray: 3 2.5;
+  stroke-linecap: round;
 }
-.pv-steps {
-  margin: 3cqh 0 0;
-  padding-left: 7cqw;
-  font-size: 5cqw;
-  line-height: 1.6;
+.pv-hz .band {
+  fill: var(--hot);
+}
+.pv-hz .band-glow {
+  fill: rgba(255, 90, 31, 0.25);
+  animation: hz-pulse 1.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.pv-hz .beam {
+  fill: none;
+  stroke: var(--hot);
+  stroke-width: 0.7;
+  stroke-dasharray: 1.6 1.4;
+  animation: hz-flow 1.4s linear infinite;
+}
+.pv-hz .beam.soft {
+  stroke: rgba(255, 90, 31, 0.55);
+}
+.pv-hz .wave {
+  fill: none;
+  stroke: var(--hot);
+  stroke-width: 0.6;
+  stroke-linecap: round;
+  animation: hz-fade 1.2s ease-in-out infinite alternate;
+}
+.pv-hz .chip rect {
+  fill: #121212;
+  stroke: var(--line2);
+  stroke-width: 0.5;
+}
+.pv-hz .chip line {
+  stroke: var(--mute);
+  stroke-width: 0.7;
+}
+.pv-hz .chip.hot rect {
+  stroke: var(--hot);
+}
+.pv-hz .mem {
+  fill: none;
+  stroke: var(--hot);
+  stroke-width: 0.6;
+}
+.pv-hz .camera {
+  fill: var(--mute);
+}
+.pv-hz .cone {
+  fill: none;
+  stroke: var(--mute);
+  stroke-width: 0.4;
+  stroke-dasharray: 1 1.4;
+}
+.pv-hz .trudge {
+  fill: none;
+  stroke: var(--mute);
+  stroke-width: 0.6;
+  stroke-dasharray: 1 1.2;
+}
+.pv-hz .field {
+  fill: none;
+  stroke: rgba(255, 90, 31, 0.3);
+  stroke-width: 0.5;
+  stroke-dasharray: 1 1.8;
+}
+.pv-hz .thing,
+.pv-hz .thing path,
+.pv-hz .thing rect,
+.pv-hz .thing line {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 0.8;
+}
+.pv-hz .thing.dim {
+  opacity: 0.3;
+}
+/* the front is "today": quieter */
+.pv-hz:not(.is-after) .screen {
+  stroke: var(--dim);
+}
+@keyframes hz-flow {
+  to {
+    stroke-dashoffset: -6;
+  }
+}
+@keyframes hz-pulse {
+  50% {
+    transform: scale(1.5);
+    opacity: 0.4;
+  }
+}
+@keyframes hz-fade {
+  from {
+    opacity: 0.2;
+  }
+}
+.pv-future .hz-today {
   color: var(--ink);
 }
-.pv-board {
+.pv-future .hz-tags {
+  list-style: none;
+  margin: 0 0 1cqh;
+  padding: 0;
   display: flex;
-  flex-direction: column;
-  gap: 2.6cqh;
-  padding: 6cqw;
-  border: 1px solid var(--line2);
-  background: #f2f0eb;
-  color: #161616;
+  flex-wrap: wrap;
+  gap: 1.6cqw;
 }
-.pv-board strong {
-  font-family: var(--display);
-  font-weight: 400;
-  font-size: 6.4cqw;
+.pv-future .hz-tags li {
+  padding: 1cqh 2.6cqw;
+  border: 1px solid rgba(255, 90, 31, 0.55);
+  font-size: 4cqw;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
 }
-.pv-board span {
-  font-size: 5.4cqw;
+.pv-future .hz-note {
+  display: block;
+  margin-top: 1cqh;
+  color: var(--dim);
+  letter-spacing: 0.08em;
 }
-/* the three flip at the same moment */
-.pv-future .face {
-  transition-duration: 1100ms;
-  transition-delay: 0ms;
+.pv-future .front footer {
+  color: var(--mute);
 }
 
 /* ---- the pitch's own Voice bar --------------------------------------------------------------- */
@@ -2492,26 +2549,47 @@
 
 /* ---- closing: AXIS — the interface is you ---------------------------------------------------- */
 .copy-vision .closing .mark {
-  font-size: 15cqw;
+  font-size: 6.4cqw;
   line-height: 1;
-  letter-spacing: -0.02em;
-  animation: copy-in 2000ms 900ms var(--ease-out) both;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  animation: punch-in 700ms 500ms cubic-bezier(0.2, 0.9, 0.25, 1.15) both;
 }
+/* the line is the hero: bigger and heavier than the name above it */
 .copy-vision .closing h2 {
-  margin: 1.6cqw 0 0;
+  margin: 2.2cqw 0 0;
   font-family: var(--display);
   font-weight: 400;
-  font-size: 4.4cqw;
-  animation: copy-in 1800ms 1600ms var(--ease-out) both;
+  font-size: 9.8cqw;
+  line-height: 0.92;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+}
+.copy-vision .closing h2 span {
+  display: block;
+  animation: punch-in 800ms 950ms cubic-bezier(0.2, 0.9, 0.25, 1.15) both;
+}
+.copy-vision .closing h2 span + span {
+  animation-delay: 1250ms;
 }
 .copy-vision .closing h2 em {
+  display: inline-block;
   font-style: normal;
+  animation: punch-in 700ms 1600ms cubic-bezier(0.2, 0.9, 0.3, 1.35) both;
 }
-.copy-vision .closing p {
-  animation-delay: 2400ms !important;
+@keyframes punch-in {
+  from {
+    opacity: 0;
+    transform: scale(1.14);
+    filter: blur(1.2cqw);
+  }
+  60% {
+    opacity: 1;
+    filter: blur(0);
+  }
 }
 .copy-vision .closing footer {
-  animation-delay: 2900ms !important;
+  animation-delay: 2400ms !important;
 }
 /* text → boxes: the line lifts away softly while the pieces glide in */
 .is-assembled .copy-vision h1.quiet {
@@ -2530,3 +2608,76 @@
 .is-closing .pitch-obj:nth-child(4) { transition-delay: 240ms !important; }
 .is-closing .pitch-obj:nth-child(5) { transition-delay: 320ms !important; }
 .is-closing .pitch-obj:nth-child(6) { transition-delay: 400ms !important; }
+
+/* 05's headline fits one line above the cards */
+.copy-future h1 {
+  font-size: 3.4cqw;
+}
+
+/* the three flip at the same moment */
+.pv-future .face {
+  transition-duration: 1100ms;
+  transition-delay: 0ms;
+}
+
+/* ---- the Axis mark (Viewfinder) ---------------------------------------------------------------- */
+.axis-mark {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  color: var(--ink);
+  overflow: visible;
+}
+/* corner label: the mark alone, small */
+.pitch-chrome .brand {
+  letter-spacing: 0;
+  top: 5.6%;
+  right: 5.5%;
+}
+.pitch-chrome .brand .axis-mark {
+  width: 2.6cqw;
+  height: 2.6cqw;
+  display: block;
+}
+/* 02: the mark leads the name, as tall as its capitals */
+.copy-product .wordmark {
+  display: flex;
+  align-items: center;
+  gap: 0.18em;
+}
+.copy-product .wordmark .axis-mark.lead {
+  width: 0.74em;
+  height: 0.74em;
+  flex: none;
+  margin-top: 0.02em;
+}
+/* 04: beside the Axis card's name */
+.pv-contrast .axis-mark.inline {
+  width: 0.95em;
+  height: 0.95em;
+  margin-right: 0.35em;
+  vertical-align: -0.12em;
+}
+/* 06: the mark stands where the word was */
+.copy-vision .closing .mark .axis-mark {
+  width: 12cqw;
+  height: 12cqw;
+  display: block;
+}
+.copy-vision .closing footer strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7em;
+}
+.copy-vision .closing footer .axis-mark {
+  width: 1.9em;
+  height: 1.9em;
+}
+/* the presenter console */
+.pitch-console .console-mark {
+  width: 1.3em;
+  height: 1.3em;
+  vertical-align: -0.28em;
+  margin-right: 0.4em;
+  color: currentColor;
+}

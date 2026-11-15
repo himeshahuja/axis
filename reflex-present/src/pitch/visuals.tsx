@@ -1,6 +1,7 @@
 // How each pitch object is drawn. Objects are size containers, so everything
 // inside scales with the object (cqw / cqh), on any display.
 
+import { AxisMark } from './AxisMark'
 import type { SpatialObject } from '../spatial/types'
 import type { PitchObject } from './scenes'
 
@@ -93,93 +94,218 @@ function Pillar({ o, lit }: { o: PitchObject; lit: boolean }) {
 }
 
 /** Future-directions concepts: the same point-and-ask, aimed at the world instead of a screen. */
-function FutureCard({ o, transformed }: { o: PitchObject; transformed: boolean }) {
-  let front: React.ReactNode = null
-  let back: React.ReactNode = null
-  if (o.visual === 'lamp') {
-    const lamp = (level: number) => (
-      <svg viewBox="0 0 100 100" className="pv-lamp" style={{ '--glow': level } as React.CSSProperties}>
-        <circle cx="50" cy="42" r="34" className="glow" />
-        <path d="M30 40 L70 40 L60 18 L40 18 Z" className="shade" />
-        <line x1="50" y1="40" x2="50" y2="82" className="stem" />
-        <line x1="34" y1="84" x2="66" y2="84" className="stem" />
+// ---- slide 05: roadmap illustrations (line art in the pitch's own style) ----------------------
+/** A person: head and shoulders at (x, y) = head centre; `arm` raises a hand towards a point. */
+function Person({ x, y, dim = false, arm, band = false, glasses = false }: { x: number; y: number; dim?: boolean; arm?: [number, number]; band?: boolean; glasses?: boolean }) {
+  // the hand stops 9 units along the line from the shoulder towards the target
+  const sx = x + (arm && arm[0] < x ? -5.5 : 5.5)
+  const sy = y + 8
+  const hand = arm ? (() => {
+    const dx = arm[0] - sx
+    const dy = arm[1] - sy
+    const d = Math.hypot(dx, dy) || 1
+    return [sx + (dx / d) * 10, sy + (dy / d) * 10] as const
+  })() : null
+  return (
+    <g className={`person ${dim ? 'dim' : ''}`}>
+      <circle cx={x} cy={y} r="3.6" />
+      <path d={`M${x - 6.5} ${y + 15} q0 -9 6.5 -9 q6.5 0 6.5 9`} />
+      {hand && <line x1={sx} y1={sy} x2={hand[0]} y2={hand[1]} className="arm" />}
+      {glasses && <path d={`M${x - 3.4} ${y - 0.4} h6.8`} className="glasses" />}
+      {band && hand && (
+        <g>
+          <circle cx={hand[0]} cy={hand[1]} r="2.4" className="band-glow" />
+          <circle cx={hand[0]} cy={hand[1]} r="1.2" className="band" />
+        </g>
+      )}
+    </g>
+  )
+}
+
+/** The point a raised hand reaches, for drawing beams from it. */
+const reach = (x: number, y: number, arm: [number, number]): [number, number] => {
+  const sx = x + (arm[0] < x ? -5.5 : 5.5)
+  const sy = y + 8
+  const d = Math.hypot(arm[0] - sx, arm[1] - sy) || 1
+  return [sx + ((arm[0] - sx) / d) * 10, sy + ((arm[1] - sy) / d) * 10]
+}
+
+const Chart = ({ x, y, w, h, lit = -1 }: { x: number; y: number; w: number; h: number; lit?: number }) => (
+  <g>
+    {[0.45, 0.6, 0.75, 1].map((v, i) => (
+      <rect key={i} x={x + (i * w) / 4 + w * 0.05} y={y + h * (1 - v)} width={w / 4 - w * 0.1} height={h * v} className={i === lit ? 'bar hot' : 'bar'} />
+    ))}
+  </g>
+)
+
+/** A small floating card: a few text lines. */
+const Chip = ({ x, y, w = 14, lines = 2, hot = false }: { x: number; y: number; w?: number; lines?: number; hot?: boolean }) => (
+  <g className={`chip ${hot ? 'hot' : ''}`}>
+    <rect x={x} y={y} width={w} height={3 + lines * 2.6} rx="1" />
+    {Array.from({ length: lines }, (_, i) => (
+      <line key={i} x1={x + 2} y1={y + 2.8 + i * 2.6} x2={x + w - 2 - (i % 2) * 3} y2={y + 2.8 + i * 2.6} />
+    ))}
+  </g>
+)
+
+/** Slide 05 scenes: today on the front (`after` false), with Axis on the back. */
+function HorizonArt({ art, after }: { art: 'now' | 'team' | 'world'; after: boolean }) {
+  if (art === 'now') {
+    const me: [number, number] = [60, 22]
+    const [hx, hy] = reach(22, 30, me)
+    return (
+      <svg viewBox="0 0 100 64" className={`pv-hz ${after ? 'is-after' : ''}`}>
+        <rect x="40" y="6" width="54" height="34" className="screen" />
+        <Chart x={46} y={14} w={26} h={20} lit={after ? 3 : -1} />
+        {after ? (
+          <>
+            <Chip x={75} y={12} w={15} lines={3} hot />
+            <Person x={22} y={30} arm={me} band />
+            <path d={`M${hx} ${hy} L66 22`} className="beam" />
+            {[0, 1, 2].map((i) => (
+              <path key={i} d={`M${13 - i * 2.4} ${26 - i * 1.6} q-2 4 0 8`} className="wave" style={{ animationDelay: `${i * 160}ms` }} />
+            ))}
+            <Chip x={6} y={46} w={14} lines={2} />
+            <path d={`M${hx - 2} ${hy + 4} Q12 44 13 46`} className="beam soft" />
+          </>
+        ) : (
+          <>
+            <Person x={22} y={30} />
+            <rect x="6" y="50" width="20" height="8" className="laptop" />
+            <line x1="4" y1="58" x2="28" y2="58" className="laptop" />
+            <path d="M24 46 Q30 52 24 54" className="trudge" />
+          </>
+        )}
       </svg>
     )
-    front = (
-      <>
-        {lamp(1)}
-        <p className="what">{o.lines?.[0]} · 100%</p>
-      </>
-    )
-    back = (
-      <>
-        {lamp(0.3)}
-        <p className="what">{o.lines?.[0]} · dimmed to 30%</p>
-      </>
-    )
-  } else if (o.visual === 'robot') {
-    front = (
-      <>
-        <svg viewBox="0 0 100 70" className="pv-floor">
-          <rect x="66" y="40" width="16" height="14" className="box" />
-          <circle cx="16" cy="18" r="6" className="you" />
-        </svg>
-        <p className="what">{o.lines?.[0]}</p>
-      </>
-    )
-    back = (
-      <>
-        <svg viewBox="0 0 100 70" className="pv-floor">
-          <path d="M44 60 L74 47 L22 22" className="route" />
-          <rect x="66" y="40" width="16" height="14" className="box" />
-          <circle cx="16" cy="18" r="6" className="you" />
-          <rect x="38" y="55" width="12" height="9" rx="2" className="bot" />
-        </svg>
-        <ol className="pv-steps">
-          <li>Go to the package</li>
-          <li>Pick it up</li>
-          <li>Bring it to you</li>
-        </ol>
-      </>
-    )
-  } else if (o.visual === 'agent') {
-    const [title, ...tasks] = (o.content?.kind === 'note' ? o.content.text : '').split('\n')
-    front = (
-      <div className="pv-board">
-        <strong>{title}</strong>
-        {tasks.map((t) => (
-          <span key={t}>— {t}</span>
-        ))}
-      </div>
-    )
-    back = (
-      <ul className="pv-tasks">
-        {tasks.map((t) => (
-          <li key={t}>
-            <i /> {t}
-            <em>Your OK?</em>
-          </li>
-        ))}
-      </ul>
+  }
+  if (art === 'team') {
+    const xs = [22, 50, 78]
+    const aims: [number, number][] = [
+      [34, 16],
+      [50, 16],
+      [66, 16],
+    ]
+    return (
+      <svg viewBox="0 0 100 64" className={`pv-hz ${after ? 'is-after' : ''}`}>
+        <rect x="12" y="4" width="76" height="22" className="screen" />
+        {after ? (
+          <>
+            <Chip x={16} y={8} w={14} lines={3} />
+            <Chip x={43} y={8} w={14} lines={3} hot />
+            <Chip x={70} y={8} w={14} lines={3} />
+            {xs.map((x, i) => {
+              const [hx, hy] = reach(x, 40, aims[i])
+              return (
+                <g key={x}>
+                  <Person x={x} y={40} arm={aims[i]} band />
+                  <path d={`M${hx} ${hy} L${aims[i][0]} 22`} className="beam" style={{ animationDelay: `${i * 220}ms` }} />
+                  <rect x={x + 5} y={32} width="6" height="4" rx="0.8" className="mem" />
+                </g>
+              )
+            })}
+          </>
+        ) : (
+          <>
+            <path d="M47 26 h6 l-1 3 h-4 z" className="camera" />
+            <path d="M48 29 L40 60 M52 29 L60 60" className="cone" />
+            <Person x={50} y={40} arm={[50, 26]} />
+            <Person x={22} y={40} dim />
+            <Person x={78} y={40} dim />
+          </>
+        )}
+      </svg>
     )
   }
+  // world
+  return (
+    <svg viewBox="0 0 100 64" className={`pv-hz ${after ? 'is-after' : ''}`}>
+      {after ? (
+        <>
+          <circle cx="50" cy="34" r="26" className="field" />
+          <circle cx="50" cy="34" r="15" className="field" />
+          <Person x={50} y={28} glasses arm={[64, 20]} band />
+          {/* things in the world, each with its own floating panel */}
+          <g className="thing">
+            <path d="M12 16 h8 l-2 -6 h-4 z" />
+            <line x1="16" y1="16" x2="16" y2="24" />
+          </g>
+          <Chip x={6} y={26} w={14} lines={1} hot />
+          <g className="thing">
+            <path d="M84 12 a4 4 0 1 1 0.01 0 M84 20 l0 4" />
+          </g>
+          <Chip x={78} y={28} w={16} lines={2} hot />
+          <g className="thing">
+            <rect x="12" y="50" width="12" height="9" rx="1" />
+            <line x1="12" y1="53" x2="24" y2="53" />
+          </g>
+          <g className="thing">
+            <rect x="76" y="48" width="14" height="10" rx="1" />
+          </g>
+          <path d="M44 30 Q30 22 20 20" className="beam soft" />
+          <path d="M57 32 Q70 24 80 18" className="beam" />
+          <path d="M46 40 Q34 52 24 54" className="beam soft" />
+          <path d="M55 40 Q66 50 76 52" className="beam soft" />
+        </>
+      ) : (
+        <>
+          <rect x="36" y="38" width="28" height="18" className="screen" />
+          <Person x={50} y={26} />
+          <g className="thing dim">
+            <path d="M12 16 h8 l-2 -6 h-4 z" />
+            <line x1="16" y1="16" x2="16" y2="24" />
+          </g>
+          <g className="thing dim">
+            <path d="M84 12 a4 4 0 1 1 0.01 0 M84 20 l0 4" />
+          </g>
+          <g className="thing dim">
+            <rect x="12" y="50" width="12" height="9" rx="1" />
+          </g>
+          <g className="thing dim">
+            <rect x="76" y="48" width="14" height="10" rx="1" />
+          </g>
+        </>
+      )}
+    </svg>
+  )
+}
+
+function FutureCard({ o, transformed }: { o: PitchObject; transformed: boolean }) {
+  const h = o.horizon
+  if (!h) return null
+  const head = (
+    <header>
+      <span className="idx">{o.index}</span>
+      <strong>{o.label}</strong>
+    </header>
+  )
   return (
     <div className={`pv-future ${transformed ? 'is-done' : ''}`}>
       <div className="face front">
-        <header>
-          <span className="idx">{o.index}</span>
-          <strong>{o.label}</strong>
-        </header>
-        <div className="body">{front}</div>
-        <footer>{o.lines?.[1]}</footer>
+        {head}
+        <p className="hz-title">{h.title}</p>
+        <div className="body">
+          <HorizonArt art={h.art} after={false} />
+        </div>
+        <footer>
+          Today · <span className="hz-today">{h.today}</span>
+        </footer>
       </div>
       <div className="face back">
-        <header>
-          <span className="idx">{o.index}</span>
-          <strong>{o.label}</strong>
-        </header>
-        <div className="body">{back}</div>
-        <footer>Concept · next: {o.destination}</footer>
+        {head}
+        <p className="hz-title">{h.title}</p>
+        <div className="body">
+          <HorizonArt art={h.art} after />
+        </div>
+        <ul className="hz-tags">
+          {h.axis.map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ul>
+        <footer>
+          With Axis · {h.status}
+          {h.note && <span className="hz-note">{h.note}</span>}
+        </footer>
       </div>
     </div>
   )
@@ -188,9 +314,7 @@ function FutureCard({ o, transformed }: { o: PitchObject; transformed: boolean }
 export function ObjectVisual({ o, lit, transformed = false }: { o: PitchObject; lit: boolean; transformed?: boolean }) {
   const c = o.content
   switch (o.visual) {
-    case 'lamp':
-    case 'robot':
-    case 'agent':
+    case 'horizon':
       return <FutureCard o={o} transformed={transformed} />
     case 'window':
       return (
@@ -313,7 +437,10 @@ export function ObjectVisual({ o, lit, transformed = false }: { o: PitchObject; 
       return (
         <div className={`pv-contrast ${o.id === 'c-axis' ? 'ours' : 'theirs'}`}>
           <span className="idx">{o.index}</span>
-          <strong>{o.label}</strong>
+          <strong>
+            {o.id === 'c-axis' && <AxisMark className="inline" />}
+            {o.label}
+          </strong>
           <ul>
             {(o.lines ?? []).map((l) => (
               <li key={l}>{l}</li>

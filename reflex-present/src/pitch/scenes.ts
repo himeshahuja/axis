@@ -30,9 +30,23 @@ export type VisualKind =
   | 'glyph-ring'
   | 'glyph-memory'
   | 'glyph-voice'
-  | 'lamp'
-  | 'robot'
-  | 'agent'
+  /** Slide 05: one stage of the roadmap (see `horizon`). */
+  | 'horizon'
+
+/** A roadmap card: today's limit on the front, how Axis gets past it on the back. */
+export interface Horizon {
+  /** Which diagram the card draws. */
+  art: 'now' | 'team' | 'world'
+  title: string
+  /** What holds people back today (front), in a few words. */
+  today: string
+  /** How Axis helps (back): three short tags. */
+  axis: string[]
+  /** What it would take, said plainly. */
+  note?: string
+  /** Shown on the back's footer: live today, or a concept. */
+  status: string
+}
 
 export interface PitchObject extends SpatialObject {
   visual: VisualKind
@@ -48,6 +62,8 @@ export interface PitchObject extends SpatialObject {
   transformedBy?: string
   /** What the result would open in (shown as "Next: …"). */
   destination?: string
+  /** Slide 05 roadmap cards. */
+  horizon?: Horizon
 }
 
 /** A place on the stage where an object can be put down. */
@@ -389,65 +405,82 @@ export const SCENES: PitchScene[] = [
     id: 'future',
     number: '05',
     kicker: 'What’s next',
-    title: 'Point at the world. It acts.',
+    title: 'One presenter. A team. Everywhere.',
     targetSeconds: 30,
     radial: true,
     notes: [
-      'Today it’s a screen. Next, the same gesture works on the world around you.',
-      'Point at a lamp, “dim this”. Point at a package, a robot brings it. Point at a plan on the whiteboard, and an agent makes it happen — asking you before anything is sent.',
-      'Hold any card, Voice, ask: all three show what’s next. These are concepts, not shipped features.',
+      'Immediate: presentations and classrooms become interactive workspaces — point, gesture and speak, get AI explanations and your context, without stopping to use a computer.',
+      'Medium term: as wearables improve, camera-free spatial input — several people on their own Vexo bands in one shared workspace, each band carrying its wearer’s memory.',
+      'Long term: beyond fixed screens — wearables, AR glasses and spatial computing, with AI and context following you everywhere.',
+      'Be honest about the hard part: camera-free, multi-user positioning needs better wearable sensing and calibration; accelerometer and gyroscope integration alone drifts.',
     ],
     objects: [
       {
-        id: 'f-lamp',
-        label: 'The physical world',
-        visual: 'lamp',
+        id: 'f-now',
+        label: 'Immediate',
+        visual: 'horizon',
         color: '#f2f0eb',
         shape: 'card',
-        index: 'A',
+        index: '01',
         x: 0.055,
         y: 0.29,
         w: 0.27,
         h: 0.54,
         transformedBy: 't-all',
-        destination: 'smart-home devices (Matter)',
-        lines: ['Desk lamp', '“Dim this.”'],
-        content: { kind: 'note', text: 'Desk lamp, on at 100%' },
+        horizon: {
+          art: 'now',
+          title: 'Presentations & classrooms',
+          today: 'Back to the laptop',
+          axis: ['Point & speak', 'AI explains', 'Context recalled'],
+          status: 'Live in this demo',
+        },
+        content: { kind: 'note', text: 'Immediate: interactive presentations and education. Point, gesture and use voice to manipulate content, get AI explanations and retrieve context without stopping to use a computer.' },
       },
       {
-        id: 'f-robot',
-        label: 'Robots',
-        visual: 'robot',
+        id: 'f-team',
+        label: 'Medium term',
+        visual: 'horizon',
         color: '#f2f0eb',
         shape: 'card',
-        index: 'B',
+        index: '02',
         x: 0.365,
         y: 0.29,
         w: 0.27,
         h: 0.54,
         transformedBy: 't-all',
-        destination: 'robot fleets',
-        lines: ['Package on the floor', '“Bring this to me.”'],
-        content: { kind: 'note', text: 'A package across the room' },
+        horizon: {
+          art: 'team',
+          title: 'Shared workspaces',
+          today: 'One camera, one hand',
+          axis: ['No camera', 'A band each', 'Shared memory'],
+          note: 'Needs drift-free sensing',
+          status: 'Concept',
+        },
+        content: { kind: 'note', text: 'Medium term: multi-user collaborative workspaces. Camera-free, wearable-only spatial interaction; several people on their own Vexo devices in one shared workspace, each carrying their contextual memory. Needs wearable sensing beyond accelerometer and gyroscope integration, which drifts.' },
       },
       {
-        id: 'f-agent',
-        label: 'Agents',
-        visual: 'agent',
+        id: 'f-world',
+        label: 'Long term',
+        visual: 'horizon',
         color: '#f2f0eb',
         shape: 'card',
-        index: 'C',
+        index: '03',
         x: 0.675,
         y: 0.29,
         w: 0.27,
         h: 0.54,
         transformedBy: 't-all',
-        destination: 'AI agents, with your approval',
-        lines: ['Whiteboard: team offsite, Mar 12', '“Make it happen.”'],
-        content: { kind: 'note', text: 'Team offsite Mar 12\nBook a room\nInvite the team\nOrder lunch' },
+        horizon: {
+          art: 'world',
+          title: 'Ambient computing',
+          today: 'Stuck on a screen',
+          axis: ['AR glasses', 'Anywhere', 'Context follows you'],
+          status: 'Concept',
+        },
+        content: { kind: 'note', text: 'Long term: universal ambient computing. Beyond fixed screens through wearables, AR glasses and spatial computing; AI and persistent context follow the user across devices and environments.' },
       },
     ],
-    beats: [{ id: 't-all', step: 'Hold any card → Voice → ask it: all three show what’s next', trigger: { kind: 'voice_reply' }, fallback: true }],
+    beats: [{ id: 't-all', step: 'Hold any card → Voice → ask it: all three show how Axis gets there', trigger: { kind: 'voice_reply' }, fallback: true }],
   },
   {
     id: 'vision',

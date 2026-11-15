@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { AxisMark } from './AxisMark'
 import { SCENES } from './scenes'
 import { openChannel, type StageCommand, type StageStatus } from './sync'
 
@@ -49,7 +50,9 @@ export function PresenterConsole() {
   return (
     <main className="pitch-console">
       <header>
-        <strong>Presenter</strong>
+        <strong>
+          <AxisMark className="console-mark" /> Presenter
+        </strong>
         <span className={connected ? 'ok' : 'bad'}>{connected ? 'linked to the audience window' : 'waiting for /pitch in another window of this browser'}</span>
       </header>
       <section className="now">

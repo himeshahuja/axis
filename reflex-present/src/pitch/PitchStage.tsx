@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PresenterActions } from '../components/PresenterActions'
+import { AxisMark } from './AxisMark'
 import { parseAskAction } from '../spatial/radial/actions/explain'
 import { LocalMemoryStore } from '../spatial/radial/actions/memory'
 import { forgetDeepgramKey, hasDeepgramKey, setDeepgramKey, type VoiceCallbacks, type VoiceContext } from '../spatial/radial/actions/voice'
@@ -135,7 +136,10 @@ function SceneCopy({ scene, done, state, hands = true }: { scene: PitchScene; do
       return (
         <section className={cls}>
           <p className="kicker">{scene.kicker}</p>
-          <h1 className="wordmark">{PRODUCT}</h1>
+          <h1 className="wordmark">
+            <AxisMark className="lead" />
+            {PRODUCT}
+          </h1>
           <h2>
             <span>Point.</span> <span>Hold.</span> <span className="hot">Act.</span>
           </h2>
@@ -173,7 +177,7 @@ function SceneCopy({ scene, done, state, hands = true }: { scene: PitchScene; do
             {scene.number} — {scene.kicker}
           </p>
           <h1>
-            Next: point at <span className="hot">the world.</span> It acts.
+            One presenter. A team. <span className="hot">Everywhere.</span>
           </h1>
         </section>
       )
@@ -191,13 +195,19 @@ function SceneCopy({ scene, done, state, hands = true }: { scene: PitchScene; do
             </>
           ) : (
             <div className="closing">
-              <h1 className="mark">{PRODUCT}</h1>
+              <h1 className="mark">
+                <AxisMark title={PRODUCT} />
+              </h1>
               <h2>
-                The interface is <em className="hot">you.</em>
+                <span>The interface</span>
+                <span>
+                  is <em className="hot">you.</em>
+                </span>
               </h2>
-              <p>Computing for the world beyond the keyboard.</p>
               <footer>
-                <strong>{PRODUCT}</strong>
+                <strong>
+                  <AxisMark /> {PRODUCT}
+                </strong>
                 <span>{EVENT}</span>
               </footer>
             </div>
@@ -797,7 +807,9 @@ export function PitchStage() {
 
         {/* chrome: deliberately sparse */}
         <div className="pitch-chrome">
-          <span className="brand">{PRODUCT}</span>
+          <span className="brand">
+            <AxisMark title={PRODUCT} />
+          </span>
           <span className="count">
             {scene.number} <i>/ {String(SCENES.length).padStart(2, '0')}</i>
           </span>

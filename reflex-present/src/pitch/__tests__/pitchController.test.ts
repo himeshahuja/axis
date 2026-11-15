@@ -123,9 +123,9 @@ describe('pitch progression', () => {
     c.goto(4, 0)
     const t = settled(c, 0)
     expect(SCENES[4].objects.every((o) => o.transformedBy === 't-all')).toBe(true)
-    expect(c.onVoiceReply('f-robot', 'bring this to me', t)).toBe(true)
+    expect(c.onVoiceReply('f-team', 'how would a team use this?', t)).toBe(true)
     expect(c.done.has('t-all')).toBe(true)
-    expect(c.onVoiceReply('f-lamp', 'dim this', t)).toBe(false)
+    expect(c.onVoiceReply('f-now', 'and today?', t)).toBe(false)
     // in a scene without voice beats, speech is just a normal Voice request
     c.goto(2, t + 1000)
     expect(c.takesVoiceFor('revenue')).toBe(false)
