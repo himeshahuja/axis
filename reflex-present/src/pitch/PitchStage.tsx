@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PresenterActions } from '../components/PresenterActions'
+import { parseAskAction } from '../spatial/radial/actions/explain'
 import { LocalMemoryStore } from '../spatial/radial/actions/memory'
 import { forgetDeepgramKey, hasDeepgramKey, setDeepgramKey, type VoiceCallbacks, type VoiceContext } from '../spatial/radial/actions/voice'
 import { isMenuOpen } from '../spatial/radial/types'
@@ -243,7 +244,10 @@ export function PitchStage() {
       if (action === 'next') command({ type: 'cmd', cmd: 'next' })
       else if (action === 'memory') setMemOpen((v) => !v)
       else if (action.startsWith('close-explain:')) rt.radial.executor.closeExplain(action.slice('close-explain:'.length))
-      else return false
+      else if (action.startsWith('explain-ask:')) {
+        const ask = parseAskAction(action)
+        if (ask) rt.radial.executor.askSuggested(ask.objectId, ask.index, rt.interaction.objects)
+      } else return false
       return true
     }
     return () => {

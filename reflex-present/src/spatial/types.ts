@@ -146,4 +146,6 @@ export interface SpatialObject {
   w: number
   h: number
   content?: SpatialObjectContent
+  /** 'transcript': text pasted onto the slide, drawn as a note rather than a coloured card. */
+  variant?: 'transcript'
 }

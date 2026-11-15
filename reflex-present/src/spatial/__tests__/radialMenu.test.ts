@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeObject } from '../radial/actions/explain'
+import { askAction, cleanAnswer, describeObject, localAnswer, parseAskAction } from '../radial/actions/explain'
 import { LocalMemoryStore } from '../radial/actions/memory'
 import { previewVoiceCommand } from '../radial/actions/voiceCommand'
 import { RadialActionExecutor } from '../radial/RadialActionExecutor'
@@ -207,6 +207,44 @@ describe('actions', () => {
     expect(ex.execute({ id: 3, action: 'voice', objectId: 'revenue', tMs: 0, selectionSource: 'vexo' }, objects)).toBe('voice')
     expect(ex.voice?.objectId).toBe('revenue')
     expect(ex.execute({ id: 4, action: 'voice', objectId: 'missing', tMs: 0, selectionSource: 'vexo' }, objects)).toBeNull()
+  })
+
+  it('answers questions from the data when no AI is connected', () => {
+    expect(localAnswer(chart, 'What is the trend?')).toBe('From Q1 to Q4 it went from 120 $k to 210 $k, +90 $k (+75.0%), rising in 3 of 3 steps.')
+    expect(localAnswer(chart, 'Where is the peak?')).toBe('The highest point is Q4 at 210 $k.')
+    expect(localAnswer(chart, 'Which quarter was lowest?')).toBe('The lowest point is Q1 at 120 $k.')
+    const note: SpatialObject = { ...chart, id: 'n', label: 'Pick me up', content: { kind: 'note', text: 'Pick me up\nA camera turns your hand into a cursor.' } }
+    expect(localAnswer(note, 'Summarize this')).toBe('“Pick me up”: A camera turns your hand into a cursor.')
+    expect(localAnswer(note, 'What’s the key point?')).toBe('The key point is “Pick me up”.')
+  })
+
+  it('cleans markdown out of model answers', () => {
+    expect(cleanAnswer('**Revenue** rose.\n- Q4 is the *peak*.\n## Done')).toBe('Revenue rose. Q4 is the peak. Done')
+  })
+
+  it('encodes suggested questions as air actions, ids with colons included', () => {
+    expect(parseAskAction(askAction('slide:1', 2))).toEqual({ objectId: 'slide:1', index: 2 })
+    expect(parseAskAction('close-explain:x')).toBeNull()
+  })
+
+  it('keeps the last three questions per card and replaces one still waiting', async () => {
+    const ex = new RadialActionExecutor(new LocalMemoryStore('', false), () => {})
+    ex.answer = async (question) => ({ question, text: `About ${question}.`, source: 'local', label: 'local' })
+    const settle = () => new Promise((r) => setTimeout(r))
+    ex.ask('revenue', 'first', objects)
+    ex.ask('revenue', 'second', objects) // replaces "first" before it is answered
+    await settle()
+    expect(ex.explainThreads.get('revenue')).toMatchObject([{ question: 'second', status: 'done', answer: { text: 'About second.' } }])
+
+    for (const q of ['a', 'b', 'c']) {
+      ex.ask('revenue', q, objects)
+      await settle()
+    }
+    expect(ex.explainThreads.get('revenue')?.map((q) => q.question)).toEqual(['a', 'b', 'c'])
+    ex.askSuggested('revenue', 0, objects)
+    expect(ex.explainThreads.get('revenue')?.at(-1)?.question).toBe('What’s the trend?')
+    ex.closeExplain('revenue')
+    expect(ex.explainThreads.has('revenue')).toBe(false)
   })
 
   it('binds "this" in a voice request to the selected object', () => {

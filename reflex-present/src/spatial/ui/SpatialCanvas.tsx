@@ -161,7 +161,7 @@ export function SpatialCanvas({ rt, pointerHidden = false }: { rt: SpatialRuntim
 
       {[...ex.explainCards.values()].map((card) => {
         const o = byId(card.objectId)
-        return o ? <ExplainPanel key={card.objectId} card={card} object={o} onClose={() => ex.closeExplain(card.objectId)} /> : null
+        return o ? <ExplainPanel key={card.objectId} card={card} object={o} thread={ex.explainThreads.get(card.objectId)} onAsk={(q) => ex.ask(card.objectId, q, ix.objects)} onClose={() => ex.closeExplain(card.objectId)} /> : null
       })}
 
       {ex.voice && voiceObj && (

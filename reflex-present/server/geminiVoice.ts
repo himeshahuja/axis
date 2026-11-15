@@ -8,8 +8,11 @@
 // what Google wrote in an error.
 //
 //   GET  /api/voice/gemini/status  → { configured, model }
-//   POST /api/voice/gemini         { audio: base64 WAV | text: string, object: {...}, others: string[] }
+//   POST /api/voice/gemini         { audio: base64 WAV | text: string, object: {...}, others: string[], mode? }
 //                                  → { transcript, reply, model } | { error }
+//
+// mode 'answer' (default) transcribes and replies; 'explain' answers a question about the
+// selected object in plain sentences; 'transcribe' only writes down what was said.
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Plugin } from 'vite'
@@ -23,7 +26,10 @@ export interface VoiceObjectContext {
   content?: unknown
 }
 
+export type VoiceMode = 'answer' | 'explain' | 'transcribe'
+
 export interface VoiceRequest {
+  mode?: VoiceMode
   /** Base64 WAV from the band's microphone. */
   audio?: string
   /** Or the words already transcribed (browser speech, Deepgram) or typed. */
@@ -37,19 +43,32 @@ export interface VoiceAnswer {
   reply: string
 }
 
-const INSTRUCTIONS = [
-  'You are the voice assistant of a live presentation. The presenter wears a Vexo wristband and has just spoken into its microphone while pointing at one object on the slide.',
-  'If you get audio, first transcribe exactly what was said (English); if you get the words as text, return them unchanged as the transcript. Then answer it in one to three short sentences, as a reply that will pop up on the shared screen.',
-  'Words like "this", "that" or "it" mean the selected object. Use only the numbers in the object data you are given; never invent figures. If the audio has no speech, return an empty transcript and a reply saying nothing was heard.',
-].join(' ')
+const INSTRUCTIONS: Record<VoiceMode, string> = {
+  answer: [
+    'You are the voice assistant of a live presentation. The presenter wears a Vexo wristband and has just spoken into its microphone while pointing at one object on the slide.',
+    'If you get audio, first transcribe exactly what was said (English); if you get the words as text, return them unchanged as the transcript. Then answer it in one to three short sentences, as a reply that will pop up on the shared screen.',
+    'Words like "this", "that" or "it" mean the selected object. Use only the numbers in the object data you are given; never invent figures. If the audio has no speech, return an empty transcript and a reply saying nothing was heard.',
+  ].join(' '),
+  explain: [
+    'You explain one object on a presentation slide. The presenter asks a question about the selected object; return the question unchanged as the transcript.',
+    'Reply in plain prose: one to three short sentences, no markdown, no bullet points, no headings, no preamble.',
+    'Words like "this", "that" or "it" mean the selected object. Use only the information and numbers in the object data you are given; never invent figures. If the data cannot answer the question, say so in one sentence.',
+  ].join(' '),
+  transcribe: [
+    'Transcribe exactly what is said in the audio (English), with normal punctuation and capitalisation. Do not answer it, summarise it or add anything.',
+    'Return the words as the transcript and an empty string as the reply. If there is no speech, return an empty transcript.',
+  ].join(' '),
+}
 
 export function buildGeminiRequest(req: VoiceRequest) {
+  const mode = req.mode ?? 'answer'
+  const said = mode === 'explain' ? `The presenter asks: "${req.text ?? ''}"` : `The presenter said: "${req.text ?? ''}"`
   const context = req.object
     ? `Selected object: ${req.object.label}\nIts data: ${JSON.stringify(req.object.content ?? null)}\nOther objects on the slide: ${(req.others ?? []).join(', ') || 'none'}`
     : 'No object is selected.'
   return {
-    systemInstruction: { parts: [{ text: INSTRUCTIONS }] },
-    contents: [{ role: 'user', parts: [req.audio ? { inlineData: { mimeType: 'audio/wav', data: req.audio } } : { text: `The presenter said: "${req.text ?? ''}"` }, { text: context }] }],
+    systemInstruction: { parts: [{ text: INSTRUCTIONS[mode] }] },
+    contents: [{ role: 'user', parts: [req.audio ? { inlineData: { mimeType: 'audio/wav', data: req.audio } } : { text: said }, { text: context }] }],
     generationConfig: {
       temperature: 0.3,
       responseMimeType: 'application/json',
@@ -141,6 +160,7 @@ export function geminiVoicePlugin(env: () => { key?: string; model?: string }): 
     const hasAudio = typeof body.audio === 'string' && body.audio.length > 0
     const hasText = typeof body.text === 'string' && body.text.trim().length > 0
     if (!hasAudio && !hasText) return send(res, 400, { error: 'No recording or text in the request.' })
+    if (body.mode !== undefined && !(typeof body.mode === 'string' && Object.hasOwn(INSTRUCTIONS, body.mode))) return send(res, 400, { error: 'Unknown mode.' })
     if (!hasAudio) body = { ...body, audio: undefined, text: body.text!.trim().slice(0, 2000) }
 
     let r: Response

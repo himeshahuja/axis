@@ -19,6 +19,15 @@ describe('Gemini voice endpoint helpers', () => {
     expect(String(parts[1].text)).toContain('Conventional interfaces')
   })
 
+  it('asks for plain answers in explain mode and words only in transcribe mode', () => {
+    const explain = buildGeminiRequest({ mode: 'explain', text: 'what is the trend', object: { label: 'Revenue' } })
+    expect((explain.contents[0].parts[0] as { text: string }).text).toBe('The presenter asks: "what is the trend"')
+    expect(explain.systemInstruction.parts[0].text).toContain('no markdown')
+    const transcribe = buildGeminiRequest({ mode: 'transcribe', audio: 'UklGRg==' })
+    expect(transcribe.systemInstruction.parts[0].text).toContain('Do not answer it')
+    expect(buildGeminiRequest({ text: 'hi' }).systemInstruction.parts[0].text).toContain('voice assistant')
+  })
+
   it('reads the transcript and reply from a generateContent response', () => {
     const r = { candidates: [{ content: { parts: [{ text: '{"transcript":" Compare this with last quarter ","reply":"Q4 is up 30k."}' }] } }] }
     expect(parseGeminiReply(r)).toEqual({ transcript: 'Compare this with last quarter', reply: 'Q4 is up 30k.' })

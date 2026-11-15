@@ -12,11 +12,13 @@
 //              (server/geminiVoice.ts holds the key). Gemini returns the transcript
 //              and a reply about the selected object. The default for Voice.
 
-import type { SpatialObject } from '../../types'
 import { BandAudio, AUDIO_RATE } from '../../wearable/vexoKit'
 import { BAND_NUMBER } from '../../wearable/band'
 import type { VexoBandAdapter } from '../../wearable/vexoBandAdapter'
+import { askGemini, type GeminiContext } from './gemini'
 import { encodeWav, rms, toBase64 } from './wav'
+
+export { askGemini, GeminiError, type GeminiAnswer } from './gemini'
 
 export type VoiceProviderId = 'band-gemini' | 'band' | 'browser' | 'typed'
 
@@ -31,9 +33,9 @@ export interface VoiceCallbacks {
 }
 
 /** What the request is about, so a reply can use the object's real data. */
-export interface VoiceContext {
-  object: SpatialObject
-  objects: SpatialObject[]
+export interface VoiceContext extends GeminiContext {
+  /** 'transcribe' (dictation) asks Gemini only for the words, no reply. */
+  mode?: 'answer' | 'transcribe'
 }
 
 export interface VoiceProvider {
@@ -95,7 +97,7 @@ export class BrowserSpeechProvider implements VoiceProvider {
       }
       cb.onText(text.trim(), final)
     }
-    rec.onerror = (e) => cb.onError(e.error === 'not-allowed' ? 'Microphone permission was refused.' : `Speech recognition error: ${e.error}`)
+    rec.onerror = (e) => cb.onError(e.error === 'not-allowed' ? 'Microphone permission was refused.' : e.error === 'no-speech' ? 'No speech was heard. Try again a little closer to the microphone.' : `Speech recognition error: ${e.error}`)
     rec.onend = () => cb.onState('stopped')
     this.rec = rec
     rec.start()
@@ -183,24 +185,6 @@ export class BandDeepgramProvider implements VoiceProvider {
 }
 
 // ---- band microphone → Google Gemini ------------------------------------------------------
-export interface GeminiAnswer {
-  transcript: string
-  reply: string
-  model: string
-}
-
-/**
- * Asks the dev server's Gemini endpoint to answer what was said about the selected object.
- * `audio` is a base64 WAV from the band; `text` is words already transcribed or typed.
- */
-export async function askGemini(said: { audio: string } | { text: string }, ctx: VoiceContext | undefined, signal?: AbortSignal): Promise<GeminiAnswer> {
-  const body = { ...said, ...(ctx ? { object: { label: ctx.object.label, content: ctx.object.content ?? null }, others: ctx.objects.filter((o) => o.id !== ctx.object.id).map((o) => o.label) } : {}) }
-  const r = await fetch('/api/voice/gemini', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal })
-  const j = (await r.json().catch(() => ({}))) as { transcript?: string; reply?: string; model?: string; error?: string }
-  if (!r.ok || typeof j.reply !== 'string') throw new Error(j.error ?? `The Gemini endpoint answered status ${r.status}.`)
-  return { transcript: j.transcript ?? '', reply: j.reply, model: j.model ?? '' }
-}
-
 const MAX_RECORD_S = 12
 const MIN_RECORD_S = 0.5
 const SPEECH_RMS = 0.02 // louder than this counts as speech
@@ -349,11 +333,11 @@ export class BandGeminiProvider implements VoiceProvider {
     cb.onState('thinking')
     const abort = new AbortController()
     this.abort = abort
-    askGemini({ audio }, ctx, abort.signal)
+    askGemini({ audio }, ctx, abort.signal, ctx?.mode)
       .then((a) => {
         if (abort.signal.aborted) return
         cb.onText(a.transcript || '(no speech heard)', true)
-        cb.onReply?.({ text: a.reply, model: a.model })
+        if (a.reply) cb.onReply?.({ text: a.reply, model: a.model })
         cb.onState('stopped')
       })
       .catch((e: unknown) => {

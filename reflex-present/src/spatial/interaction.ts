@@ -30,6 +30,16 @@ interface Move {
   id: string
   from: Point2
   to: Point2
+  /** Set when the drop was in the trash: the object as it was before the grab, for undo. */
+  removed?: SpatialObject
+}
+
+/** A rectangle in the canvas frame. */
+export interface Zone {
+  x: number
+  y: number
+  w: number
+  h: number
 }
 
 export interface TransitionRecord {
@@ -50,6 +60,9 @@ export class InteractionEngine {
   aspect = 16 / 9
   undoStack: Move[] = []
   transitions: TransitionRecord[] = []
+  /** Releasing a grabbed object while the pointer is in here deletes it (undo brings it back). */
+  trash: Zone | null = null
+  onTrashed: ((o: SpatialObject) => void) | null = null
   private grabOffset: Point2 = { x: 0, y: 0 }
   private grabStart: Point2 = { x: 0, y: 0 }
   private lostSince: number | null = null
@@ -72,6 +85,19 @@ export class InteractionEngine {
     this.lostSince = null
     this.transientSince = null
     this.changed()
+  }
+
+  /** Adds an object on top of the others. */
+  add(o: SpatialObject) {
+    this.objects = [...this.objects.filter((x) => x.id !== o.id), { ...o }]
+    this.changed()
+  }
+
+  /** True while a grabbed object is held over the trash. */
+  get overTrash() {
+    const p = this.pointer
+    const t = this.trash
+    return !!(t && this.grabbedId && p?.valid && p.x >= t.x && p.x <= t.x + t.w && p.y >= t.y && p.y <= t.y + t.h)
   }
 
   subscribe(fn: () => void) {
@@ -161,6 +187,17 @@ export class InteractionEngine {
       case 'release': {
         const o = this.obj(this.grabbedId)
         if (!o) break
+        if (this.overTrash) {
+          this.objects = this.objects.filter((x) => x !== o)
+          this.undoStack.push({ id: o.id, from: { ...this.grabStart }, to: { x: o.x, y: o.y }, removed: { ...o, ...this.grabStart } })
+          if (this.undoStack.length > 50) this.undoStack.shift()
+          this.grabbedId = null
+          this.hoverId = null
+          this.lostSince = null
+          this.go('RELEASED', ev.tMs, `trash ${o.id} (${ev.source})`)
+          this.onTrashed?.(o)
+          break
+        }
         if (Math.hypot(o.x - this.grabStart.x, o.y - this.grabStart.y) > 1e-6) {
           this.undoStack.push({ id: o.id, from: { ...this.grabStart }, to: { x: o.x, y: o.y } })
           if (this.undoStack.length > 50) this.undoStack.shift()
@@ -180,6 +217,10 @@ export class InteractionEngine {
       case 'undo': {
         if (this.grabbedId) break
         const m = this.undoStack.pop()
+        if (m?.removed) {
+          this.objects = [...this.objects, { ...m.removed }]
+          break
+        }
         const o = m && this.obj(m.id)
         if (o) this.place(o, m.from)
         break

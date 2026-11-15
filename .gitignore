@@ -1,7 +1,1 @@
 .DS_Store
-train/data/
-__pycache__/
-.venv/
-recordings/
-airwrite-trainer/data/
-model/model.onnx

@@ -234,7 +234,7 @@ export class SpatialRuntime {
     for (const fn of this.listeners) fn()
   }
 
-  private say(text: string) {
+  say(text: string) {
     this.notice = { text, tMs: performance.now() }
   }
 

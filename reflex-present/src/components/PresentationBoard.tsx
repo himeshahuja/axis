@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { demoIdentity, presentationDeck } from '../data/presentationDeck'
+import { defaultProfile, type CalibrationProfile } from '../spatial/calibration'
+import type { Zone } from '../spatial/interaction'
+import { parseAskAction } from '../spatial/radial/actions/explain'
 import { SpatialRuntime, useRuntime } from '../spatial/runtime'
 import type { SpatialObject } from '../spatial/types'
 import { CameraPreview } from '../spatial/ui/CameraPreview'
@@ -10,7 +13,36 @@ import './PresenterTheme.css'
 import { BAND_NUMBER } from '../spatial/wearable/band'
 
 const pct = (value: number) => `${value * 100}%`
+const clamp = (value: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, value))
 const CONTROL_MAGNET_RADIUS = 56
+/** Bottom-right corner of the slide: let go of anything here to delete it. */
+const TRASH: Zone = { x: 0.895, y: 0.79, w: 0.08, h: 0.15 }
+const NOTE_W = 0.24
+const DEFAULT_RANGE = defaultProfile().region
+
+/** True until the hand range has been calibrated on this camera. */
+const isDefaultRange = (p: CalibrationProfile) =>
+  !p.affine && p.region.x0 === DEFAULT_RANGE.x0 && p.region.y0 === DEFAULT_RANGE.y0 && p.region.x1 === DEFAULT_RANGE.x1 && p.region.y1 === DEFAULT_RANGE.y1
+
+/** Pasted text as a slide object, sized roughly to its words; it moves and trashes like any card. */
+function transcriptNote(text: string): SpatialObject {
+  const lines = text.split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(line.length / 34)), 0)
+  return { id: `transcript-${Date.now()}`, label: text, color: '#202123', shape: 'card', variant: 'transcript', x: 0, y: 0, w: NOTE_W, h: Math.min(0.46, 0.06 + lines * 0.033), content: { kind: 'note', text } }
+}
+
+const overlaps = (a: Zone, b: Zone) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+
+/** The first free spot beside `near` (left, below, above, right), on the slide and clear of the trash. */
+function besideObject(note: SpatialObject, near: SpatialObject, others: SpatialObject[]) {
+  const gap = 0.02
+  const spots = [
+    { x: near.x - gap - note.w, y: near.y },
+    { x: near.x, y: near.y + near.h + gap },
+    { x: near.x, y: near.y - gap - note.h },
+    { x: near.x + near.w + gap, y: near.y },
+  ].map((p) => ({ ...note, x: clamp(p.x, 0.01, 0.99 - note.w), y: clamp(p.y, 0.02, 0.98 - note.h) }))
+  return spots.find((spot) => !overlaps(spot, TRASH) && others.every((o) => !overlaps(spot, o))) ?? spots[0]
+}
 
 function airActionNear(stage: HTMLElement, x: number, y: number, preferred: string | null = null) {
   const exact = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-air-action]')
@@ -35,13 +67,24 @@ function airActionNear(stage: HTMLElement, x: number, y: number, preferred: stri
     : nearest.action
 }
 
-function SlideCard({ object, active, grabbed }: { object: SpatialObject; active: boolean; grabbed: boolean }) {
+function SlideCard({ object, active, grabbed, trashing }: { object: SpatialObject; active: boolean; grabbed: boolean; trashing: boolean }) {
   return (
     <div
-      className={`presentation-card ${active ? 'is-hovered' : ''} ${grabbed ? 'is-grabbed' : ''} ${object.shape}`}
+      className={`presentation-card ${active ? 'is-hovered' : ''} ${grabbed ? 'is-grabbed' : ''} ${trashing ? 'is-trashing' : ''} ${object.variant === 'transcript' ? 'is-transcript' : ''} ${object.shape}`}
       style={{ left: pct(object.x), top: pct(object.y), width: pct(object.w), height: pct(object.h), '--card-color': object.color } as React.CSSProperties}
     >
-      {object.label.split('\n').map((line, i) => <span key={i}>{line}</span>)}
+      {object.variant === 'transcript' ? <span>{object.label}</span> : object.label.split('\n').map((line, i) => <span key={i}>{line}</span>)}
+    </div>
+  )
+}
+
+function TrashZone({ ready, armed }: { ready: boolean; armed: boolean }) {
+  return (
+    <div className={`trash-zone ${ready ? 'is-ready' : ''} ${armed ? 'is-armed' : ''}`} style={{ left: pct(TRASH.x), top: pct(TRASH.y), width: pct(TRASH.w), height: pct(TRASH.h) }} aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
+      </svg>
+      <span>{armed ? 'Let go to delete' : 'Trash'}</span>
     </div>
   )
 }
@@ -56,8 +99,9 @@ export function PresentationBoard() {
   const [showTools, setShowTools] = useState(false)
   const [showActionTray, setShowActionTray] = useState(false)
   const [placingTranscript, setPlacingTranscript] = useState<string | null>(null)
-  const [transcriptNotes, setTranscriptNotes] = useState<{ id: string; slideId: string; x: number; y: number; text: string }[]>([])
   const [startingCalibration, setStartingCalibration] = useState(false)
+  const [calibrateHint, setCalibrateHint] = useState(true)
+  const [hintExpired, setHintExpired] = useState(false)
   const [calibrationError, setCalibrationError] = useState<string | null>(null)
   const [bandConnectHint, setBandConnectHint] = useState<string | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
@@ -71,6 +115,9 @@ export function PresentationBoard() {
   const firstCorner = calibration.kind === 'region' ? calibration.corners[0] : null
   const rangeOrigin = firstCorner ? { x: runtime.profile.mirrorX ? 1 - firstCorner.x : firstCorner.x, y: runtime.profile.flipY ? 1 - firstCorner.y : firstCorner.y } : null
   const notice = runtime.notice && performance.now() - runtime.notice.tMs < 5000 ? runtime.notice.text : null
+  // Like air-draw's calibration on connect: ask for a range before the hand takes over.
+  const uncalibrated = isDefaultRange(runtime.profile)
+  const showCalibrateHint = calibrateHint && calibration.kind === 'none' && !placingTranscript && (uncalibrated || !hintExpired)
 
   useEffect(() => {
     runtime.start()
@@ -81,6 +128,27 @@ export function PresentationBoard() {
     // then re-apply it after the per-camera profile has loaded.
     void runtime.startCamera().then(() => runtime.updateProfile({ mirrorX: true }))
     return () => runtime.dispose()
+  }, [runtime])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setHintExpired(true), 9000)
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  useEffect(() => {
+    const ix = runtime.interaction
+    ix.trash = TRASH
+    ix.onTrashed = (object) => {
+      const executor = runtime.radial.executor
+      if (executor.explainCards.has(object.id)) executor.closeExplain(object.id)
+      if (executor.voice?.objectId === object.id) executor.closeVoice()
+      const name = object.label.split('\n')[0]
+      runtime.say(`Deleted “${name.length > 40 ? `${name.slice(0, 40)}…` : name}” · ⌘Z to undo`)
+    }
+    return () => {
+      ix.trash = null
+      ix.onTrashed = null
+    }
   }, [runtime])
 
   useEffect(() => {
@@ -101,46 +169,9 @@ export function PresentationBoard() {
     runtime.setObjects(slideLayouts.current.get(presentationDeck[index].id) ?? presentationDeck[index].objects)
   }
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if ((event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return
-      if (event.key === 'Escape' && placingTranscript) { setPlacingTranscript(null); event.preventDefault(); return }
-      if (event.key === 'Escape' && showActionTray) { setShowActionTray(false); event.preventDefault(); return }
-      if (event.key === 'Escape' && showTools) { setShowTools(false); event.preventDefault(); return }
-      if (runtime.radial.capturesInput && runtime.onKey(event)) { event.preventDefault(); return }
-      if (event.key === 'ArrowRight') changeSlide(slideIndex + 1)
-      else if (event.key === 'ArrowLeft') changeSlide(slideIndex - 1)
-      else if (event.key.toLowerCase() === 'c') setShowCamera((value) => !value)
-      else if (event.key.toLowerCase() === 'f') void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())
-      else if (!runtime.onKey(event)) return
-      event.preventDefault()
-    }
-    window.addEventListener('keydown', onKey)
-    const onRelease = () => runtime.onMouseReleasedElsewhere()
-    window.addEventListener('mouseup', onRelease)
-    window.addEventListener('blur', onRelease)
-    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('mouseup', onRelease); window.removeEventListener('blur', onRelease) }
-  }, [runtime, slideIndex, showTools, placingTranscript, showActionTray])
-
-  const point = (event: React.MouseEvent) => {
-    const box = stageRef.current!.getBoundingClientRect()
-    return { x: (event.clientX - box.left) / box.width, y: (event.clientY - box.top) / box.height }
-  }
-
-  const placeTranscript = (x: number, y: number) => {
-    if (!placingTranscript) return
-    setTranscriptNotes((notes) => [...notes, {
-      id: `transcript-${Date.now()}`,
-      slideId: slide.id,
-      x: Math.max(0.12, Math.min(0.88, x)),
-      y: Math.max(0.08, Math.min(0.92, y)),
-      text: placingTranscript,
-    }])
-    setPlacingTranscript(null)
-  }
-
   const beginCalibration = useCallback(async () => {
     setCalibrationError(null)
+    setCalibrateHint(false)
     setStartingCalibration(true)
     try {
       if (runtime.tracker.status !== 'running') await runtime.startCamera()
@@ -154,6 +185,40 @@ export function PresentationBoard() {
       setStartingCalibration(false)
     }
   }, [runtime])
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.target as HTMLElement).closest('input, textarea, select, [contenteditable="true"]')) return
+      if (event.key === 'Escape' && placingTranscript) { setPlacingTranscript(null); event.preventDefault(); return }
+      if (event.key === 'Escape' && showActionTray) { setShowActionTray(false); event.preventDefault(); return }
+      if (event.key === 'Escape' && showTools) { setShowTools(false); event.preventDefault(); return }
+      if (runtime.radial.capturesInput && runtime.onKey(event)) { event.preventDefault(); return }
+      if (event.key === 'ArrowRight') changeSlide(slideIndex + 1)
+      else if (event.key === 'ArrowLeft') changeSlide(slideIndex - 1)
+      else if (event.key.toLowerCase() === 'c') setShowCamera((value) => !value)
+      else if (event.key.toLowerCase() === 'f') void (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())
+      else if (event.key.toLowerCase() === 'k' && !event.metaKey && !event.ctrlKey) void beginCalibration()
+      else if (!runtime.onKey(event)) return
+      event.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    const onRelease = () => runtime.onMouseReleasedElsewhere()
+    window.addEventListener('mouseup', onRelease)
+    window.addEventListener('blur', onRelease)
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('mouseup', onRelease); window.removeEventListener('blur', onRelease) }
+  }, [runtime, beginCalibration, slideIndex, showTools, placingTranscript, showActionTray])
+
+  const point = (event: React.MouseEvent) => {
+    const box = stageRef.current!.getBoundingClientRect()
+    return { x: (event.clientX - box.left) / box.width, y: (event.clientY - box.top) / box.height }
+  }
+
+  const placeTranscript = (x: number, y: number) => {
+    if (!placingTranscript) return
+    const note = transcriptNote(placingTranscript)
+    runtime.interaction.add({ ...note, x: clamp(x - note.w / 2, 0.01, 0.99 - note.w), y: clamp(y - note.h / 2, 0.02, 0.98 - note.h) })
+    setPlacingTranscript(null)
+  }
 
   const triggerAirControl = useCallback((action: string) => {
     if (action === 'mirror') runtime.updateProfile({ mirrorX: !runtime.profile.mirrorX })
@@ -190,6 +255,10 @@ export function PresentationBoard() {
       }
     }
     else if (action.startsWith('close-explain:')) runtime.radial.executor.closeExplain(action.slice('close-explain:'.length))
+    else if (action.startsWith('explain-ask:')) {
+      const ask = parseAskAction(action)
+      if (ask) runtime.radial.executor.askSuggested(ask.objectId, ask.index, runtime.interaction.objects)
+    }
     if (action !== 'tools' && action !== 'band-connect') setShowTools(false)
   }, [runtime, beginCalibration, slideIndex])
 
@@ -213,7 +282,7 @@ export function PresentationBoard() {
       return true
     }
     return () => { runtime.onControlSelect = null }
-  }, [runtime, triggerAirControl, hoverControl, placingTranscript, slide.id])
+  }, [runtime, triggerAirControl, hoverControl, placingTranscript])
 
   useEffect(() => {
     const stage = stageRef.current
@@ -258,7 +327,7 @@ export function PresentationBoard() {
           </button>
           <i />
           <span className={`tracking-indicator ${rawPointer ? 'tracked' : ''}`} role="status" aria-label={rawPointer ? 'Hand tracked' : runtime.tracker.status === 'running' ? 'Raise a hand into view' : `Camera ${runtime.tracker.status}`} title={rawPointer ? 'Hand tracked' : runtime.tracker.status === 'running' ? 'Raise a hand into view' : `Camera ${runtime.tracker.status}`} />
-          <button className={hoverControl === 'calibrate' ? 'proximity-active' : undefined} data-air-action="calibrate" onClick={() => triggerAirControl('calibrate')}>{startingCalibration ? 'Starting…' : 'Calibrate'}</button>
+          <button className={hoverControl === 'calibrate' ? 'proximity-active' : undefined} data-air-action="calibrate" title="Calibrate your hand range (K)" onClick={() => triggerAirControl('calibrate')}>{startingCalibration ? 'Starting…' : <>Calibrate <kbd className="key-hint">K</kbd></>}</button>
           <button className={hoverControl === 'tools' ? 'proximity-active' : undefined} data-air-action="tools" aria-label="More controls" aria-expanded={showTools} onClick={() => triggerAirControl('tools')}>···</button>
         </div>
         {showTools && <div className="presenter-tools" data-hover={hoverControl} onMouseDown={(e) => e.stopPropagation()} onMouseUp={(e) => e.stopPropagation()}>
@@ -286,18 +355,18 @@ export function PresentationBoard() {
           <h2>{slide.subtitle}</h2>
         </section>
         <div className="presentation-objects">
-          {ix.objects.map((object) => <SlideCard key={object.id} object={object} active={ix.hoverId === object.id && !runtime.radial.capturesInput} grabbed={ix.grabbedId === object.id} />)}
+          {ix.objects.map((object) => <SlideCard key={object.id} object={object} active={ix.hoverId === object.id && !runtime.radial.capturesInput} grabbed={ix.grabbedId === object.id} trashing={ix.grabbedId === object.id && ix.overTrash} />)}
         </div>
-        {calibration.kind === 'none' && <PresenterActions rt={runtime} />}
+        {calibration.kind === 'none' && <TrashZone ready={!!ix.grabbedId} armed={ix.overTrash} />}
+        {calibration.kind === 'none' && <PresenterActions rt={runtime} hoverAction={hoverControl} onPaste={(text, near) => runtime.interaction.add(besideObject(transcriptNote(text), near, runtime.interaction.objects))} />}
         {calibration.kind === 'none' && showActionTray && <PresenterActionTray providers={runtime.radial.voiceProviders} onClose={() => setShowActionTray(false)} onConnectBand={(link) => runtime.radial.connectBand(link)} onPlace={(text) => { setPlacingTranscript(text); setShowActionTray(false) }} />}
         {placingTranscript && <div className="placement-banner" onMouseDown={(event) => event.stopPropagation()}>
           <span>Move the cursor to where the transcript should go, then close your hand or click to place it.</span>
           <button onClick={() => setPlacingTranscript(null)}>Cancel · Esc</button>
         </div>}
-        {transcriptNotes.filter((note) => note.slideId === slide.id).map((note) => <aside key={note.id} className="transcript-note" style={{ left: pct(note.x), top: pct(note.y) }}>
-          <button onClick={() => setTranscriptNotes((items) => items.filter((item) => item.id !== note.id))} aria-label="Remove transcript note">×</button>
-          <span>{note.text}</span>
-        </aside>)}
+        {showCalibrateHint && <button className={`calibrate-hint ${hoverControl === 'calibrate' ? 'proximity-active' : ''}`} data-air-action="calibrate" onMouseDown={(event) => event.stopPropagation()} onClick={() => void beginCalibration()}>
+          <kbd>K</kbd>{uncalibrated ? 'Calibrate your hand range before you start' : 'Press K to recalibrate your hand range'}
+        </button>}
         {pointer.valid && <div className={`presentation-cursor ${runtime.detector.engaged || ix.grabbedId ? 'is-grasped' : ''} ${placingTranscript ? 'is-placement' : ''}`} style={{ left: pct(pointer.x), top: pct(pointer.y) }} />}
         {calibration.kind === 'region' && (
           <div className="range-setup">
